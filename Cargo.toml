@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+authors = [
+  "John Choi <john@cremit.io>"
+]
+repository = "https://github.com/cremithq/tessera"
+keywords = ["secret", "vault"]
+categories = ["security"]
+
+[profile.release]
+strip = true
+opt-level = "z"
+codegen-units = 1
+lto = true
+
+[profile.dev]
+strip = "debuginfo"
+
+[profile.dev.package."*"]
+opt-level = 0
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+tokio = "1.40"
+tracing = "0.1"
+serde = "1.0"
+serde_json = "1.0"
+thiserror = "1.0"
+zeroize = "1.8.1"
