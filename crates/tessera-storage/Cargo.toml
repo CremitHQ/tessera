@@ -1,0 +1,19 @@
+[package]
+name = "tessera-storage"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
