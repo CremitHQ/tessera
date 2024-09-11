@@ -11,7 +11,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use super::Protector;
+use super::Shield;
 use crate::errors::{ProtectorError, StorageError};
 use crate::{Storage, STORAGE_INIT_PATH};
 use zeroize::{Zeroize, Zeroizing};
@@ -23,25 +23,25 @@ const AES_BLOCK_SIZE: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Zeroize)]
 #[zeroize(drop)]
-struct ProtectorInit {
+struct AESGCMShieldInit {
     version: u32,
     key: Vec<u8>,
 }
 
-struct ProtectorState {
+struct AESGCMShieldState {
     sealed: bool,
     key: Option<Vec<u8>>,
     cipher: Option<&'static CipherRef>,
     cipher_ctx: Option<RwLock<CipherCtx>>,
 }
 
-pub struct AESGCMProtector {
-    barrier_info: Arc<RwLock<ProtectorState>>,
+pub struct AESGCMShieldStorage {
+    shield_info: Arc<RwLock<AESGCMShieldState>>,
     backend: Arc<dyn Storage>,
 }
 
 #[async_trait]
-impl Protector for AESGCMProtector {
+impl Shield for AESGCMShieldStorage {
     async fn initialized(&self) -> Result<bool, ProtectorError> {
         let res = self.backend.get(STORAGE_INIT_PATH).await;
         match res {
@@ -66,13 +66,13 @@ impl Protector for AESGCMProtector {
         // the encrypt_key variable will be zeroized automatically on drop
         let encrypt_key = self.generate_key()?;
 
-        let barrier_init = ProtectorInit { version: 1, key: encrypt_key.to_vec() };
+        let shield_int = AESGCMShieldInit { version: 1, key: encrypt_key.to_vec() };
 
-        let serialized_barrier_init = serde_json::to_string(&barrier_init)?;
+        let serialized_shield_init = serde_json::to_string(&shield_int)?;
 
         self.init_cipher(kek).await?;
 
-        let value = self.encrypt(serialized_barrier_init.as_bytes()).await?;
+        let value = self.encrypt(serialized_shield_init.as_bytes()).await?;
 
         self.backend.set(STORAGE_INIT_PATH, &value).await?;
 
@@ -94,13 +94,13 @@ impl Protector for AESGCMProtector {
         (AES_BLOCK_SIZE, 2 * AES_BLOCK_SIZE)
     }
 
-    async fn protected(&self) -> Result<bool, ProtectorError> {
-        let barrier_info = self.barrier_info.read().await;
-        Ok(barrier_info.sealed)
+    async fn armored(&self) -> Result<bool, ProtectorError> {
+        let shield_info = self.shield_info.read().await;
+        Ok(shield_info.sealed)
     }
 
-    async fn release(&self, kek: &[u8]) -> Result<(), ProtectorError> {
-        let sealed = self.protected().await?;
+    async fn disarm(&self, kek: &[u8]) -> Result<(), ProtectorError> {
+        let sealed = self.armored().await?;
         if !sealed {
             return Ok(());
         }
@@ -109,32 +109,29 @@ impl Protector for AESGCMProtector {
         self.init_cipher(kek).await?;
 
         let value = self.decrypt(value.as_slice()).await?;
-        let barrier_init: ProtectorInit = serde_json::from_slice(value.as_slice())?;
+        let shield_init: AESGCMShieldInit = serde_json::from_slice(value.as_slice())?;
 
-        // the barrier_init.key is the real encryption key generated in init().
-        // the whole barrier_init will be zeroized on drop, so there is no special
-        // zeroizing logic on barrier_init.key.
-        self.init_cipher(barrier_init.key.as_slice()).await?;
+        self.init_cipher(shield_init.key.as_slice()).await?;
 
-        let mut barrier_info = self.barrier_info.write().await;
-        barrier_info.sealed = false;
+        let mut shield_info = self.shield_info.write().await;
+        shield_info.sealed = false;
 
         Ok(())
     }
 
-    async fn protect(&self) -> Result<(), ProtectorError> {
+    async fn armor(&self) -> Result<(), ProtectorError> {
         self.reset_cipher().await?;
-        let mut barrier_info = self.barrier_info.write().await;
-        barrier_info.sealed = true;
+        let mut shield_info = self.shield_info.write().await;
+        shield_info.sealed = true;
         Ok(())
     }
 }
 
-impl AESGCMProtector {
+impl AESGCMShieldStorage {
     pub fn new(physical: Arc<dyn Storage>) -> Self {
         Self {
             backend: physical,
-            barrier_info: Arc::new(RwLock::new(ProtectorState {
+            shield_info: Arc::new(RwLock::new(AESGCMShieldState {
                 sealed: true,
                 key: None,
                 cipher: None,
@@ -144,14 +141,14 @@ impl AESGCMProtector {
     }
 
     async fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, ProtectorError> {
-        let barrier_info = self.barrier_info.read().await;
-        if barrier_info.key.is_none() || barrier_info.cipher_ctx.is_none() || barrier_info.cipher.is_none() {
+        let shield_info = self.shield_info.read().await;
+        if shield_info.key.is_none() || shield_info.cipher_ctx.is_none() || shield_info.cipher.is_none() {
             return Err(ProtectorError::NotInitialized);
         }
 
-        let cipher = barrier_info.cipher.unwrap();
-        let mut cipher_ctx = barrier_info.cipher_ctx.as_ref().unwrap().write().await;
-        let key = Zeroizing::new(barrier_info.key.clone().unwrap());
+        let cipher = shield_info.cipher.unwrap();
+        let mut cipher_ctx = shield_info.cipher_ctx.as_ref().unwrap().write().await;
+        let key = Zeroizing::new(shield_info.key.clone().unwrap());
 
         // Assuming nonce size is the same as IV size
         let nonce_size = cipher.iv_length();
@@ -189,8 +186,8 @@ impl AESGCMProtector {
     }
 
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, ProtectorError> {
-        let barrier_info = self.barrier_info.read().await;
-        if barrier_info.key.is_none() || barrier_info.cipher_ctx.is_none() || barrier_info.cipher.is_none() {
+        let shield_info = self.shield_info.read().await;
+        if shield_info.key.is_none() || shield_info.cipher_ctx.is_none() || shield_info.cipher.is_none() {
             return Err(ProtectorError::NotInitialized);
         }
 
@@ -198,9 +195,9 @@ impl AESGCMProtector {
             return Err(ProtectorError::Other(anyhow!("Invalid key epoch in ciphertext")));
         }
 
-        let cipher = barrier_info.cipher.unwrap();
-        let mut cipher_ctx = barrier_info.cipher_ctx.as_ref().unwrap().write().await;
-        let key = Zeroizing::new(barrier_info.key.clone().unwrap());
+        let cipher = shield_info.cipher.unwrap();
+        let mut cipher_ctx = shield_info.cipher_ctx.as_ref().unwrap().write().await;
+        let key = Zeroizing::new(shield_info.key.clone().unwrap());
         let nonce_size = cipher.iv_length();
 
         if ciphertext[4] != AES_GCM_VERSION {
@@ -230,20 +227,20 @@ impl AESGCMProtector {
 
     async fn init_cipher(&self, key: &[u8]) -> Result<(), ProtectorError> {
         let cipher_ctx = CipherCtx::new().map_err(|e| ProtectorError::Other(anyhow!(e)))?;
-        let mut barrier_info = self.barrier_info.write().await;
-        barrier_info.key = Some(key.to_vec());
-        barrier_info.cipher = Some(Cipher::aes_256_gcm());
-        barrier_info.cipher_ctx = Some(RwLock::new(cipher_ctx));
+        let mut shield_info = self.shield_info.write().await;
+        shield_info.key = Some(key.to_vec());
+        shield_info.cipher = Some(Cipher::aes_256_gcm());
+        shield_info.cipher_ctx = Some(RwLock::new(cipher_ctx));
         Ok(())
     }
 
     async fn reset_cipher(&self) -> Result<(), ProtectorError> {
-        let mut barrier_info = self.barrier_info.write().await;
+        let mut shield_info = self.shield_info.write().await;
         // Zeroize it explicitly
-        barrier_info.key.zeroize();
-        barrier_info.key = None;
-        barrier_info.cipher = None;
-        barrier_info.cipher_ctx = None;
+        shield_info.key.zeroize();
+        shield_info.key = None;
+        shield_info.cipher = None;
+        shield_info.cipher_ctx = None;
         Ok(())
     }
 }

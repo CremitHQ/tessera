@@ -422,6 +422,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tessera-backbone"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
 name = "tessera-storage"
 version = "0.0.1"
 dependencies = [
