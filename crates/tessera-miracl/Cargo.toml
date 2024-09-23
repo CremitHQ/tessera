@@ -1,0 +1,11 @@
+[package]
+name = "tessera_miracl"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
