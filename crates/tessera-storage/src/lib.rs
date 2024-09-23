@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 pub mod errors;
-pub mod protector;
+pub mod shield;
 
 pub const STORAGE_INIT_PATH: &str = "storage/init";
 type Value = Vec<u8>;

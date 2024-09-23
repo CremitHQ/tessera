@@ -11,7 +11,7 @@ use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
-use super::Shield;
+use super::ShieldStorage;
 use crate::errors::{ProtectorError, StorageError};
 use crate::{Storage, STORAGE_INIT_PATH};
 use zeroize::{Zeroize, Zeroizing};
@@ -37,13 +37,32 @@ struct AESGCMShieldState {
 
 pub struct AESGCMShieldStorage {
     shield_info: Arc<RwLock<AESGCMShieldState>>,
-    backend: Arc<dyn Storage>,
+    storage: Arc<dyn Storage>,
 }
 
 #[async_trait]
-impl Shield for AESGCMShieldStorage {
+impl Storage for AESGCMShieldStorage {
+    async fn get(&self, path: &str) -> Result<Vec<u8>, StorageError> {
+        self.storage.get(path).await
+    }
+
+    async fn set(&self, path: &str, value: &[u8]) -> Result<(), StorageError> {
+        self.storage.set(path, value).await
+    }
+
+    async fn delete(&self, path: &str) -> Result<(), StorageError> {
+        self.storage.delete(path).await
+    }
+
+    async fn list(&self) -> Result<Vec<String>, StorageError> {
+        self.storage.list().await
+    }
+}
+
+#[async_trait]
+impl ShieldStorage for AESGCMShieldStorage {
     async fn initialized(&self) -> Result<bool, ProtectorError> {
-        let res = self.backend.get(STORAGE_INIT_PATH).await;
+        let res = self.storage.get(STORAGE_INIT_PATH).await;
         match res {
             Ok(_) => Ok(true),
             Err(StorageError::KeyNotFound) => Ok(false),
@@ -74,7 +93,7 @@ impl Shield for AESGCMShieldStorage {
 
         let value = self.encrypt(serialized_shield_init.as_bytes()).await?;
 
-        self.backend.set(STORAGE_INIT_PATH, &value).await?;
+        self.storage.set(STORAGE_INIT_PATH, &value).await?;
 
         self.reset_cipher().await?;
 
@@ -105,7 +124,7 @@ impl Shield for AESGCMShieldStorage {
             return Ok(());
         }
 
-        let value = self.backend.get(STORAGE_INIT_PATH).await?;
+        let value = self.storage.get(STORAGE_INIT_PATH).await?;
         self.init_cipher(kek).await?;
 
         let value = self.decrypt(value.as_slice()).await?;
@@ -130,7 +149,7 @@ impl Shield for AESGCMShieldStorage {
 impl AESGCMShieldStorage {
     pub fn new(physical: Arc<dyn Storage>) -> Self {
         Self {
-            backend: physical,
+            storage: physical,
             shield_info: Arc::new(RwLock::new(AESGCMShieldState {
                 sealed: true,
                 key: None,
