@@ -1,0 +1,14 @@
+[package]
+name = "tessera_policy"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+permutation = "0.4.1"
+pest = "2.7.10"
+pest_derive = "2.7.10"
