@@ -25,6 +25,7 @@ strip = "debuginfo"
 opt-level = 0
 
 [workspace.dependencies]
+rand = "0.8"
 anyhow = "1.0"
 async-trait = "0.1"
 tokio = "1.40"

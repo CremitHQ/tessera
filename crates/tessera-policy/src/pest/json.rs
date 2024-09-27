@@ -7,11 +7,7 @@ pub(crate) struct JSONPolicyParser;
 
 pub(crate) fn parse(pair: Pair<Rule>) -> PolicyValue {
     match pair.as_rule() {
-        Rule::string => {
-            let p = pair.into_inner().next().unwrap();
-            PolicyValue::String((p.as_str(), p.line_col().1))
-        }
-        Rule::number => {
+        Rule::string | Rule::number => {
             let p = pair.into_inner().next().unwrap();
             PolicyValue::String((p.as_str(), p.line_col().1))
         }
