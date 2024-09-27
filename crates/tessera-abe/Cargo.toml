@@ -1,0 +1,24 @@
+[package]
+name = "tessera-abe"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+aes-gcm = "0.10"
+sha3 = "0.10"
+serde = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
+rand = { workspace = true }
+tessera_miracl = { workspace = true }
+tessera_policy = { workspace = true }
