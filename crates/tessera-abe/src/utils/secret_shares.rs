@@ -39,9 +39,9 @@ pub fn calc_coefficients<T: Curve>(
                 Some(coeff_list)
             }
             PolicyType::Or => {
-                let this_coeff = recover_coefficients(vec![BIG::new_int(1)]);
+                let this_coeff = recover_coefficients::<T>(vec![T::Big::one()]);
                 for child in children.iter() {
-                    match calc_coefficients(&child, BIG::modmul(&coeff, &this_coeff[0], &q), coeff_list.clone(), None) {
+                    match calc_coefficients::<T>(&child, coeff * &this_coeff[0], coeff_list.clone(), None) {
                         None => return None,
                         Some(res) => coeff_list = res,
                     }
@@ -58,17 +58,16 @@ pub fn calc_coefficients<T: Curve>(
 }
 
 // lagrange interpolation
-pub fn recover_coefficients(list: Vec<BIG>) -> Vec<BIG> {
+pub fn recover_coefficients<T: Curve>(list: Vec<T::Big>) -> Vec<T::Big> {
     let mut coeff = vec![];
-    let modulus = BIG::new_ints(&MODULUS);
     for i in list.clone() {
-        let mut result = BIG::new_int(1);
+        let mut result = T::Big::one();
         for j in list.clone() {
-            if BIG::comp(&i, &j) != 0 {
-                let mut q = BIG::modadd(&i, &BIG::modneg(&j, &modulus), &modulus);
-                q.invmodp(&modulus);
-                let p = BIG::modneg(&j, &modulus);
-                result = BIG::modmul(&result, &BIG::modmul(&q, &p, &modulus), &modulus);
+            if i != j {
+                let p = -j;
+                let q = i - j;
+                let t = p / q;
+                result = result * t;
             }
         }
         coeff.push(result);
@@ -84,13 +83,13 @@ pub fn remove_index(node: &String) -> String {
     parts[0].to_string()
 }
 
-pub fn gen_shares_policy(
-    secret: BIG,
+pub fn gen_shares_policy<T: Curve>(
+    rng: &mut T::Rng,
+    secret: T::Big,
     policy_value: &PolicyValue,
     policy_type: Option<PolicyType>,
-) -> Option<HashMap<String, BIG>> {
-    let q = BIG::new_ints(&MODULUS);
-    let mut result: HashMap<String, BIG> = HashMap::new();
+) -> Option<HashMap<String, T::Big>> {
+    let mut result: HashMap<String, T::Big> = HashMap::new();
     let k;
     let n;
     match policy_value {
@@ -99,9 +98,9 @@ pub fn gen_shares_policy(
             Some(result)
         }
         PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::And)),
-            PolicyType::Or => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::Or)),
-            _ => gen_shares_policy(secret, &obj.1.as_ref(), Some(PolicyType::Leaf)),
+            PolicyType::And => gen_shares_policy::<T>(rng, secret, &obj.1.as_ref(), Some(PolicyType::And)),
+            PolicyType::Or => gen_shares_policy::<T>(rng, secret, &obj.1.as_ref(), Some(PolicyType::Or)),
+            _ => gen_shares_policy::<T>(rng, secret, &obj.1.as_ref(), Some(PolicyType::Leaf)),
         },
         PolicyValue::Array(children) => {
             n = children.len();
@@ -114,9 +113,9 @@ pub fn gen_shares_policy(
                 }
                 _ => panic!("this should not happen =( Array is always AND or OR."),
             }
-            let shares = gen_shares(secret, k, n);
+            let shares = gen_shares::<T>(rng, secret, k, n);
             for i in 0..n {
-                match gen_shares_policy(shares[i + 1], &children[i], None) {
+                match gen_shares_policy::<T>(rng, shares[i + 1], &children[i], None) {
                     None => panic!("Error in gen_shares_policy: Returned None."),
                     Some(items) => {
                         result.extend(items.into_iter());
@@ -128,23 +127,17 @@ pub fn gen_shares_policy(
     }
 }
 
-pub fn gen_shares(secret: BIG, k: usize, n: usize) -> Vec<BIG> {
-    let mut shares: Vec<BIG> = Vec::new();
+pub fn gen_shares<T: Curve>(rng: &mut T::Rng, secret: T::Big, k: usize, n: usize) -> Vec<T::Big> {
+    let mut shares: Vec<T::Big> = Vec::new();
     if k <= n {
-        let mut rng = RAND::new();
-        let mut seed: [u8; 128] = [0; 128];
-        let mut thread_rng = rand::thread_rng();
-        thread_rng.fill_bytes(&mut seed);
-        rng.seed(128, &seed);
-
         // polynomial coefficients
-        let mut a: Vec<BIG> = Vec::new();
+        let mut a: Vec<T::Big> = Vec::new();
         a.push(secret);
-        for _i in 1..k {
-            a.push(BIG::random(&mut rng));
+        for _ in 1..k {
+            a.push(T::Big::random(rng));
         }
         for i in 0..(n + 1) {
-            let polynom = polynomial(a.clone(), BIG::new_int(i as isize));
+            let polynom = polynomial::<T>(a.clone(), T::Big::new_int(i.try_into().unwrap_or(T::Chunk::default())));
             shares.push(polynom);
         }
     }
@@ -214,28 +207,23 @@ pub fn calc_pruned(
 }
 
 #[allow(dead_code)]
-pub fn recover_secret(shares: HashMap<String, BIG>, _policy: &String) -> BIG {
-    let q = BIG::new_ints(&MODULUS);
+pub fn recover_secret<T: Curve>(shares: HashMap<String, T::Big>, _policy: &String) -> T::Big {
     let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
-    let mut coeff_list: HashMap<String, BIG> = HashMap::new();
-    coeff_list = calc_coefficients(&policy, BIG::new_int(1), coeff_list, None).unwrap();
-    let mut secret = BIG::new();
+    let mut coeff_list: HashMap<String, T::Big> = HashMap::new();
+    coeff_list = calc_coefficients::<T>(&policy, T::Big::one(), coeff_list, None).unwrap();
+    let mut secret = T::Big::new();
     for (i, share) in shares {
         let coeff = coeff_list.get(&i).unwrap();
-        secret = BIG::modadd(&secret, &BIG::modmul(&coeff, &share, &q), &q);
+        secret = secret + (share * coeff);
     }
     return secret;
 }
 
-pub fn polynomial(coeff: Vec<BIG>, x: BIG) -> BIG {
+pub fn polynomial<T: Curve>(coeff: Vec<T::Big>, x: T::Big) -> T::Big {
     let mut share = coeff[0].clone();
-
-    let modulus = BIG::new_ints(&MODULUS);
-    for i in 1usize..coeff.len() {
-        let mut x_pow = x.clone();
-        x_pow.powmod(&BIG::new_int(i as isize), &modulus);
-        // share.add(&BIG::modmul(&coeff[i], &x_pow, &modulus));
-        share = BIG::modadd(&share, &BIG::modmul(&coeff[i], &x_pow, &modulus), &modulus);
+    for i in 1..coeff.len() {
+        let x_pow = x.pow(&T::Big::new_int(i.try_into().unwrap_or(T::Chunk::default())));
+        share = share + (x_pow * &coeff[i]);
     }
     return share;
 }
@@ -243,41 +231,45 @@ pub fn polynomial(coeff: Vec<BIG>, x: BIG) -> BIG {
 #[cfg(test)]
 mod tests {
 
-    use rand::Rng;
-    use tessera_miracl::bls48556::big::BIG;
+    use crate::curves::{
+        bls24479::{BigNumber, Curve, Rand},
+        BigNumber as _, Rand as _,
+    };
 
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn test_secret_sharing_or() {
-        let mut rng = RAND::new();
-        let secret: BIG = BIG::random(&mut rng);
-        let shares = gen_shares(secret, 1, 2);
+        let mut rng = Rand::new();
+        let secret = BigNumber::random(&mut rng);
+        let shares = gen_shares::<Curve>(&mut rng, secret, 1, 2);
         let k = shares[0];
 
-        let mut input: HashMap<String, BIG> = HashMap::new();
+        let mut input: HashMap<String, BigNumber> = HashMap::new();
         input.insert("A_38".to_string(), shares[1]);
         // input.insert("B_53".to_string(), shares[2]);
-        let reconstruct =
-            recover_secret(input, &String::from(r#"{"name":"or", "children": [{"name": "A"}, {"name": "B"}]}"#));
-        assert!(BIG::comp(&k, &reconstruct) == 0);
+        let reconstruct = recover_secret::<Curve>(
+            input,
+            &String::from(r#"{"name":"or", "children": [{"name": "A"}, {"name": "B"}]}"#),
+        );
+        assert!(secret == reconstruct);
     }
 
     #[test]
     fn test_gen_shares_json() {
-        let mut rng = RAND::new();
-        let _secret = BIG::random(&mut rng);
-        let _policy = String::from(
+        let mut rng = Rand::new();
+        let secret = BigNumber::random(&mut rng);
+        let policy = String::from(
             r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]}"#,
         );
-        match parse(&_policy, PolicyLanguage::JsonPolicy) {
+        match parse(&policy, PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
-                let _shares = gen_shares_policy(_secret, &pol, None).unwrap();
-                let coeff_list: HashMap<String, BIG> = HashMap::new();
-                let mut coeff = BIG::new();
-                coeff.one();
-                let _coeff = calc_coefficients(&pol, coeff, coeff_list, None).unwrap();
-                assert_eq!(_coeff.len(), _shares.len());
+                let shares = gen_shares_policy::<Curve>(&mut rng, secret, &pol, None).unwrap();
+                let coeff_list: HashMap<String, BigNumber> = HashMap::new();
+                let coeff = BigNumber::one();
+                let coeff = calc_coefficients::<Curve>(&pol, coeff, coeff_list, None).unwrap();
+                assert_eq!(coeff.len(), shares.len());
             }
             Err(e) => println!("test_gen_shares_json: could not parse policy {:?}", e),
         }
@@ -286,31 +278,30 @@ mod tests {
     #[test]
     fn test_secret_sharing_and() {
         // AND
-        let mut rng = RAND::new();
+        let mut rng = Rand::new();
         let mut thread_rng = rand::thread_rng();
         let mut seed = [0u8; 128];
         thread_rng.fill(&mut seed);
-        rng.seed(128, &seed);
+        rng.seed(&seed);
 
-        let secret = BIG::random(&mut rng);
-        // let secret = BIG::new();
-        let shares = gen_shares(secret, 5, 5);
+        let secret = BigNumber::random(&mut rng);
+        let shares = gen_shares::<Curve>(&mut rng, secret, 5, 5);
         let k = shares[0];
-        let mut input: HashMap<String, BIG> = HashMap::new();
+        let mut input: HashMap<String, BigNumber> = HashMap::new();
         input.insert("A_40".to_string(), shares[1]);
         input.insert("B_55".to_string(), shares[2]);
         input.insert("C_70".to_string(), shares[3]);
         input.insert("D_85".to_string(), shares[4]);
         input.insert("E_100".to_string(), shares[5]);
 
-        let reconstruct = recover_secret(
+        let reconstruct = recover_secret::<Curve>(
             input,
             &String::from(
                 r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}, {"name": "E"}]}"#,
             ),
         );
 
-        assert!(BIG::comp(&k, &reconstruct) == 0);
+        assert!(k == reconstruct);
     }
 
     #[test]

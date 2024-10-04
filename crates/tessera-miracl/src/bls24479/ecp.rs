@@ -17,12 +17,12 @@
  * limitations under the License.
  */
 
-use crate::bls48556::big;
-use crate::bls48556::big::BIG;
-use crate::bls48556::dbig::DBIG;
-use crate::bls48556::fp;
-use crate::bls48556::fp::FP;
-use crate::bls48556::rom;
+use crate::bls24479::big;
+use crate::bls24479::big::BIG;
+use crate::bls24479::dbig::DBIG;
+use crate::bls24479::fp;
+use crate::bls24479::fp::FP;
+use crate::bls24479::rom;
 
 #[derive(Clone, Copy)]
 pub struct ECP {
@@ -60,17 +60,17 @@ pub const NEGATIVEX: usize = 1;
 
 pub const CURVETYPE: usize = WEIERSTRASS;
 pub const CURVE_A: isize = 0;
-pub const CURVE_PAIRING_TYPE: usize = BLS48;
+pub const CURVE_PAIRING_TYPE: usize = BLS24;
 pub const SEXTIC_TWIST: usize = M_TYPE;
 pub const SIGN_OF_X: usize = POSITIVEX;
-pub const ATE_BITS: usize = 32;
-pub const G2_TABLE: usize = 35;
+pub const ATE_BITS: usize = 49;
+pub const G2_TABLE: usize = 52;
 pub const HTC_ISO: usize = 0;
 pub const HTC_ISO_G2: usize = 0;
 
 pub const ALLOW_ALT_COMPRESS: bool = false;
-pub const HASH_TYPE: usize = 64;
-pub const AESKEY: usize = 32;
+pub const HASH_TYPE: usize = 48;
+pub const AESKEY: usize = 24;
 
 #[allow(non_snake_case)]
 impl ECP {
