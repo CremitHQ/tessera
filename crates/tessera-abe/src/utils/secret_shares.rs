@@ -25,13 +25,13 @@ pub fn calc_coefficients<T: Curve>(
         }
         PolicyValue::Array(children) => match policy_type.unwrap() {
             PolicyType::And => {
-                let mut this_coeff_vec = vec![BIG::new_int(1)];
+                let mut this_coeff_vec = vec![T::Big::one()];
                 for i in 1..children.len() {
-                    this_coeff_vec.push(BIG::modadd(&this_coeff_vec[i - 1], &BIG::new_int(1), &q));
+                    this_coeff_vec.push(this_coeff_vec[i - 1] + &T::Big::one());
                 }
-                let this_coeff = recover_coefficients(this_coeff_vec);
+                let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    match calc_coefficients(&child, BIG::modmul(&coeff, &this_coeff[i], &q), coeff_list.clone(), None) {
+                    match calc_coefficients::<T>(&child, coeff * &this_coeff[i], coeff_list.clone(), None) {
                         None => return None,
                         Some(res) => coeff_list = res,
                     }
