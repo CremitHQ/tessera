@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use server::ServerConfig;
 
 use crate::logger::LoggerConfig;
 
+mod config;
 mod logger;
 mod server;
 
@@ -22,8 +22,11 @@ struct Args {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    let app_config = config::load_config(args.config, args.port)?;
+
     logger::init_logger(LoggerConfig::default());
 
-    server::run(ServerConfig { port: args.port.unwrap_or(8080u16) }).await?;
+    server::run((&app_config).into()).await?;
     Ok(())
 }
