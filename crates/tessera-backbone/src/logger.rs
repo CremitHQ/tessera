@@ -1,4 +1,3 @@
-use tracing::Level;
 use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Default)]
@@ -6,14 +5,10 @@ pub(super) struct LoggerConfig {
     pub format: LoggerFormat,
 }
 
+#[derive(Default)]
 pub(super) enum LoggerFormat {
+    #[default]
     Json,
-}
-
-impl Default for LoggerFormat {
-    fn default() -> Self {
-        LoggerFormat::Json
-    }
 }
 
 pub(super) fn init_logger(config: LoggerConfig) {

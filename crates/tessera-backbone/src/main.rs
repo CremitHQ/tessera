@@ -1,7 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use clap::{Arg, Parser};
-use tracing::{debug, info};
+use clap::Parser;
+use server::ServerConfig;
 
 use crate::logger::LoggerConfig;
 
@@ -14,13 +14,16 @@ struct Args {
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
+    /// Sets a port to start a backbone server
+    #[arg(short, long, value_name = "FILE")]
+    pub port: Option<u16>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
     logger::init_logger(LoggerConfig::default());
-    server::run().await?;
+
+    server::run(ServerConfig { port: args.port.unwrap_or(8080u16) }).await?;
     Ok(())
 }
