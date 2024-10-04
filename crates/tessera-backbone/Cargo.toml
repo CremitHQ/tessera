@@ -13,3 +13,4 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["json"] }
 clap = { version = "4.5.19", features = ["cargo", "derive"] }
+axum = "0.7.7"

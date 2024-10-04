@@ -6,6 +6,7 @@ use tracing::{debug, info};
 use crate::logger::LoggerConfig;
 
 mod logger;
+mod server;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -20,6 +21,6 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     logger::init_logger(LoggerConfig::default());
-    info!("Hello, world!");
+    server::run().await?;
     Ok(())
 }

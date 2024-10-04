@@ -1,3 +1,4 @@
+use tracing::Level;
 use tracing_subscriber::fmt::SubscriberBuilder;
 
 #[derive(Default)]
