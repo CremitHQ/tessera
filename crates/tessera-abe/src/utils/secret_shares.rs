@@ -1,26 +1,21 @@
 use std::collections::HashMap;
 
+use crate::curves::{BigNumber, Curve, Pow as _};
 use crate::error::ABEError;
 use crate::utils::tools::{contains, get_value};
-
-use rand::RngCore as _;
-use tessera_miracl::bls48556::big::BIG;
-use tessera_miracl::bls48556::rom::CURVE_ORDER as MODULUS;
-use tessera_miracl::rand::RAND;
 use tessera_policy::pest::{parse, PolicyLanguage, PolicyType, PolicyValue};
 
-pub fn calc_coefficients(
+pub fn calc_coefficients<T: Curve>(
     policy_value: &PolicyValue,
-    coeff: BIG,
-    mut coeff_list: HashMap<String, BIG>,
+    coeff: T::Big,
+    mut coeff_list: HashMap<String, T::Big>,
     policy_type: Option<PolicyType>,
-) -> Option<HashMap<String, BIG>> {
-    let q = BIG::new_ints(&MODULUS);
+) -> Option<HashMap<String, T::Big>> {
     return match policy_value {
         PolicyValue::Object(obj) => {
             match obj.0 {
-                PolicyType::And => calc_coefficients(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
-                PolicyType::Or => calc_coefficients(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
+                PolicyType::And => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
+                PolicyType::Or => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
                 _ => {
                     // Single attribute policy use case
                     coeff_list.insert(get_value(&obj.1), coeff);

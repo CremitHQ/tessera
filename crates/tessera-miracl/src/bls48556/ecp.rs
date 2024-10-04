@@ -20,11 +20,11 @@
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;
 use crate::bls48556::dbig::DBIG;
-use crate::bls48556::fp::FP;
 use crate::bls48556::fp;
+use crate::bls48556::fp::FP;
 use crate::bls48556::rom;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ECP {
     x: FP,
     y: FP,

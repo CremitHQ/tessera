@@ -19,15 +19,16 @@
 
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;
+use crate::bls48556::dbig::DBIG;
 use crate::bls48556::ecp;
+use crate::bls48556::fp;
+use crate::bls48556::fp::FP;
 use crate::bls48556::fp2::FP2;
 use crate::bls48556::fp4::FP4;
 use crate::bls48556::fp8::FP8;
 use crate::bls48556::rom;
-use crate::bls48556::fp;
-use crate::bls48556::fp::FP;
-use crate::bls48556::dbig::DBIG;
 
+#[derive(Clone, Copy)]
 pub struct ECP8 {
     x: FP8,
     y: FP8,

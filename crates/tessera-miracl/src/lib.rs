@@ -25,6 +25,7 @@
 #![allow(clippy::new_without_default)]
 pub mod aes;
 pub mod arch;
+pub mod bls24479;
 pub mod bls48556;
 pub mod bls48581;
 pub mod bn462;

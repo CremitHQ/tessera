@@ -22,3 +22,4 @@ zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
 rand = { workspace = true }
 tessera_miracl = { workspace = true }
 tessera_policy = { workspace = true }
+lazy_static = "1.5.0"
