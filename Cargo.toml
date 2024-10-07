@@ -33,5 +33,6 @@ serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
 zeroize = "1.8.1"
-tessera_miracl = { path = "crates/tessera-miracl" }
-tessera_policy = { path = "crates/tessera-policy" }
+tessera-miracl = { path = "crates/tessera-miracl" }
+tessera-policy = { path = "crates/tessera-policy" }
+tessera-abe = { path = "crates/tessera-abe" }
