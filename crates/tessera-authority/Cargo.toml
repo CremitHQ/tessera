@@ -1,0 +1,19 @@
+[package]
+name = "tessera-authority"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { version = "4.5.19", features = ["cargo", "derive"] }
+axum = "0.7.7"
+xdg = "2.5.2"
+config = "0.14.0"
+serde = { workspace = true }
