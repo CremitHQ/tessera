@@ -18,4 +18,4 @@ tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
 openssl = "0.10.66"
-rand = "0.8.5"
+rand = { workspace = true }
