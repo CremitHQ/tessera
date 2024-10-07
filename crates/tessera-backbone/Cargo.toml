@@ -24,3 +24,4 @@ aws-sigv4 = { workspace = true }
 ulid = { workspace = true }
 url = { workspace = true }
 urlencoding = { workspace = true }
+thiserror = { workspace = true }

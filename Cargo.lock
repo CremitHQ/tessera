@@ -3223,6 +3223,7 @@ dependencies = [
  "config",
  "sea-orm",
  "serde",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",

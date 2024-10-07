@@ -5,12 +5,24 @@ use crate::{
     database::{connect_to_database, AuthMethod},
 };
 
-pub(crate) struct Application {}
+use self::vault::{VaultUseCase, VaultUseCaseImpl};
+
+pub mod vault;
+
+pub(crate) struct Application {
+    database_connection: DatabaseConnection,
+}
+
+impl Application {
+    pub fn vault(&self) -> impl VaultUseCase {
+        VaultUseCaseImpl::new(self.database_connection.clone())
+    }
+}
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
-    let _database_connection = init_database_connection(config).await?;
+    let database_connection = init_database_connection(config).await?;
 
-    Ok(Application {})
+    Ok(Application { database_connection })
 }
 
 async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<DatabaseConnection> {
