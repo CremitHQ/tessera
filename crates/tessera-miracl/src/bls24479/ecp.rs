@@ -26,7 +26,7 @@ use crate::bls24479::fp;
 use crate::bls24479::fp::FP;
 use crate::bls24479::rom;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ECP {
     x: FP,
     y: FP,

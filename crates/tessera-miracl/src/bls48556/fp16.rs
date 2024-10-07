@@ -24,7 +24,7 @@ use crate::bls48556::fp::FP;
 use crate::bls48556::fp2::FP2;
 use crate::bls48556::fp8::FP8;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP16 {
     a: FP8,
     b: FP8,

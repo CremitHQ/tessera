@@ -29,7 +29,7 @@ use crate::bls48556::fp4::FP4;
 use crate::bls48556::rom;
 use crate::rand::RAND;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP8 {
     a: FP4,
     b: FP4,

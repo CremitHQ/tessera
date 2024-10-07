@@ -28,7 +28,7 @@ use crate::bls24479::rom;
 
 use crate::rand::RAND;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP2 {
     a: FP,
     b: FP,
@@ -50,10 +50,7 @@ impl std::fmt::Display for FP2 {
 
 impl FP2 {
     pub const fn new() -> FP2 {
-        FP2 {
-            a: FP::new(),
-            b: FP::new(),
-        }
+        FP2 { a: FP::new(), b: FP::new() }
     }
 
     pub fn new_int(a: isize) -> FP2 {
@@ -106,7 +103,7 @@ impl FP2 {
     }
 
     pub fn new_rand(rng: &mut RAND) -> FP2 {
-        FP2::new_fps(&FP::new_rand(rng),&FP::new_rand(rng))
+        FP2::new_fps(&FP::new_rand(rng), &FP::new_rand(rng))
     }
 
     /* reduce components mod Modulus */
@@ -130,38 +127,38 @@ impl FP2 {
         if self.iszilch() {
             return 0;
         }
-        let cmp=self.b.islarger();
-        if cmp!=0 {
+        let cmp = self.b.islarger();
+        if cmp != 0 {
             return cmp;
         }
         self.a.islarger()
     }
 
-    pub fn tobytes(&self,bf: &mut [u8]) {
-        const MB:usize = big::MODBYTES as usize;
+    pub fn tobytes(&self, bf: &mut [u8]) {
+        const MB: usize = big::MODBYTES as usize;
         let mut t: [u8; MB] = [0; MB];
         self.b.tobytes(&mut t);
         for i in 0..MB {
-            bf[i]=t[i];
+            bf[i] = t[i];
         }
         self.a.tobytes(&mut t);
         for i in 0..MB {
-            bf[i+MB]=t[i];
+            bf[i + MB] = t[i];
         }
     }
 
     pub fn frombytes(bf: &[u8]) -> FP2 {
-        const MB:usize = big::MODBYTES as usize;
+        const MB: usize = big::MODBYTES as usize;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
-            t[i]=bf[i];
+            t[i] = bf[i];
         }
-        let tb=FP::frombytes(&t);
+        let tb = FP::frombytes(&t);
         for i in 0..MB {
-            t[i]=bf[i+MB];
+            t[i] = bf[i + MB];
         }
-        let ta=FP::frombytes(&t);
-        FP2::new_fps(&ta,&tb)
+        let ta = FP::frombytes(&t);
+        FP2::new_fps(&ta, &tb)
     }
 
     pub fn cmove(&mut self, g: &FP2, d: isize) {
@@ -226,16 +223,16 @@ impl FP2 {
     }
 
     pub fn sign(&self) -> isize {
-        let mut p1=self.a.sign();
-        let mut p2=self.b.sign();
+        let mut p1 = self.a.sign();
+        let mut p2 = self.b.sign();
         if fp::BIG_ENDIAN_SIGN {
-            let u=self.b.iszilch() as isize;
-	        p2^=(p1^p2)&u;
-	        p2
+            let u = self.b.iszilch() as isize;
+            p2 ^= (p1 ^ p2) & u;
+            p2
         } else {
-            let u=self.a.iszilch() as isize;
-	        p1^=(p1^p2)&u;
-	        p1
+            let u = self.a.iszilch() as isize;
+            p1 ^= (p1 ^ p2) & u;
+            p1
         }
     }
 
@@ -358,7 +355,7 @@ impl FP2 {
         self.b.x.copy(&FP::modulo(&mut e));
         self.b.xes = 2;
     }
-/*
+    /*
     pub fn pow(&mut self, e: &BIG) {
         let mut w = FP2::new_copy(self);
         let mut z = BIG::new_copy(&e);
@@ -378,15 +375,15 @@ impl FP2 {
         self.copy(&r);
     }*/
 
-    pub fn qr(&mut self,h:Option<&mut FP>) -> isize {
-        let mut c=FP2::new_copy(self);
+    pub fn qr(&mut self, h: Option<&mut FP>) -> isize {
+        let mut c = FP2::new_copy(self);
         c.conj();
         c.mul(self);
         c.getA().qr(h)
     }
 
     /* sqrt(a+ib) = sqrt(a+sqrt(a*a-n*b*b)/2)+ib/(2*sqrt(a+sqrt(a*a-n*b*b)/2)) */
-    pub fn sqrt(&mut self,h:Option<&FP>) {
+    pub fn sqrt(&mut self, h: Option<&FP>) {
         if self.iszilch() {
             return;
         }
@@ -398,7 +395,8 @@ impl FP2 {
 
         w1.sqr();
         w2.sqr();
-        w1.add(&w2); w1.norm();
+        w1.add(&w2);
+        w1.norm();
 
         w2.copy(&w1.sqrt(h));
         w1.copy(&w2);
@@ -408,46 +406,54 @@ impl FP2 {
         w2.norm();
         w2.div2();
 
-        w1.copy(&self.b); w1.div2();
-        let qr=w2.qr(Some(&mut hint));
+        w1.copy(&self.b);
+        w1.div2();
+        let qr = w2.qr(Some(&mut hint));
 
-// tweak hint
-        w3.copy(&hint); w3.neg(); w3.norm();
-        w4.copy(&w2); w4.neg(); w4.norm();
+        // tweak hint
+        w3.copy(&hint);
+        w3.neg();
+        w3.norm();
+        w4.copy(&w2);
+        w4.neg();
+        w4.norm();
 
-        w2.cmove(&w4,1-qr);
-        hint.cmove(&w3,1-qr);
+        w2.cmove(&w4, 1 - qr);
+        hint.cmove(&w3, 1 - qr);
 
         self.a.copy(&w2.sqrt(Some(&hint)));
-        w3.copy(&w2); w3.inverse(Some(&hint));
+        w3.copy(&w2);
+        w3.inverse(Some(&hint));
         w3.mul(&self.a);
-        self.b.copy(&w3); self.b.mul(&w1);
+        self.b.copy(&w3);
+        self.b.mul(&w1);
         w4.copy(&self.a);
 
-        self.a.cmove(&self.b,1-qr);
-        self.b.cmove(&w4,1-qr);
+        self.a.cmove(&self.b, 1 - qr);
+        self.b.cmove(&w4, 1 - qr);
 
-/*
-        self.a.copy(&w2.sqrt(Some(&hint)));
-        w3.copy(&w2); w3.inverse(Some(&hint));
-        w3.mul(&self.a);
-        self.b.copy(&w3); self.b.mul(&w1);
+        /*
+                self.a.copy(&w2.sqrt(Some(&hint)));
+                w3.copy(&w2); w3.inverse(Some(&hint));
+                w3.mul(&self.a);
+                self.b.copy(&w3); self.b.mul(&w1);
 
-        hint.neg(); hint.norm();
-        w2.neg(); w2.norm();
+                hint.neg(); hint.norm();
+                w2.neg(); w2.norm();
 
-        w4.copy(&w2.sqrt(Some(&hint)));
-        w3.copy(&w2); w3.inverse(Some(&hint));
-        w3.mul(&w4);
-        w3.mul(&w1);
+                w4.copy(&w2.sqrt(Some(&hint)));
+                w3.copy(&w2); w3.inverse(Some(&hint));
+                w3.mul(&w4);
+                w3.mul(&w1);
 
-        self.a.cmove(&w3,1-qr);
-        self.b.cmove(&w4,1-qr);
-*/
-        let sgn=self.sign();
-        let mut nr=FP2::new_copy(&self);
-        nr.neg(); nr.norm();
-        self.cmove(&nr,sgn);
+                self.a.cmove(&w3,1-qr);
+                self.b.cmove(&w4,1-qr);
+        */
+        let sgn = self.sign();
+        let mut nr = FP2::new_copy(&self);
+        nr.neg();
+        nr.norm();
+        self.cmove(&nr, sgn);
     }
 
     /* output to hex string */
@@ -457,7 +463,7 @@ impl FP2 {
     }
 
     /* self=1/self */
-    pub fn inverse(&mut self,h:Option<&FP>) {
+    pub fn inverse(&mut self, h: Option<&FP>) {
         self.norm();
         let mut w1 = FP::new_copy(&self.a);
         let mut w2 = FP::new_copy(&self.b);

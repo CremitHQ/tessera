@@ -1,5 +1,5 @@
 [package]
-name = "tessera_miracl"
+name = "tessera-miracl"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

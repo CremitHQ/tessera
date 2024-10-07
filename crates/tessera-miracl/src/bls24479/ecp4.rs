@@ -30,7 +30,7 @@ use crate::bls24479::fp2::FP2;
 use crate::bls24479::fp4::FP4;
 use crate::bls24479::rom;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ECP4 {
     x: FP4,
     y: FP4,

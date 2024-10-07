@@ -36,17 +36,20 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityKeyPair<'a, T: Curve> {
     pub name: Cow<'a, str>,
     pub pk: AuthorityPublicKey<T>,
     pub mk: AuthorityMasterKey<T>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityPublicKey<T: Curve> {
     pub e_alpha: T::Gt,
     pub gy: T::G1,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityMasterKey<T: Curve> {
     pub alpha: T::Big,
     pub y: T::Big,
@@ -71,11 +74,13 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UserAttributeKey<T: Curve> {
     pub k: T::G2,
     pub kp: T::G1,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UserSecretKey<T: Curve> {
     pub gid: String,
     pub inner: HashMap<String, UserAttributeKey<T>>,
@@ -146,6 +151,7 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ciphertext<T: Curve> {
     pub policy: (String, PolicyLanguage),
     pub c0: T::Gt,
@@ -203,7 +209,7 @@ pub fn encrypt<T: Curve>(
                 }
             }
 
-            match encrypt_symmetric(msg, data) {
+            match encrypt_symmetric::<T, _>(rng, msg, data) {
                 Ok(ct) => Ok(Ciphertext { policy: (policy_name, language), c0, c1, c2, c3, c4, ct }),
                 Err(e) => Err(e),
             }
@@ -300,13 +306,13 @@ mod tests {
         alice.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
         println!("Alice added attributes.");
 
-        let alice_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "alice", &["B_authority@CEO"]);
+        // let alice_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "alice", &["B_authority@CEO"]);
 
         let mut bob = UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "bob", &["Aauthority@USER"]);
         println!("Bob generated.");
         bob.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
         println!("Bob added attributes.");
-        let bob_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "bob", &["B_authority@CTO"]);
+        // let bob_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "bob", &["B_authority@CTO"]);
 
         let plaintext = "THIS IS SECRET MESSAGE";
         let policy = r#""Aauthority@GOD" and "Bauthority@CTO""#;

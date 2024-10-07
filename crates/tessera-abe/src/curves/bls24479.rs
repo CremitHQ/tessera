@@ -44,7 +44,7 @@ impl RandTrait for Rand {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct BigNumber {
     inner: BIG,
 }
@@ -178,7 +178,7 @@ impl PartialEq for BigNumber {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize, Serialize)]
 pub struct G1 {
     inner: ECP,
 }
@@ -222,7 +222,7 @@ impl Neg for G1 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct G2 {
     inner: ECP4,
 }
@@ -257,7 +257,7 @@ impl Add for G2 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Gt {
     inner: FP24,
 }
@@ -317,6 +317,7 @@ impl Inv for Gt {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Curve;
 
 impl CurveTrait for Curve {
