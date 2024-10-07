@@ -16,28 +16,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// comment out if debugging with print macros !!!
-#![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::many_single_char_names)]
-#![allow(clippy::needless_range_loop)]
-#![allow(clippy::manual_memcpy)]
-#![allow(clippy::new_without_default)]
-pub mod aes;
-pub mod arch;
-pub mod bls24479;
-pub mod bls48556;
-pub mod bls48581;
-pub mod bn462;
-pub mod dilithium;
-pub mod gcm;
-pub mod hash256;
-pub mod hash384;
-pub mod hash512;
-pub mod hmac;
-pub mod kyber;
-pub mod nhs;
-pub mod rand;
-pub mod sha3;
-pub mod share;
-pub mod x509;
+pub mod big;
+pub mod bls192;
+pub mod dbig;
+pub mod ecp;
+pub mod ecp4;
+pub mod fp;
+pub mod fp2;
+pub mod fp24;
+pub mod fp4;
+pub mod fp8;
+pub mod mpin192;
+pub mod pair4;
+pub mod rom;

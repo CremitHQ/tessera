@@ -9,3 +9,7 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
+
+[features]
+default = ["std"]
+std = []

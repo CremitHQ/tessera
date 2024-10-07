@@ -20,11 +20,11 @@ impl AbePolicy {
     /// # Arguments
     ///
     /// * `policy` - A policy in JSON format as String describing the policy
-    pub fn new(policy: &String, language: PolicyLanguage) -> Result<AbePolicy, PolicyError> {
+    pub fn new(policy: &str, language: PolicyLanguage) -> Result<AbePolicy, PolicyError> {
         AbePolicy::from_language(policy, language)
     }
 
-    pub fn from_language(content: &String, language: PolicyLanguage) -> Result<AbePolicy, PolicyError> {
+    pub fn from_language(content: &str, language: PolicyLanguage) -> Result<AbePolicy, PolicyError> {
         return match parse(content, language) {
             Ok(json) => calculate_msp(&json),
             Err(e) => Err(e),

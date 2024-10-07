@@ -5,9 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.0.1"
 edition = "2021"
-authors = [
-  "John Choi <john@cremit.io>"
-]
+authors = ["John Choi <john@cremit.io>"]
 repository = "https://github.com/cremithq/tessera"
 keywords = ["secret", "vault"]
 categories = ["security"]
@@ -25,6 +23,7 @@ strip = "debuginfo"
 opt-level = 0
 
 [workspace.dependencies]
+rand = "0.8"
 anyhow = "1.0"
 async-trait = "0.1"
 tokio = "1.40"
@@ -33,3 +32,5 @@ serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
 zeroize = "1.8.1"
+tessera_miracl = { path = "crates/tessera-miracl" }
+tessera_policy = { path = "crates/tessera-policy" }
