@@ -1,4 +1,7 @@
-extern crate wee_alloc;
+extern crate alloc;
+
+#[cfg(target_arch = "wasm32")]
+use lol_alloc::{FreeListAllocator, LockedAllocator};
 mod utils;
 use std::collections::HashMap;
 
@@ -16,8 +19,9 @@ use tessera_abe::{
 use tessera_policy::pest::PolicyLanguage;
 use wasm_bindgen::prelude::*;
 
+#[cfg(target_arch = "wasm32")]
 #[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+static ALLOCATOR: LockedAllocator<FreeListAllocator> = LockedAllocator::new(FreeListAllocator::new());
 
 #[wasm_bindgen]
 pub fn bls_24479_encryption(data: &str, gp: JsValue, pks: JsValue, policy: JsValue) -> Result<JsValue, JsValue> {
