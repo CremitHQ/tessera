@@ -16,6 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use serde::{Deserialize, Serialize};
 
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;

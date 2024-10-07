@@ -17,13 +17,16 @@
  * limitations under the License.
  */
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::arch;
 use crate::arch::Chunk;
 
 use crate::arch::DChunk;
 
-use crate::rand::RAND;
 use crate::bls24479::dbig::DBIG;
+use crate::rand::RAND;
 
 pub const MODBYTES: usize = 60;
 pub const BASEBITS: usize = 56;

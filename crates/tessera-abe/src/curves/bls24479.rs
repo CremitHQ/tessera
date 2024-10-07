@@ -6,6 +6,7 @@ use super::{
 };
 use lazy_static::lazy_static;
 
+use serde::{Deserialize, Serialize};
 use tessera_miracl::{
     bls24479::{
         big::{BIG, MODBYTES, NLEN},

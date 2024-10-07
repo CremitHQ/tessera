@@ -17,6 +17,9 @@
  * limitations under the License.
  */
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
 use crate::bls24479::dbig::DBIG;

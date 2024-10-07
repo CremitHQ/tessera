@@ -8,10 +8,15 @@ use crate::{
 };
 
 use crate::curves::{BigNumber, Curve, Gt, Inv as _, Pow as _, G1, G2};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 use tessera_policy::pest::{parse, PolicyLanguage};
 
-pub struct GlobalParams<T: Curve> {
+#[derive(Serialize, Deserialize)]
+pub struct GlobalParams<T>
+where
+    T: Curve,
+{
     pub g1: T::G1,
     pub g2: T::G2,
     pub e: T::Gt,

@@ -17,16 +17,18 @@
  * limitations under the License.
  */
 
+use serde::{Deserialize, Serialize};
+
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
 use crate::bls24479::fp;
 use crate::bls24479::fp::FP;
 use crate::bls24479::fp2::FP2;
-use crate::rand::RAND;
 #[allow(unused_imports)]
 use crate::bls24479::rom;
+use crate::rand::RAND;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP4 {
     a: FP2,
     b: FP2,

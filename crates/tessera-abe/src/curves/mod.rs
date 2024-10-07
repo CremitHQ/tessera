@@ -3,6 +3,8 @@ pub mod bls48556;
 
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
+use serde::{Deserialize, Serialize};
+
 pub trait Pow {
     type Output;
     type Rhs;

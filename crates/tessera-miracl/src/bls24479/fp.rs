@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+use serde::{Deserialize, Serialize};
+
 use crate::arch;
 use crate::arch::Chunk;
 use crate::bls24479::big;
