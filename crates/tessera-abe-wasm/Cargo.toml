@@ -18,7 +18,7 @@ getrandom = { version = "0.2", features = ["js"] }
 serde-wasm-bindgen = "0.4"
 tessera-abe.workspace = true
 tessera-policy.workspace = true
-wee_alloc = "0.4.5"
+lol_alloc = "0.4.1"
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
