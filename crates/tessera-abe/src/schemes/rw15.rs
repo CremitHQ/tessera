@@ -8,10 +8,15 @@ use crate::{
 };
 
 use crate::curves::{BigNumber, Curve, Gt, Inv as _, Pow as _, G1, G2};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 use tessera_policy::pest::{parse, PolicyLanguage};
 
-pub struct GlobalParams<T: Curve> {
+#[derive(Serialize, Deserialize)]
+pub struct GlobalParams<T>
+where
+    T: Curve,
+{
     pub g1: T::G1,
     pub g2: T::G2,
     pub e: T::Gt,
@@ -31,17 +36,20 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityKeyPair<'a, T: Curve> {
     pub name: Cow<'a, str>,
     pub pk: AuthorityPublicKey<T>,
     pub mk: AuthorityMasterKey<T>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityPublicKey<T: Curve> {
     pub e_alpha: T::Gt,
     pub gy: T::G1,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AuthorityMasterKey<T: Curve> {
     pub alpha: T::Big,
     pub y: T::Big,
@@ -66,11 +74,13 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UserAttributeKey<T: Curve> {
     pub k: T::G2,
     pub kp: T::G1,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UserSecretKey<T: Curve> {
     pub gid: String,
     pub inner: HashMap<String, UserAttributeKey<T>>,
@@ -141,6 +151,7 @@ where
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ciphertext<T: Curve> {
     pub policy: (String, PolicyLanguage),
     pub c0: T::Gt,
@@ -295,13 +306,13 @@ mod tests {
         alice.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
         println!("Alice added attributes.");
 
-        let alice_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "alice", &["B_authority@CEO"]);
+        // let alice_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "alice", &["B_authority@CEO"]);
 
         let mut bob = UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "bob", &["Aauthority@USER"]);
         println!("Bob generated.");
         bob.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
         println!("Bob added attributes.");
-        let bob_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "bob", &["B_authority@CTO"]);
+        // let bob_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "bob", &["B_authority@CTO"]);
 
         let plaintext = "THIS IS SECRET MESSAGE";
         let policy = r#""Aauthority@GOD" and "Bauthority@CTO""#;

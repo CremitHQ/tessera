@@ -3,6 +3,8 @@ pub mod bls48556;
 
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
+use serde::{Deserialize, Serialize};
+
 pub trait Pow {
     type Output;
     type Rhs;
@@ -33,10 +35,12 @@ pub trait BigNumber:
     + Sub<Output = Self>
     + Mul<Output = Self>
     + Div<Output = Self>
+    + Serialize
 where
     Self: for<'a> Add<&'a Self, Output = Self>,
     Self: for<'a> Sub<&'a Self, Output = Self>,
     Self: for<'a> Mul<&'a Self, Output = Self>,
+    Self: for<'de> Deserialize<'de>,
 {
     type Chunk;
     type Rng: Rand;
@@ -49,9 +53,10 @@ where
     fn new_ints(x: &[Self::Chunk]) -> Self;
 }
 
-pub trait G1: Copy + Clone + Sized + Neg<Output = Self> + Add<Output = Self>
+pub trait G1: Copy + Clone + Sized + Neg<Output = Self> + Add<Output = Self> + Serialize
 where
     Self: for<'a> Mul<&'a Self::Big, Output = Self>,
+    Self: for<'de> Deserialize<'de>,
 {
     type Big: BigNumber;
     type Rng: Rand;
@@ -60,9 +65,10 @@ where
     fn generator() -> Self;
 }
 
-pub trait G2: Copy + Clone + Sized + Add<Output = Self>
+pub trait G2: Copy + Clone + Sized + Add<Output = Self> + Serialize
 where
     Self: for<'a> Mul<&'a Self::Big, Output = Self>,
+    Self: for<'de> Deserialize<'de>,
 {
     type Big: BigNumber;
     type Rng: Rand;
@@ -71,9 +77,10 @@ where
     fn generator() -> Self;
 }
 
-pub trait Gt: Sized + Pow<Rhs = Self::Big, Output = Self> + Inv<Output = Self> + Clone + Copy
+pub trait Gt: Sized + Pow<Rhs = Self::Big, Output = Self> + Inv<Output = Self> + Clone + Copy + Serialize
 where
     for<'a> Self: Mul<&'a Self, Output = Self>,
+    Self: for<'de> Deserialize<'de>,
 {
     type Big: BigNumber;
     type Rng: Rand;

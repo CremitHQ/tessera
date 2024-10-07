@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+use serde::{Deserialize, Serialize};
+
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
 use crate::bls24479::dbig::DBIG;
@@ -24,7 +26,7 @@ use crate::bls24479::fp;
 use crate::bls24479::fp::FP;
 use crate::bls24479::rom;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ECP {
     x: FP,
     y: FP,

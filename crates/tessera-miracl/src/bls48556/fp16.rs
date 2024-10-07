@@ -16,6 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use serde::{Deserialize, Serialize};
 
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;
@@ -23,7 +24,7 @@ use crate::bls48556::fp::FP;
 use crate::bls48556::fp2::FP2;
 use crate::bls48556::fp8::FP8;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP16 {
     a: FP8,
     b: FP8,
