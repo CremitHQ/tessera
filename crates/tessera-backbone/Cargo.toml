@@ -17,3 +17,10 @@ axum = "0.7.7"
 xdg = "2.5.2"
 config = "0.14.0"
 serde = { workspace = true }
+sea-orm = { workspace = true }
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sigv4 = { workspace = true }
+ulid = { workspace = true }
+url = { workspace = true }
+urlencoding = { workspace = true }
