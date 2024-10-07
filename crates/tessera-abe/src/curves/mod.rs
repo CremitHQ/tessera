@@ -98,7 +98,7 @@ pub trait Curve {
     type G2: G2<Big = Self::Big, Rng = Self::Rng>;
     type Gt: Gt<Big = Self::Big, Rng = Self::Rng>;
 
-    type Rng;
+    type Rng: Rand;
 
     fn pair(e1: &Self::G1, e2: &Self::G2) -> Self::Gt;
     fn hash_to_g2(msg: &[u8]) -> Self::G2;
