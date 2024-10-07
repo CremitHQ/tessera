@@ -1,5 +1,5 @@
 [package]
-name = "tessera_policy"
+name = "tessera-policy"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

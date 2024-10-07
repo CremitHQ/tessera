@@ -209,7 +209,7 @@ pub fn encrypt<T: Curve>(
                 }
             }
 
-            match encrypt_symmetric(msg, data) {
+            match encrypt_symmetric::<T, _>(rng, msg, data) {
                 Ok(ct) => Ok(Ciphertext { policy: (policy_name, language), c0, c1, c2, c3, c4, ct }),
                 Err(e) => Err(e),
             }
