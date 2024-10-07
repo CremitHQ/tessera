@@ -2,13 +2,14 @@ use self::human::HumanPolicyParser;
 use self::json::JSONPolicyParser;
 use crate::error::PolicyError;
 use pest::Parser;
+use serde::{Deserialize, Serialize};
 use std::string::String;
 
 pub(crate) mod human;
 pub(crate) mod json;
 
 /// Policy Language Type. Currently two types are available:
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum PolicyLanguage {
     /// A JSON policy language
     JsonPolicy,
