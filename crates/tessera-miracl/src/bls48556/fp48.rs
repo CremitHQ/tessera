@@ -16,6 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use serde::{Deserialize, Serialize};
 
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;
@@ -32,7 +33,7 @@ pub const SPARSER: usize = 3;
 pub const SPARSE: usize = 4;
 pub const DENSE: usize = 5;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP48 {
     a: FP16,
     b: FP16,
