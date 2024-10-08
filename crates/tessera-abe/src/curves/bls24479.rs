@@ -1,11 +1,11 @@
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-use super::{
-    BigNumber as BigNumberTrait, Curve as CurveTrait, Gt as GtTrait, Inv, Pow, Rand as RandTrait, G1 as G1Trait,
-    G2 as G2Trait,
-};
+use crate::random::{miracl::MiraclRng, Random};
+
+use super::{Field, FieldWithOrder, GroupG1, GroupG2, GroupGt, Inv, PairingCurve, Pow};
 use lazy_static::lazy_static;
 
+use rand_core::RngCore as _;
 use serde::{Deserialize, Serialize};
 use tessera_miracl::{
     bls24479::{
@@ -17,35 +17,10 @@ use tessera_miracl::{
         rom::CURVE_ORDER,
     },
     hash256::HASH256,
-    rand::RAND,
 };
 
-pub struct Rand {
-    inner: RAND,
-}
-
-impl RandTrait for Rand {
-    fn new() -> Self {
-        Self { inner: RAND::new() }
-    }
-
-    fn seed(&mut self, seed: &[u8]) {
-        self.inner.seed(seed.len(), seed);
-    }
-
-    fn get_byte(&mut self) -> u8 {
-        self.inner.getbyte()
-    }
-
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for i in 0..dest.len() {
-            dest[i] = self.inner.getbyte();
-        }
-    }
-}
-
 #[derive(Clone, Copy, Serialize, Deserialize)]
-pub struct BigNumber {
+pub struct Bls24479Field {
     inner: BIG,
 }
 
@@ -53,12 +28,11 @@ const MODULUS: [i64; NLEN] = CURVE_ORDER;
 const MSG_SIZE: usize = 48 * (MODBYTES as usize);
 
 lazy_static! {
-    static ref MODULUS_BIG: BIG = BIG::new_ints(&MODULUS);
+    pub static ref MODULUS_BIG: BIG = BIG::new_ints(&MODULUS);
 }
 
-impl BigNumberTrait for BigNumber {
+impl Field for Bls24479Field {
     type Chunk = i64;
-    type Rng = Rand;
 
     fn new() -> Self {
         Self { inner: BIG::new() }
@@ -66,16 +40,6 @@ impl BigNumberTrait for BigNumber {
 
     fn one() -> Self {
         Self { inner: BIG::new_int(1) }
-    }
-
-    fn random(rng: &mut Self::Rng) -> Self {
-        Self { inner: BIG::random(&mut rng.inner) }
-    }
-
-    fn random_mod_order(rng: &mut Self::Rng) -> Self {
-        let mut r = BIG::random(&mut rng.inner);
-        r.rmod(&MODULUS_BIG);
-        Self { inner: r }
     }
 
     fn new_int(x: Self::Chunk) -> Self {
@@ -87,7 +51,26 @@ impl BigNumberTrait for BigNumber {
     }
 }
 
-impl Add for BigNumber {
+impl Random for Bls24479Field {
+    type Rng = MiraclRng;
+    fn random(rng: &mut Self::Rng) -> Self {
+        Self { inner: BIG::random(&mut rng.inner) }
+    }
+}
+
+impl FieldWithOrder for Bls24479Field {
+    fn order() -> Self {
+        Self { inner: MODULUS_BIG.clone() }
+    }
+
+    fn random_within_order(rng: &mut <Self as Random>::Rng) -> Self {
+        let mut r = BIG::random(&mut rng.inner);
+        r.rmod(&MODULUS_BIG);
+        Self { inner: r }
+    }
+}
+
+impl Add for Bls24479Field {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -95,7 +78,7 @@ impl Add for BigNumber {
     }
 }
 
-impl Add<&Self> for BigNumber {
+impl Add<&Self> for Bls24479Field {
     type Output = Self;
 
     fn add(self, other: &Self) -> Self {
@@ -103,7 +86,7 @@ impl Add<&Self> for BigNumber {
     }
 }
 
-impl Div for BigNumber {
+impl Div for Bls24479Field {
     type Output = Self;
 
     fn div(self, mut other: Self) -> Self {
@@ -112,7 +95,7 @@ impl Div for BigNumber {
     }
 }
 
-impl Rem for BigNumber {
+impl Rem for Bls24479Field {
     type Output = Self;
 
     fn rem(mut self, other: Self) -> Self {
@@ -121,7 +104,7 @@ impl Rem for BigNumber {
     }
 }
 
-impl Mul for BigNumber {
+impl Mul for Bls24479Field {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
@@ -129,7 +112,7 @@ impl Mul for BigNumber {
     }
 }
 
-impl Mul<&Self> for BigNumber {
+impl Mul<&Self> for Bls24479Field {
     type Output = Self;
 
     fn mul(self, other: &Self) -> Self {
@@ -137,7 +120,7 @@ impl Mul<&Self> for BigNumber {
     }
 }
 
-impl Sub for BigNumber {
+impl Sub for Bls24479Field {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -146,7 +129,7 @@ impl Sub for BigNumber {
     }
 }
 
-impl Sub<&Self> for BigNumber {
+impl Sub<&Self> for Bls24479Field {
     type Output = Self;
 
     fn sub(self, other: &Self) -> Self {
@@ -155,7 +138,7 @@ impl Sub<&Self> for BigNumber {
     }
 }
 
-impl Neg for BigNumber {
+impl Neg for Bls24479Field {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -163,16 +146,15 @@ impl Neg for BigNumber {
     }
 }
 
-impl Pow for BigNumber {
+impl Pow<&Self> for Bls24479Field {
     type Output = Self;
-    type Rhs = Self;
     fn pow(mut self, e: &Self) -> Self {
         self.inner.powmod(&e.inner, &MODULUS_BIG);
         self
     }
 }
 
-impl PartialEq for BigNumber {
+impl PartialEq for Bls24479Field {
     fn eq(&self, other: &Self) -> bool {
         BIG::comp(&self.inner, &other.inner) == 0
     }
@@ -183,11 +165,10 @@ pub struct G1 {
     inner: ECP,
 }
 
-impl G1Trait for G1 {
-    type Big = BigNumber;
-    type Rng = Rand;
+impl GroupG1 for G1 {
+    type Field = Bls24479Field;
 
-    fn new(x: &Self::Big) -> Self {
+    fn new(x: &Self::Field) -> Self {
         Self::generator() * x
     }
 
@@ -196,10 +177,10 @@ impl G1Trait for G1 {
     }
 }
 
-impl Mul<&BigNumber> for G1 {
+impl Mul<&Bls24479Field> for G1 {
     type Output = Self;
 
-    fn mul(self, rhs: &BigNumber) -> Self {
+    fn mul(self, rhs: &Bls24479Field) -> Self {
         Self { inner: pair4::g1mul(&self.inner, &rhs.inner) }
     }
 }
@@ -227,11 +208,10 @@ pub struct G2 {
     inner: ECP4,
 }
 
-impl G2Trait for G2 {
-    type Big = BigNumber;
-    type Rng = Rand;
+impl GroupG2 for G2 {
+    type Field = Bls24479Field;
 
-    fn new(x: &Self::Big) -> Self {
+    fn new(x: &Self::Field) -> Self {
         Self::generator() * x
     }
 
@@ -240,10 +220,10 @@ impl G2Trait for G2 {
     }
 }
 
-impl Mul<&BigNumber> for G2 {
+impl Mul<&Bls24479Field> for G2 {
     type Output = Self;
 
-    fn mul(self, rhs: &BigNumber) -> Self {
+    fn mul(self, rhs: &Bls24479Field) -> Self {
         Self { inner: pair4::g2mul(&self.inner, &rhs.inner) }
     }
 }
@@ -262,31 +242,37 @@ pub struct Gt {
     inner: FP24,
 }
 
-impl GtTrait for Gt {
-    type Big = BigNumber;
-    type Rng = Rand;
+impl GroupGt for Gt {
+    type Field = Bls24479Field;
 
     fn one() -> Self {
         let mut r = FP24::new();
         r.one();
         Self { inner: r }
     }
+}
 
+impl From<Gt> for Vec<u8> {
+    fn from(gt: Gt) -> Self {
+        let mut bytes = vec![0u8; MSG_SIZE];
+        gt.inner.tobytes(&mut bytes);
+        bytes
+    }
+}
+
+impl<'a> From<&'a [u8]> for Gt {
+    fn from(bytes: &'a [u8]) -> Self {
+        Self { inner: FP24::frombytes(bytes) }
+    }
+}
+
+impl Random for Gt {
+    type Rng = MiraclRng;
     fn random(rng: &mut Self::Rng) -> Self {
         let mut rand_bytes = [0u8; MSG_SIZE];
         rng.fill_bytes(&mut rand_bytes);
         let r = FP24::frombytes(&rand_bytes);
         Self { inner: r }
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Self {
-        Self { inner: FP24::frombytes(bytes) }
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![0u8; MSG_SIZE];
-        self.inner.tobytes(&mut bytes);
-        bytes
     }
 }
 
@@ -299,11 +285,10 @@ impl Mul<&Self> for Gt {
     }
 }
 
-impl Pow for Gt {
+impl Pow<&Bls24479Field> for Gt {
     type Output = Self;
-    type Rhs = BigNumber;
 
-    fn pow(self, rhs: &BigNumber) -> Self {
+    fn pow(self, rhs: &Bls24479Field) -> Self {
         Self { inner: pair4::gtpow(&self.inner, &rhs.inner) }
     }
 }
@@ -318,15 +303,14 @@ impl Inv for Gt {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Curve;
+pub struct Bls24479Curve;
 
-impl CurveTrait for Curve {
-    type Chunk = i64;
-    type Big = BigNumber;
+impl PairingCurve for Bls24479Curve {
+    type Rng = MiraclRng;
+    type Field = Bls24479Field;
     type G1 = G1;
     type G2 = G2;
     type Gt = Gt;
-    type Rng = Rand;
 
     fn pair(e1: &Self::G1, e2: &Self::G2) -> Self::Gt {
         Self::Gt { inner: pair4::fexp(&pair4::ate(&e2.inner, &e1.inner)) }

@@ -1,5 +1,7 @@
 use crate::{
+    curves::FieldWithOrder,
     error::ABEError,
+    random::Random,
     utils::{
         aes::{decrypt_symmetric, encrypt_symmetric},
         secret_shares::{calc_coefficients, calc_pruned, gen_shares_policy, remove_index},
@@ -7,7 +9,7 @@ use crate::{
     },
 };
 
-use crate::curves::{BigNumber, Curve, Gt, Inv as _, Pow as _, G1, G2};
+use crate::curves::{Field, GroupG1, GroupG2, GroupGt, Inv as _, PairingCurve, Pow as _};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 use tessera_policy::pest::{parse, PolicyLanguage};
@@ -15,7 +17,7 @@ use tessera_policy::pest::{parse, PolicyLanguage};
 #[derive(Serialize, Deserialize)]
 pub struct GlobalParams<T>
 where
-    T: Curve,
+    T: PairingCurve,
 {
     pub g1: T::G1,
     pub g2: T::G2,
@@ -24,10 +26,10 @@ where
 
 impl<T> GlobalParams<T>
 where
-    T: Curve,
+    T: PairingCurve,
 {
-    pub fn new(rng: &mut T::Rng) -> Self {
-        let x = T::Big::random(rng);
+    pub fn new(rng: &mut <T::Field as Random>::Rng) -> Self {
+        let x = T::Field::random(rng);
         let g1 = T::G1::new(&x);
         let g2 = T::G2::new(&x);
         let e = T::pair(&g1, &g2);
@@ -37,34 +39,34 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AuthorityKeyPair<'a, T: Curve> {
+pub struct AuthorityKeyPair<'a, T: PairingCurve> {
     pub name: Cow<'a, str>,
     pub pk: AuthorityPublicKey<T>,
     pub mk: AuthorityMasterKey<T>,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AuthorityPublicKey<T: Curve> {
+pub struct AuthorityPublicKey<T: PairingCurve> {
     pub e_alpha: T::Gt,
     pub gy: T::G1,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AuthorityMasterKey<T: Curve> {
-    pub alpha: T::Big,
-    pub y: T::Big,
+pub struct AuthorityMasterKey<T: PairingCurve> {
+    pub alpha: T::Field,
+    pub y: T::Field,
 }
 
 impl<'a, T> AuthorityKeyPair<'a, T>
 where
-    T: Curve,
+    T: PairingCurve,
 {
-    pub fn new<S>(mut rng: &mut T::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<'a, T>
+    pub fn new<S>(mut rng: &mut <T::Field as Random>::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<'a, T>
     where
         S: Into<Cow<'a, str>>,
     {
-        let alpha = T::Big::random(&mut rng);
-        let y = T::Big::random(&mut rng);
+        let alpha = T::Field::random(&mut rng);
+        let y = T::Field::random(&mut rng);
         let e_alpha = gp.e.pow(&alpha);
         let gy = gp.g1 * &y;
 
@@ -75,29 +77,29 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UserAttributeKey<T: Curve> {
+pub struct UserAttributeKey<T: PairingCurve> {
     pub k: T::G2,
     pub kp: T::G1,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UserSecretKey<T: Curve> {
+pub struct UserSecretKey<T: PairingCurve> {
     pub gid: String,
     pub inner: HashMap<String, UserAttributeKey<T>>,
 }
 
 impl<T> UserAttributeKey<T>
 where
-    T: Curve,
+    T: PairingCurve,
 {
     pub fn new<S: AsRef<str>>(
-        mut rng: &mut T::Rng,
+        mut rng: &mut <T::Field as Random>::Rng,
         gp: &GlobalParams<T>,
         mk: &AuthorityMasterKey<T>,
         gid: &str,
         attribute: S,
     ) -> Self {
-        let t = T::Big::random(&mut rng);
+        let t = T::Field::random(&mut rng);
         let k = gp.g2 * &mk.alpha;
         let k = k + (T::hash_to_g2(gid.as_bytes()) * &mk.y);
         let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()) * &t);
@@ -108,10 +110,10 @@ where
 
 impl<T> UserSecretKey<T>
 where
-    T: Curve,
+    T: PairingCurve,
 {
     pub fn new<S: AsRef<str>>(
-        rng: &mut T::Rng,
+        rng: &mut <T::Field as Random>::Rng,
         gp: &GlobalParams<T>,
         mk: &AuthorityMasterKey<T>,
         gid: &str,
@@ -127,8 +129,13 @@ where
         Self { gid: gid.to_string(), inner }
     }
 
-    pub fn add_attribute<S>(&mut self, rng: &mut T::Rng, gp: &GlobalParams<T>, mk: &AuthorityMasterKey<T>, attribute: S)
-    where
+    pub fn add_attribute<S>(
+        &mut self,
+        rng: &mut <T::Field as Random>::Rng,
+        gp: &GlobalParams<T>,
+        mk: &AuthorityMasterKey<T>,
+        attribute: S,
+    ) where
         S: AsRef<str> + Clone,
     {
         let key = UserAttributeKey::new(rng, gp, mk, &self.gid, attribute.clone());
@@ -137,7 +144,7 @@ where
 
     pub fn add_attributes<S>(
         &mut self,
-        rng: &mut T::Rng,
+        rng: &mut <T::Field as Random>::Rng,
         gp: &GlobalParams<T>,
         mk: &AuthorityMasterKey<T>,
         attributes: &[S],
@@ -152,7 +159,7 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Ciphertext<T: Curve> {
+pub struct Ciphertext<T: PairingCurve> {
     pub policy: (String, PolicyLanguage),
     pub c0: T::Gt,
     pub c1: HashMap<String, T::Gt>,
@@ -162,8 +169,8 @@ pub struct Ciphertext<T: Curve> {
     pub ct: Vec<u8>,
 }
 
-pub fn encrypt<T: Curve>(
-    rng: &mut T::Rng,
+pub fn encrypt<T: PairingCurve>(
+    rng: &mut <T::Field as Random>::Rng,
     gp: &GlobalParams<T>,
     pks: &HashMap<String, AuthorityPublicKey<T>>,
     policy: (String, PolicyLanguage),
@@ -172,14 +179,14 @@ pub fn encrypt<T: Curve>(
     let (policy_name, language) = policy;
     match parse(&policy_name, language) {
         Ok(policy) => {
-            let s = T::Big::random_mod_order(rng);
-            let w = T::Big::new();
+            let s = T::Field::random_within_order(rng);
+            let w = T::Field::new();
 
             let s_shares = gen_shares_policy::<T>(rng, s, &policy, None).unwrap();
             let w_shares = gen_shares_policy::<T>(rng, w, &policy, None).unwrap();
 
             let c0 = T::Gt::random(rng);
-            let msg = c0.to_bytes();
+            let msg: Vec<u8> = c0.into();
 
             let c0 = c0 * &(gp.e.pow(&s));
             let mut c1 = HashMap::new();
@@ -188,7 +195,7 @@ pub fn encrypt<T: Curve>(
             let mut c4 = HashMap::new();
 
             for (attr_name, s_share) in s_shares.into_iter() {
-                let tx = T::Big::random(rng);
+                let tx = T::Field::random(rng);
                 let authority_name = attr_name.split_once("@").unwrap().0;
                 let attr = remove_index(&attr_name);
 
@@ -218,7 +225,7 @@ pub fn encrypt<T: Curve>(
     }
 }
 
-pub fn decrypt<T: Curve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
+pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
     let (policy_name, lang) = ct.policy.clone();
     match parse(&policy_name, lang) {
         Ok(policy) => {
@@ -231,7 +238,7 @@ pub fn decrypt<T: Curve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Ve
                             true => {
                                 let mut coefficients = HashMap::new();
                                 coefficients =
-                                    calc_coefficients::<T>(&policy, T::Big::one(), coefficients, None).unwrap();
+                                    calc_coefficients::<T>(&policy, T::Field::one(), coefficients, None).unwrap();
 
                                 let h_user = T::hash_to_g2(sk.gid.as_bytes());
                                 let mut b = T::Gt::one();
@@ -256,7 +263,7 @@ pub fn decrypt<T: Curve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Ve
 
                                 let c0 = ct.c0;
                                 let msg = c0 * &b;
-                                let msg = msg.to_bytes();
+                                let msg: Vec<u8> = msg.into();
                                 decrypt_symmetric(msg, &ct.ct)
                             }
                             false => Err(ABEError::new("Error: Attributes in user secret doesn't match policy.")),
@@ -278,20 +285,17 @@ mod tests {
     use rand::Rng as _;
 
     use super::*;
-    use crate::curves::{
-        bls24479::{Curve, Rand},
-        Rand as _,
-    };
+    use crate::{curves::bls24479::Bls24479Curve, random::miracl::MiraclRng};
 
     #[test]
     fn encrypt_and_decrypt() {
-        let mut rng = Rand::new();
+        let mut rng = MiraclRng::new();
         let mut thread_rng = rand::thread_rng();
         let mut seed = [0u8; 128];
         thread_rng.fill(&mut seed);
         rng.seed(&seed);
 
-        let gp = GlobalParams::<Curve>::new(&mut rng);
+        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
 
         println!("Global parameters generated.");
         let authority_a = AuthorityKeyPair::new(&mut rng, &gp, "Aauthority");
