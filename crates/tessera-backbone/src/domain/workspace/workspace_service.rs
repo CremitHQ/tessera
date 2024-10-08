@@ -5,6 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr,
     SqlxError,
 };
+use tracing::info;
 use ulid::Ulid;
 
 #[automock]
@@ -47,6 +48,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
         }
         .insert(transaction)
         .await?;
+
+        info!("workspace(name: {name}) created.");
 
         Ok(())
     }
