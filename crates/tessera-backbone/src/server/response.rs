@@ -21,7 +21,7 @@ pub fn error_payload(code: &'static str, message: &'static str) -> Json<ErrorPay
     Json(ErrorPayload { code, message, data: EmptyData {} })
 }
 
-pub fn error_payload_with_data<D: Serialize, Debug>(
+pub fn error_payload_with_data<D: Serialize>(
     code: &'static str,
     message: &'static str,
     data: D,

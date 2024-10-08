@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use mockall::automock;
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, DbErr, RuntimeErr, SqlxError};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr,
+    SqlxError,
+};
 use ulid::Ulid;
-
-use crate::IntoAnyhow;
 
 #[automock]
 #[async_trait]
@@ -18,6 +19,12 @@ impl WorkspaceServiceImpl {
     pub(crate) fn new() -> Self {
         Self {}
     }
+
+    async fn exists_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<bool> {
+        use crate::database::workspace;
+
+        Ok(workspace::Entity::find().filter(workspace::Column::Name.eq(name)).count(transaction).await? > 0)
+    }
 }
 
 #[async_trait]
@@ -26,13 +33,17 @@ impl WorkspaceService for WorkspaceServiceImpl {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
 
+        if self.exists_by_name(transaction, name).await? {
+            return Err(Error::WorkspaceNameConflicted);
+        }
+
         let now = Utc::now();
 
         ActiveModel {
             id: ActiveValue::Set(Ulid::new().into()),
             name: ActiveValue::Set(name.to_owned()),
-            created_at: ActiveValue::Set(now.clone()),
-            updated_at: ActiveValue::Set(now.clone()),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
         }
         .insert(transaction)
         .await?;
@@ -67,7 +78,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     use chrono::Utc;
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
@@ -81,12 +92,16 @@ mod test {
 
         const WORKSPACE_NAME: &'static str = "test_workspace";
         let now = Utc::now();
-        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
-            id: Ulid::new().into(),
-            name: WORKSPACE_NAME.to_owned(),
-            created_at: now.clone(),
-            updated_at: now.clone(),
-        }]]);
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
+            .append_query_results([vec![Model {
+                id: Ulid::new().into(),
+                name: WORKSPACE_NAME.to_owned(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            }]]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new();
@@ -98,6 +113,26 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         result.expect("creating workspace should be successful")
+    }
+
+    #[tokio::test]
+    async fn when_workspace_already_exists_then_workspace_service_returns_workspace_name_conflicted_error() {
+        const WORKSPACE_NAME: &'static str = "test_workspace";
+        let now = Utc::now();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(1))
+        }]]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let workspace_service = WorkspaceServiceImpl::new();
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::WorkspaceNameConflicted)))
     }
 
     #[tokio::test]

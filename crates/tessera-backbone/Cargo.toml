@@ -29,3 +29,6 @@ thiserror = { workspace = true }
 mockall = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+maplit = "1.0.2"
