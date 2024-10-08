@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 
-use crate::application::{
-    workspace::{self, command::CreatingWorkspaceCommand, WorkspaceUseCase},
-    Application,
+use crate::{
+    application::{
+        workspace::{self, command::CreatingWorkspaceCommand, WorkspaceUseCase},
+        Application,
+    },
+    server::response::handle_internal_server_error,
 };
 
 use self::request::PostWorkspaceRequest;
@@ -33,6 +36,8 @@ impl From<PostWorkspaceRequest> for CreatingWorkspaceCommand {
 
 impl IntoResponse for workspace::Error {
     fn into_response(self) -> axum::response::Response {
-        unreachable!()
+        match self {
+            workspace::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
+        }
     }
 }
