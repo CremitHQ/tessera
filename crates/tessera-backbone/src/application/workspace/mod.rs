@@ -41,6 +41,8 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("workspace name already exists")]
+    WorkspaceNameConflicted,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -49,6 +51,7 @@ impl From<WorkspaceServiceError> for Error {
     fn from(value: WorkspaceServiceError) -> Self {
         match value {
             WorkspaceServiceError::Anyhow(e) => e.into(),
+            WorkspaceServiceError::WorkspaceNameConflicted => Self::WorkspaceNameConflicted,
         }
     }
 }
@@ -120,5 +123,24 @@ mod test {
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+
+    #[tokio::test]
+    async fn when_creating_workspace_failed_with_workspace_name_conflicted_use_case_should_returns_workspace_name_conflicted_err(
+    ) {
+        const WORKSPACE_NAME: &'static str = "test_workspace";
+        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mut workspace_service_mock = MockWorkspaceService::new();
+
+        workspace_service_mock
+            .expect_create()
+            .withf(|_, name| name == WORKSPACE_NAME)
+            .times(1)
+            .returning(|_, _| Err(WorkspaceServiceError::WorkspaceNameConflicted));
+
+        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let result = workspace_use_case.create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() }).await;
+
+        assert!(matches!(result, Err(Error::WorkspaceNameConflicted)));
     }
 }

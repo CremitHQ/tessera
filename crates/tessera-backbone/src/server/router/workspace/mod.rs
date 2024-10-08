@@ -13,6 +13,7 @@ use crate::{
 use self::request::PostWorkspaceRequest;
 
 mod request;
+mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new().route("/", post(handle_post_workspace)).with_state(application)
@@ -38,6 +39,7 @@ impl IntoResponse for workspace::Error {
     fn into_response(self) -> axum::response::Response {
         match self {
             workspace::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
+            workspace::Error::WorkspaceNameConflicted => response::WorkspaceNameConflictedErrorResponse.into_response(),
         }
     }
 }

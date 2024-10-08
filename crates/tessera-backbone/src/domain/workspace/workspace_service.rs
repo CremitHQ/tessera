@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use mockall::automock;
-use sea_orm::{ActiveModelTrait, DatabaseTransaction};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, DbErr, RuntimeErr, SqlxError};
 use ulid::Ulid;
 
 use crate::IntoAnyhow;
@@ -35,8 +35,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
             updated_at: ActiveValue::Set(now.clone()),
         }
         .insert(transaction)
-        .await
-        .anyhow()?;
+        .await?;
 
         Ok(())
     }
@@ -44,8 +43,24 @@ impl WorkspaceService for WorkspaceServiceImpl {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("workspace name already exists")]
+    WorkspaceNameConflicted,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
+}
+
+impl From<DbErr> for Error {
+    fn from(value: DbErr) -> Self {
+        if let DbErr::Query(RuntimeErr::SqlxError(SqlxError::Database(e))) = value {
+            if e.code().as_deref() == Some("23505") {
+                Self::WorkspaceNameConflicted
+            } else {
+                Self::Anyhow(e.into())
+            }
+        } else {
+            Self::Anyhow(value.into())
+        }
+    }
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
