@@ -79,7 +79,7 @@ pub async fn connect_to_database(
     database_name: &str,
     auth: &AuthMethod,
 ) -> anyhow::Result<Arc<DatabaseConnection>> {
-    let options = match auth {
+    let mut options = match auth {
         AuthMethod::Credential { username, password } => {
             let mut conn_str = Url::parse(&format!("postgres://{host}:5432/{database_name}?sslmode=Prefer"))?;
             conn_str.set_username(username).unwrap();
@@ -94,6 +94,8 @@ pub async fn connect_to_database(
             ConnectOptions::new(conn_str)
         }
     };
+
+    options.sqlx_logging_level(tracing::log::LevelFilter::Debug);
 
     let connection = Arc::new(Database::connect(options).await?);
 
