@@ -1,29 +1,6 @@
-use async_trait::async_trait;
-use mockall::automock;
-use sea_orm::DatabaseTransaction;
+mod vault_service;
 
-#[automock]
-#[async_trait]
-pub(crate) trait VaultService {
-    async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
-}
+#[cfg(test)]
+pub(crate) use vault_service::MockVaultService;
+pub(crate) use vault_service::{Error, VaultService, VaultServiceImpl};
 
-pub(crate) struct VaultServiceImpl {}
-
-impl VaultServiceImpl {
-    pub(crate) fn new() -> Self {
-        Self {}
-    }
-}
-
-#[async_trait]
-impl VaultService for VaultServiceImpl {
-    async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
-        todo!()
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum Error {}
-
-pub(crate) type Result<T> = std::result::Result<T, Error>;
