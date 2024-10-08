@@ -5,29 +5,29 @@ use sea_orm::DatabaseConnection;
 use crate::{
     config::ApplicationConfig,
     database::{connect_to_database, AuthMethod},
-    domain::vault::VaultServiceImpl,
+    domain::workspace::WorkspaceServiceImpl,
 };
 
-use self::vault::{VaultUseCase, VaultUseCaseImpl};
+use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
-pub mod vault;
+pub mod workspace;
 
 pub(crate) struct Application {
     database_connection: Arc<DatabaseConnection>,
-    vault_service: Arc<VaultServiceImpl>,
+    workspace_service: Arc<WorkspaceServiceImpl>,
 }
 
 impl Application {
-    pub fn vault(&self) -> impl VaultUseCase {
-        VaultUseCaseImpl::new(self.database_connection.clone(), self.vault_service.clone())
+    pub fn workspace(&self) -> impl WorkspaceUseCase {
+        WorkspaceUseCaseImpl::new(self.database_connection.clone(), self.workspace_service.clone())
     }
 }
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
-    let vault_service = Arc::new(VaultServiceImpl::new());
+    let workspace_service = Arc::new(WorkspaceServiceImpl::new());
 
-    Ok(Application { database_connection, vault_service })
+    Ok(Application { database_connection, workspace_service })
 }
 
 async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<Arc<DatabaseConnection>> {

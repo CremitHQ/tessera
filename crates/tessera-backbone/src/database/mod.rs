@@ -20,7 +20,7 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
-pub(crate) mod vault;
+pub(crate) mod workspace;
 
 pub(crate) enum AuthMethod {
     Credential { username: String, password: Option<String> },

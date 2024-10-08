@@ -8,22 +8,22 @@ use crate::IntoAnyhow;
 
 #[automock]
 #[async_trait]
-pub(crate) trait VaultService {
+pub(crate) trait WorkspaceService {
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
 }
 
-pub(crate) struct VaultServiceImpl {}
+pub(crate) struct WorkspaceServiceImpl {}
 
-impl VaultServiceImpl {
+impl WorkspaceServiceImpl {
     pub(crate) fn new() -> Self {
         Self {}
     }
 }
 
 #[async_trait]
-impl VaultService for VaultServiceImpl {
+impl WorkspaceService for WorkspaceServiceImpl {
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
-        use crate::database::vault::ActiveModel;
+        use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
 
         let now = Utc::now();
@@ -58,45 +58,45 @@ mod test {
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
     use ulid::Ulid;
 
-    use super::{Error, VaultService, VaultServiceImpl};
+    use super::{Error, WorkspaceService, WorkspaceServiceImpl};
 
     #[tokio::test]
-    async fn when_insert_is_successful_then_vault_service_returns_ok() {
-        use crate::database::vault::Model;
+    async fn when_insert_is_successful_then_workspace_service_returns_ok() {
+        use crate::database::workspace::Model;
 
-        const VAULT_NAME: &'static str = "test_vault";
+        const WORKSPACE_NAME: &'static str = "test_workspace";
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
             id: Ulid::new().into(),
-            name: VAULT_NAME.to_owned(),
+            name: WORKSPACE_NAME.to_owned(),
             created_at: now.clone(),
             updated_at: now.clone(),
         }]]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
-        let vault_service = VaultServiceImpl::new();
+        let workspace_service = WorkspaceServiceImpl::new();
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = vault_service.create(&transaction, VAULT_NAME).await;
+        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
-        result.expect("creating vault should be successful")
+        result.expect("creating workspace should be successful")
     }
 
     #[tokio::test]
-    async fn when_insert_is_failed_then_vault_service_returns_anyhow_err() {
-        const VAULT_NAME: &'static str = "test_vault";
+    async fn when_insert_is_failed_then_workspace_service_returns_anyhow_err() {
+        const WORKSPACE_NAME: &'static str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
-        let vault_service = VaultServiceImpl::new();
+        let workspace_service = WorkspaceServiceImpl::new();
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = vault_service.create(&transaction, VAULT_NAME).await;
+        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 

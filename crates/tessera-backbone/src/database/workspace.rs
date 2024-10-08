@@ -4,7 +4,7 @@ use sea_orm::prelude::*;
 use super::UlidId;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "vault")]
+#[sea_orm(table_name = "workspace")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: UlidId,
