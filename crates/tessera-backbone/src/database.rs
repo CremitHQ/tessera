@@ -2,6 +2,7 @@ use std::{
     borrow::Borrow,
     fmt::Display,
     ops::Deref,
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 
@@ -13,29 +14,18 @@ use aws_sigv4::{
 };
 use sea_orm::sqlx::postgres::PgConnectOptions;
 use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection,
-    DatabaseTransaction, DbErr, Statement, TransactionTrait, TryFromU64, TryGetError,
+    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, DatabaseTransaction, DbErr,
+    Statement, TransactionTrait, TryFromU64, TryGetError,
 };
 use ulid::Ulid;
 use url::Url;
 
 pub(crate) enum AuthMethod {
-    Credential {
-        username: String,
-        password: Option<String>,
-    },
-    RdsIamAuth {
-        host: String,
-        port: u16,
-        username: String,
-    },
+    Credential { username: String, password: Option<String> },
+    RdsIamAuth { host: String, port: u16, username: String },
 }
 
-async fn generate_rds_iam_token(
-    db_hostname: &str,
-    port: u16,
-    db_username: &str,
-) -> anyhow::Result<String> {
+async fn generate_rds_iam_token(db_hostname: &str, port: u16, db_username: &str) -> anyhow::Result<String> {
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
 
     let credentials = config
@@ -67,11 +57,9 @@ async fn generate_rds_iam_token(
     );
 
     let signable_request =
-        SignableRequest::new("GET", &url, std::iter::empty(), SignableBody::Bytes(&[]))
-            .expect("signable request");
+        SignableRequest::new("GET", &url, std::iter::empty(), SignableBody::Bytes(&[])).expect("signable request");
 
-    let (signing_instructions, _signature) =
-        sign(signable_request, &signing_params.into())?.into_parts();
+    let (signing_instructions, _signature) = sign(signable_request, &signing_params.into())?.into_parts();
 
     let mut url = url::Url::parse(&url).unwrap();
     for (name, value) in signing_instructions.params() {
@@ -88,53 +76,34 @@ pub async fn connect_to_database(
     port: u16,
     database_name: &str,
     auth: &AuthMethod,
-) -> anyhow::Result<DatabaseConnection> {
+) -> anyhow::Result<Arc<DatabaseConnection>> {
     let options = match auth {
         AuthMethod::Credential { username, password } => {
-            let mut conn_str = Url::parse(&format!(
-                "postgres://{host}:5432/{database_name}?sslmode=Prefer"
-            ))?;
+            let mut conn_str = Url::parse(&format!("postgres://{host}:5432/{database_name}?sslmode=Prefer"))?;
             conn_str.set_username(username).unwrap();
             conn_str.set_password(password.as_deref()).unwrap();
             ConnectOptions::new(conn_str)
         }
-        AuthMethod::RdsIamAuth {
-            host: auth_host,
-            port: auth_port,
-            username,
-        } => {
+        AuthMethod::RdsIamAuth { host: auth_host, port: auth_port, username } => {
             let password = generate_rds_iam_token(auth_host, *auth_port, username).await?;
-            let mut conn_str =
-                Url::parse(&format!("postgres://{host}:{port}/postgres?sslmode=Prefer"))?;
+            let mut conn_str = Url::parse(&format!("postgres://{host}:{port}/postgres?sslmode=Prefer"))?;
             conn_str.set_username(username).unwrap();
-            conn_str
-                .set_password(Some(urlencoding::encode(&password).as_ref()))
-                .unwrap();
+            conn_str.set_password(Some(urlencoding::encode(&password).as_ref())).unwrap();
             ConnectOptions::new(conn_str)
         }
     };
 
-    let connection = Database::connect(options).await?;
+    let connection = Arc::new(Database::connect(options).await?);
 
-    if let AuthMethod::RdsIamAuth {
-        host: auth_host,
-        port: auth_port,
-        username,
-    } = auth
-    {
-        reassign_token_periodically_to_database(
-            connection.clone(),
-            auth_host.clone(),
-            *auth_port,
-            username.clone(),
-        );
+    if let AuthMethod::RdsIamAuth { host: auth_host, port: auth_port, username } = auth {
+        reassign_token_periodically_to_database(connection.clone(), auth_host.clone(), *auth_port, username.clone());
     };
 
     Ok(connection)
 }
 
 fn reassign_token_periodically_to_database(
-    database: DatabaseConnection,
+    database: Arc<DatabaseConnection>,
     database_host: String,
     database_port: u16,
     database_user: String,
@@ -143,9 +112,7 @@ fn reassign_token_periodically_to_database(
         async move {
             loop {
                 tokio::time::sleep(tokio::time::Duration::from_secs(600)).await;
-                if let Ok(token) =
-                    generate_rds_iam_token(&database_host, database_port, &database_user).await
-                {
+                if let Ok(token) = generate_rds_iam_token(&database_host, database_port, &database_user).await {
                     let pool = database.get_postgres_connection_pool();
                     let new_option = PgConnectOptions::new()
                         .host(&database_host)
@@ -167,10 +134,7 @@ pub trait OrganizationScopedTransaction {
 }
 
 impl OrganizationScopedTransaction for DatabaseConnection {
-    async fn begin_with_organization_scope(
-        &self,
-        organization_slug: &str,
-    ) -> Result<DatabaseTransaction, DbErr> {
+    async fn begin_with_organization_scope(&self, organization_slug: &str) -> Result<DatabaseTransaction, DbErr> {
         let transaction = self.begin().await?;
         transaction
             .execute(Statement::from_string(
@@ -241,26 +205,20 @@ impl sea_orm::TryGetable for UlidId {
     ) -> Result<Self, sea_orm::TryGetError> {
         let val = String::try_get_by(res, index)?;
 
-        Ulid::from_string(&val).map(Self::from).map_err(|e| {
-            TryGetError::DbErr(DbErr::TryIntoErr {
-                from: "String",
-                into: "Ulid",
-                source: Box::new(e),
-            })
-        })
+        Ulid::from_string(&val)
+            .map(Self::from)
+            .map_err(|e| TryGetError::DbErr(DbErr::TryIntoErr { from: "String", into: "Ulid", source: Box::new(e) }))
     }
 }
 
 impl TryFromU64 for UlidId {
     fn try_from_u64(n: u64) -> Result<Self, DbErr> {
         let val = String::try_from_u64(n)?;
-        Ulid::from_string(&val)
-            .map(Self::from)
-            .map_err(|e| DbErr::TryIntoErr {
-                from: "u64",
-                into: "Ulid",
-                source: Box::new(e),
-            })
+        Ulid::from_string(&val).map(Self::from).map_err(|e| DbErr::TryIntoErr {
+            from: "u64",
+            into: "Ulid",
+            source: Box::new(e),
+        })
     }
 }
 
@@ -269,9 +227,7 @@ impl sea_orm::sea_query::ValueType for UlidId {
         match v {
             sea_orm::Value::String(v) => {
                 let v = v.ok_or(sea_orm::sea_query::ValueTypeErr)?;
-                Ulid::from_string(&v)
-                    .map(Self::from)
-                    .map_err(|_| sea_orm::sea_query::ValueTypeErr)
+                Ulid::from_string(&v).map(Self::from).map_err(|_| sea_orm::sea_query::ValueTypeErr)
             }
             _ => Err(sea_orm::sea_query::ValueTypeErr),
         }

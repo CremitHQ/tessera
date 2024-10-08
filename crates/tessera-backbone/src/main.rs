@@ -4,11 +4,12 @@ use clap::Parser;
 
 use crate::logger::LoggerConfig;
 
-mod application;
-mod config;
-mod database;
-mod logger;
-mod server;
+pub(crate) mod application;
+pub(crate) mod config;
+pub(crate) mod database;
+pub(crate) mod domain;
+pub(crate) mod logger;
+pub(crate) mod server;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]

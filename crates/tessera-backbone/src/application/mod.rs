@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use sea_orm::DatabaseConnection;
 
 use crate::{
     config::ApplicationConfig,
     database::{connect_to_database, AuthMethod},
+    domain::vault::VaultServiceImpl,
 };
 
 use self::vault::{VaultUseCase, VaultUseCaseImpl};
@@ -10,22 +13,24 @@ use self::vault::{VaultUseCase, VaultUseCaseImpl};
 pub mod vault;
 
 pub(crate) struct Application {
-    database_connection: DatabaseConnection,
+    database_connection: Arc<DatabaseConnection>,
+    vault_service: Arc<VaultServiceImpl>,
 }
 
 impl Application {
     pub fn vault(&self) -> impl VaultUseCase {
-        VaultUseCaseImpl::new(self.database_connection.clone())
+        VaultUseCaseImpl::new(self.database_connection.clone(), self.vault_service.clone())
     }
 }
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
+    let vault_service = Arc::new(VaultServiceImpl::new());
 
-    Ok(Application { database_connection })
+    Ok(Application { database_connection, vault_service })
 }
 
-async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<DatabaseConnection> {
+async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<Arc<DatabaseConnection>> {
     let database_host = &config.database.host;
     let database_port = config.database.port;
     let database_name = &config.database.database_name;
