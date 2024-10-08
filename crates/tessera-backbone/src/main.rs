@@ -50,3 +50,16 @@ async fn main() -> anyhow::Result<()> {
     server::run(application, (&app_config).into()).await?;
     Ok(())
 }
+
+pub trait IntoAnyhow<T> {
+    fn anyhow(self) -> anyhow::Result<T>;
+}
+
+impl<T, E> IntoAnyhow<T> for std::result::Result<T, E>
+where
+    E: Into<anyhow::Error>,
+{
+    fn anyhow(self) -> anyhow::Result<T> {
+        self.map_err(|e| e.into())
+    }
+}
