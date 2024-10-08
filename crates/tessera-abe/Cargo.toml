@@ -16,7 +16,8 @@ tracing = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
 tessera-miracl = { workspace = true }
 tessera-policy = { workspace = true }
-lazy_static = "1.5.0"
+lazy_static = "1.5"
+rand_core = "0.6"
 
 [dev-dependencies]
 anyhow = { workspace = true }

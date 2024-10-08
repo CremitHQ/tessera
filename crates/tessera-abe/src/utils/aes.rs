@@ -1,12 +1,13 @@
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
+use rand_core::RngCore as _;
 
-use crate::curves::{Curve, Rand as _};
+use crate::curves::PairingCurve;
 use crate::error::ABEError;
 use std::convert::TryInto;
 
 /// Key Encapsulation Mechanism (AES-256 Encryption Function)
-pub fn encrypt_symmetric<T: Curve, G: std::convert::Into<Vec<u8>>>(
+pub fn encrypt_symmetric<T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
     rng: &mut T::Rng,
     msg: G,
     data: &[u8],
@@ -17,7 +18,9 @@ pub fn encrypt_symmetric<T: Curve, G: std::convert::Into<Vec<u8>>>(
     let cipher = Aes256Gcm::new(key);
 
     // 96bit random noise
-    let nonce_vec: Vec<u8> = (0..12).into_iter().map(|_| rng.get_byte()).collect(); // 12*u8 = 96 Bit
+    let mut nonce_vec = [0u8; 12];
+    rng.fill_bytes(&mut nonce_vec);
+
     let nonce = Nonce::from_slice(nonce_vec.as_ref());
     match cipher.encrypt(nonce, data.as_ref()) {
         Ok(mut ct) => {
