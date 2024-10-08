@@ -27,3 +27,4 @@ urlencoding = { workspace = true }
 thiserror = { workspace = true }
 mockall = { workspace = true }
 async-trait = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }

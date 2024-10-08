@@ -20,6 +20,8 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
+pub(crate) mod vault;
+
 pub(crate) enum AuthMethod {
     Credential { username: String, password: Option<String> },
     RdsIamAuth { host: String, port: u16, username: String },
