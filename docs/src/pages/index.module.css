@@ -1,0 +1,26 @@
+.homeWrapper {
+  text-align: left;
+  padding: 6rem 0;
+}
+
+.heroBanner {
+  padding: 4rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.heroTitle {
+  font-size: 3rem; /* 제목 크기 조정 */
+  font-weight: bold;
+}
+
+.heroSubtitle {
+  font-size: 1.5rem; /* 부제목 크기 조정 */
+  margin-top: 1rem;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 2rem;
+  }
+}
