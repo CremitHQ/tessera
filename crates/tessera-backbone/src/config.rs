@@ -1,18 +1,32 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use crate::Args;
 use config::{Config, File, FileFormat};
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ApplicationConfig {
     pub port: u16,
+    pub database: DatabaseConfig,
 }
 
-pub(super) fn load_config(
-    path_override: Option<PathBuf>,
-    port_override: Option<u16>,
-) -> anyhow::Result<ApplicationConfig> {
-    let config_file_path = if let Some(path_override) = path_override {
+#[derive(Deserialize, Debug)]
+pub struct DatabaseConfig {
+    pub host: String,
+    pub port: u16,
+    pub database_name: String,
+    pub auth: DatabaseAuthConfig,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "method", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum DatabaseAuthConfig {
+    Credential { username: String, password: Option<String> },
+    RdsIamAuth { username: String },
+}
+
+pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {
+    let config_file_path = if let Some(path_override) = args.config {
         path_override
     } else {
         let xdg_dirs = xdg::BaseDirectories::with_prefix("tessera").unwrap();
@@ -33,9 +47,13 @@ pub(super) fn load_config(
     };
 
     let config: ApplicationConfig = Config::builder()
-        .set_default("port", 8080)?
         .add_source(File::new(config_file_path.to_str().unwrap(), FileFormat::Toml))
-        .set_override_option("port", port_override)?
+        .set_override_option("port", args.port.map(|port| port.to_string()))?
+        .set_override_option("database.host", args.database_host)?
+        .set_override_option("database.port", args.database_port)?
+        .set_override_option("database.database_name", args.database_name)?
+        .set_override_option("database.auth.username", args.database_username)?
+        .set_override_option("database.auth.password", args.database_password)?
         .build()?
         .try_deserialize()?;
 
