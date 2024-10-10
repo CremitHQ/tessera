@@ -26,9 +26,9 @@ ulid = { workspace = true }
 url = { workspace = true }
 urlencoding = { workspace = true }
 thiserror = { workspace = true }
-mockall = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
+mockall = { workspace = true }
 maplit = "1.0.2"

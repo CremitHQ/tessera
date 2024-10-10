@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use chrono::Utc;
+#[cfg(test)]
 use mockall::automock;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr,
@@ -8,7 +9,7 @@ use sea_orm::{
 use tracing::info;
 use ulid::Ulid;
 
-#[automock]
+#[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait WorkspaceService {
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
