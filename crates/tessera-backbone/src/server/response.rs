@@ -8,23 +8,23 @@ pub(crate) fn handle_internal_server_error<E: std::error::Error>(e: E) -> impl I
 }
 
 #[derive(Serialize, Debug)]
-pub(crate) struct ErrorPayload<D: Serialize> {
-    code: &'static str,
-    message: &'static str,
+pub(crate) struct ErrorPayload<'a, D: Serialize> {
+    code: &'a str,
+    message: &'a str,
     data: D,
 }
 
 #[derive(Serialize, Debug)]
 pub(crate) struct EmptyData {}
 
-pub fn error_payload(code: &'static str, message: &'static str) -> Json<ErrorPayload<EmptyData>> {
+pub fn error_payload<'a>(code: &'a str, message: &'a str) -> Json<ErrorPayload<'a, EmptyData>> {
     Json(ErrorPayload { code, message, data: EmptyData {} })
 }
 
-pub fn error_payload_with_data<D: Serialize>(
-    code: &'static str,
-    message: &'static str,
+pub fn error_payload_with_data<'a, D: Serialize>(
+    code: &'a str,
+    message: &'a str,
     data: D,
-) -> Json<ErrorPayload<D>> {
+) -> Json<ErrorPayload<'a, D>> {
     Json(ErrorPayload { code, message, data })
 }
