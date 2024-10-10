@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use async_trait::async_trait;
 use aws_config::BehaviorVersion;
 use aws_credential_types::provider::ProvideCredentials;
 use aws_sigv4::{
@@ -130,13 +131,12 @@ fn reassign_token_periodically_to_database(
     });
 }
 
+#[async_trait]
 pub trait OrganizationScopedTransaction {
-    fn begin_with_organization_scope(
-        &self,
-        organization_slug: &str,
-    ) -> impl std::future::Future<Output = Result<DatabaseTransaction, DbErr>> + Send;
+    async fn begin_with_organization_scope(&self, organization_slug: &str) -> Result<DatabaseTransaction, DbErr>;
 }
 
+#[async_trait]
 impl OrganizationScopedTransaction for DatabaseConnection {
     async fn begin_with_organization_scope(&self, organization_slug: &str) -> Result<DatabaseTransaction, DbErr> {
         let transaction = self.begin().await?;
