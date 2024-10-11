@@ -5,12 +5,14 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::domain::workspace::{Error as WorkspaceServiceError, WorkspaceService};
 
-use self::command::CreatingWorkspaceCommand;
+use self::{command::CreatingWorkspaceCommand, data::WorkspaceData};
 
 pub mod command;
+pub mod data;
 
 #[async_trait]
 pub(crate) trait WorkspaceUseCase {
+    async fn get_all(&self) -> Result<Vec<WorkspaceData>>;
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()>;
 }
 
@@ -28,6 +30,10 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCaseImpl<W> {
 
 #[async_trait]
 impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImpl<W> {
+    async fn get_all(&self) -> Result<Vec<WorkspaceData>> {
+        todo!()
+    }
+
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()> {
         let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
 
