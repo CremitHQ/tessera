@@ -1,6 +1,13 @@
 use std::sync::Arc;
 
-use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{
+    debug_handler,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{delete, post},
+    Json, Router,
+};
 
 use crate::{
     application::{
@@ -16,7 +23,10 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/", post(handle_post_workspace).get(handle_get_workspaces)).with_state(application)
+    Router::new()
+        .route("/", post(handle_post_workspace).get(handle_get_workspaces))
+        .route("/:workspace_name", delete(handle_delete_workspace))
+        .with_state(application)
 }
 
 #[debug_handler]
@@ -59,4 +69,14 @@ impl From<WorkspaceData> for GetWorkspacesResponse {
     fn from(value: WorkspaceData) -> Self {
         Self { name: value.name }
     }
+}
+
+#[debug_handler]
+async fn handle_delete_workspace(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, workspace::Error> {
+    application.workspace().delete_by_name(&workspace_name).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

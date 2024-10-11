@@ -14,6 +14,7 @@ pub mod data;
 pub(crate) trait WorkspaceUseCase {
     async fn get_all(&self) -> Result<Vec<WorkspaceData>>;
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()>;
+    async fn delete_by_name(&self, name: &str) -> Result<()>;
 }
 
 #[derive(Default)]
@@ -49,6 +50,10 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
         transaction.commit().await.map_err(anyhow::Error::from)?;
 
         Ok(())
+    }
+
+    async fn delete_by_name(&self, name: &str) -> Result<()> {
+        todo!()
     }
 }
 
