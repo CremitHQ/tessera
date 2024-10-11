@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
-use crate::domain::workspace::{Error as WorkspaceServiceError, WorkspaceService};
+use crate::domain::workspace::{Error as WorkspaceServiceError, Workspace, WorkspaceService};
 
 use self::{command::CreatingWorkspaceCommand, data::WorkspaceData};
 
@@ -31,7 +31,14 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCaseImpl<W> {
 #[async_trait]
 impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImpl<W> {
     async fn get_all(&self) -> Result<Vec<WorkspaceData>> {
-        todo!()
+        let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
+
+        let workspaces = self.workspace_service.get_all(&transaction).await?;
+        let data = workspaces.into_iter().map(|workspace| workspace.into()).collect();
+
+        transaction.commit().await.map_err(anyhow::Error::from)?;
+
+        Ok(data)
     }
 
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()> {
@@ -42,6 +49,12 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
         transaction.commit().await.map_err(anyhow::Error::from)?;
 
         Ok(())
+    }
+}
+
+impl From<Workspace> for WorkspaceData {
+    fn from(value: Workspace) -> Self {
+        Self { name: value.name }
     }
 }
 
@@ -73,7 +86,7 @@ mod test {
 
     use super::{command::CreatingWorkspaceCommand, Error, WorkspaceUseCase, WorkspaceUseCaseImpl};
 
-    use crate::domain::workspace::{Error as WorkspaceServiceError, MockWorkspaceService};
+    use crate::domain::workspace::{Error as WorkspaceServiceError, MockWorkspaceService, Workspace};
 
     #[tokio::test]
     async fn when_creating_workspace_use_case_should_delegate_to_service() {
@@ -148,5 +161,21 @@ mod test {
         let result = workspace_use_case.create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() }).await;
 
         assert!(matches!(result, Err(Error::WorkspaceNameConflicted)));
+    }
+
+    #[tokio::test]
+    async fn when_getting_workspaces_succeed_use_case_should_returns_workspaces() {
+        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mut workspace_service_mock = MockWorkspaceService::new();
+
+        workspace_service_mock
+            .expect_get_all()
+            .times(1)
+            .returning(|_| Ok(vec![Workspace { name: "test_workspace".to_owned() }]));
+
+        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let result = workspace_use_case.get_all().await;
+
+        assert_eq!(result.expect("getting workspaces should be successful")[0].name, "test_workspace");
     }
 }

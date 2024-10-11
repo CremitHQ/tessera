@@ -8,10 +8,12 @@ use sea_orm::{
 };
 use tracing::info;
 use ulid::Ulid;
+use crate::domain::workspace::Workspace;
 
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait WorkspaceService {
+    async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>>;
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
 }
 
@@ -31,6 +33,10 @@ impl WorkspaceServiceImpl {
 
 #[async_trait]
 impl WorkspaceService for WorkspaceServiceImpl {
+    async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>> {
+        todo!()
+    }
+
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
@@ -82,7 +88,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
     use chrono::Utc;
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
@@ -122,7 +128,6 @@ mod test {
     #[tokio::test]
     async fn when_workspace_already_exists_then_workspace_service_returns_workspace_name_conflicted_error() {
         const WORKSPACE_NAME: &'static str = "test_workspace";
-        let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
             "num_items" => sea_orm::Value::BigInt(Some(1))
         }]]);
