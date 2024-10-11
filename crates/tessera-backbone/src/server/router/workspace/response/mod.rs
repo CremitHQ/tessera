@@ -16,3 +16,11 @@ impl IntoResponse for WorkspaceNameConflictedErrorResponse {
 pub(super) struct GetWorkspacesResponse {
     pub name: String,
 }
+
+pub(super) struct WorkspaceNotExistsErrorResponse;
+
+impl IntoResponse for WorkspaceNotExistsErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::NOT_FOUND, error_payload("WORKSPACE_NOT_EXISTS", "workspace is not exists.")).into_response()
+    }
+}

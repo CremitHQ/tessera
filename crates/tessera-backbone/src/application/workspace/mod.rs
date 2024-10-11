@@ -53,7 +53,16 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
     }
 
     async fn delete_by_name(&self, name: &str) -> Result<()> {
-        todo!()
+        let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
+
+        let workspace =
+            self.workspace_service.get_by_name(&transaction, name).await?.ok_or_else(|| Error::WorkspaceNotExists)?;
+
+        workspace.delete().await?;
+
+        transaction.commit().await.map_err(anyhow::Error::from)?;
+
+        Ok(())
     }
 }
 
@@ -65,6 +74,8 @@ impl From<Workspace> for WorkspaceData {
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("workspace not exists")]
+    WorkspaceNotExists,
     #[error("workspace name already exists")]
     WorkspaceNameConflicted,
     #[error(transparent)]
@@ -176,11 +187,47 @@ mod test {
         workspace_service_mock
             .expect_get_all()
             .times(1)
-            .returning(|_| Ok(vec![Workspace { name: "test_workspace".to_owned() }]));
+            .returning(|_| Ok(vec![Workspace::new("test_workspace".to_owned())]));
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
         let result = workspace_use_case.get_all().await;
 
         assert_eq!(result.expect("getting workspaces should be successful")[0].name, "test_workspace");
+    }
+
+    #[tokio::test]
+    async fn when_deleting_workspace_succeed_use_case_should_returns_empty_ok() {
+        const WORKSPACE_NAME: &'static str = "test_workspace";
+        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mut workspace_service_mock = MockWorkspaceService::new();
+
+        workspace_service_mock
+            .expect_get_by_name()
+            .withf(|_, name| name == WORKSPACE_NAME)
+            .times(1)
+            .returning(|_, _| Ok(Some(Workspace::new("test_workspace".to_owned()))));
+
+        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let result = workspace_use_case.delete_by_name(WORKSPACE_NAME).await;
+
+        assert!(matches!(result, Ok(())));
+    }
+
+    #[tokio::test]
+    async fn when_deleting_workspace_failed_with_empty_workspace_use_case_should_returns_workspace_not_exists_error() {
+        const WORKSPACE_NAME: &'static str = "test_workspace";
+        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mut workspace_service_mock = MockWorkspaceService::new();
+
+        workspace_service_mock
+            .expect_get_by_name()
+            .withf(|_, name| name == WORKSPACE_NAME)
+            .times(1)
+            .returning(|_, _| Ok(None));
+
+        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let result = workspace_use_case.delete_by_name(WORKSPACE_NAME).await;
+
+        assert!(matches!(result, Err(Error::WorkspaceNotExists)));
     }
 }

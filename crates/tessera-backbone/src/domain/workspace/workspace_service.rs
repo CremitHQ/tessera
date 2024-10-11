@@ -1,3 +1,4 @@
+use super::Error;
 use crate::domain::workspace::Workspace;
 use async_trait::async_trait;
 use chrono::Utc;
@@ -14,6 +15,7 @@ use ulid::Ulid;
 #[async_trait]
 pub(crate) trait WorkspaceService {
     async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>>;
+    async fn get_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<Option<Workspace>>;
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
 }
 
@@ -39,6 +41,10 @@ impl WorkspaceService for WorkspaceServiceImpl {
         let workspace_models = Entity::find().all(transaction).await?;
 
         return Ok(workspace_models.into_iter().map(|model| model.into()).collect());
+    }
+
+    async fn get_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<Option<Workspace>> {
+        todo!()
     }
 
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
@@ -68,16 +74,8 @@ impl WorkspaceService for WorkspaceServiceImpl {
 
 impl From<crate::database::workspace::Model> for Workspace {
     fn from(value: crate::database::workspace::Model) -> Self {
-        Self { name: value.name }
+        Self::new(value.name)
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub(crate) enum Error {
-    #[error("workspace name already exists")]
-    WorkspaceNameConflicted,
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
 }
 
 impl From<DbErr> for Error {
