@@ -1,3 +1,4 @@
+use crate::domain::workspace::Workspace;
 use async_trait::async_trait;
 use chrono::Utc;
 #[cfg(test)]
@@ -12,6 +13,7 @@ use ulid::Ulid;
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait WorkspaceService {
+    async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>>;
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
 }
 
@@ -31,6 +33,14 @@ impl WorkspaceServiceImpl {
 
 #[async_trait]
 impl WorkspaceService for WorkspaceServiceImpl {
+    async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>> {
+        use crate::database::workspace::Entity;
+
+        let workspace_models = Entity::find().all(transaction).await?;
+
+        return Ok(workspace_models.into_iter().map(|model| model.into()).collect());
+    }
+
     async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
@@ -53,6 +63,12 @@ impl WorkspaceService for WorkspaceServiceImpl {
         info!("workspace(name: {name}) created.");
 
         Ok(())
+    }
+}
+
+impl From<crate::database::workspace::Model> for Workspace {
+    fn from(value: crate::database::workspace::Model) -> Self {
+        Self { name: value.name }
     }
 }
 
@@ -82,7 +98,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap, sync::Arc};
+    use std::sync::Arc;
 
     use chrono::Utc;
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
@@ -116,13 +132,12 @@ mod test {
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
-        result.expect("creating workspace should be successful")
+        result.expect("creating workspace should be successful");
     }
 
     #[tokio::test]
     async fn when_workspace_already_exists_then_workspace_service_returns_workspace_name_conflicted_error() {
         const WORKSPACE_NAME: &'static str = "test_workspace";
-        let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
             "num_items" => sea_orm::Value::BigInt(Some(1))
         }]]);
@@ -136,7 +151,7 @@ mod test {
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
-        assert!(matches!(result, Err(Error::WorkspaceNameConflicted)))
+        assert!(matches!(result, Err(Error::WorkspaceNameConflicted)));
     }
 
     #[tokio::test]
@@ -151,6 +166,49 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::Anyhow(_))));
+        assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
+    }
+
+    #[tokio::test]
+    async fn when_getting_workspaces_is_successful_then_workspace_service_returns_workspaces_ok() {
+        use crate::database::workspace::Model;
+
+        const WORKSPACE_NAME: &'static str = "test_workspace";
+        let now = Utc::now();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
+            id: Ulid::new().into(),
+            name: WORKSPACE_NAME.to_owned(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        }]]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let workspace_service = WorkspaceServiceImpl::new();
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = workspace_service.get_all(&transaction).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert_eq!(result.expect("creating workspace should be successful")[0].name, WORKSPACE_NAME);
+    }
+
+    #[tokio::test]
+    async fn when_getting_workspaces_is_failed_then_workspace_service_returns_anyhow_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let workspace_service = WorkspaceServiceImpl::new();
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = workspace_service.get_all(&transaction).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 

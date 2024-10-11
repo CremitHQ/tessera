@@ -4,19 +4,19 @@ use axum::{debug_handler, extract::State, http::StatusCode, response::IntoRespon
 
 use crate::{
     application::{
-        workspace::{self, command::CreatingWorkspaceCommand, WorkspaceUseCase},
+        workspace::{self, command::CreatingWorkspaceCommand, data::WorkspaceData, WorkspaceUseCase},
         Application,
     },
     server::response::handle_internal_server_error,
 };
 
-use self::request::PostWorkspaceRequest;
+use self::{request::PostWorkspaceRequest, response::GetWorkspacesResponse};
 
 mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/", post(handle_post_workspace)).with_state(application)
+    Router::new().route("/", post(handle_post_workspace).get(handle_get_workspaces)).with_state(application)
 }
 
 #[debug_handler]
@@ -41,5 +41,22 @@ impl IntoResponse for workspace::Error {
             workspace::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
             workspace::Error::WorkspaceNameConflicted => response::WorkspaceNameConflictedErrorResponse.into_response(),
         }
+    }
+}
+
+#[debug_handler]
+async fn handle_get_workspaces(
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, workspace::Error> {
+    let workspaces = application.workspace().get_all().await?;
+
+    let payload: Vec<GetWorkspacesResponse> = workspaces.into_iter().map(|data| data.into()).collect();
+
+    Ok((StatusCode::OK, Json(payload)))
+}
+
+impl From<WorkspaceData> for GetWorkspacesResponse {
+    fn from(value: WorkspaceData) -> Self {
+        Self { name: value.name }
     }
 }
