@@ -3,6 +3,7 @@ use async_trait::async_trait;
 mod workspace_service;
 
 use sea_orm::{DatabaseTransaction, EntityTrait};
+use tracing::info;
 use ulid::Ulid;
 #[cfg(test)]
 pub(crate) use workspace_service::MockWorkspaceService;
@@ -46,6 +47,8 @@ impl Persistable for Workspace {
 
             Entity::delete_by_id(UlidId::from(self.id)).exec(transaction).await?;
 
+            let workspace_name = self.name;
+            info!("workspace(name: {workspace_name}) is deleted.");
             return Ok(());
         };
 
