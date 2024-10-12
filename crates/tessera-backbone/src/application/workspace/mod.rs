@@ -3,7 +3,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
-use crate::domain::workspace::{Error as WorkspaceServiceError, Workspace, WorkspaceService};
+use crate::{
+    database::Persistable,
+    domain::workspace::{Error as WorkspaceServiceError, Workspace, WorkspaceService},
+};
 
 use self::{command::CreatingWorkspaceCommand, data::WorkspaceData};
 
@@ -55,10 +58,10 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
     async fn delete_by_name(&self, name: &str) -> Result<()> {
         let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
 
-        let workspace =
+        let mut workspace =
             self.workspace_service.get_by_name(&transaction, name).await?.ok_or_else(|| Error::WorkspaceNotExists)?;
-
-        workspace.delete().await?;
+        workspace.delete();
+        workspace.persist(&transaction).await?;
 
         transaction.commit().await.map_err(anyhow::Error::from)?;
 
@@ -98,7 +101,8 @@ mod test {
     use std::sync::Arc;
 
     use anyhow::anyhow;
-    use sea_orm::{DatabaseBackend, MockDatabase};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use ulid::Ulid;
 
     use super::{command::CreatingWorkspaceCommand, Error, WorkspaceUseCase, WorkspaceUseCaseImpl};
 
@@ -187,7 +191,7 @@ mod test {
         workspace_service_mock
             .expect_get_all()
             .times(1)
-            .returning(|_| Ok(vec![Workspace::new("test_workspace".to_owned())]));
+            .returning(|_| Ok(vec![Workspace::new(Ulid::new(), "test_workspace".to_owned())]));
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
         let result = workspace_use_case.get_all().await;
@@ -198,14 +202,17 @@ mod test {
     #[tokio::test]
     async fn when_deleting_workspace_succeed_use_case_should_returns_empty_ok() {
         const WORKSPACE_NAME: &'static str = "test_workspace";
-        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_database = Arc::new(mock_database.into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
         workspace_service_mock
             .expect_get_by_name()
             .withf(|_, name| name == WORKSPACE_NAME)
             .times(1)
-            .returning(|_, _| Ok(Some(Workspace::new("test_workspace".to_owned()))));
+            .returning(|_, _| Ok(Some(Workspace::new(Ulid::new(), "test_workspace".to_owned()))));
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
         let result = workspace_use_case.delete_by_name(WORKSPACE_NAME).await;

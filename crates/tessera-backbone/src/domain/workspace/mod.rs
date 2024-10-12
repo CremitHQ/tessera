@@ -1,20 +1,28 @@
+use async_trait::async_trait;
+
 mod workspace_service;
 
+use sea_orm::{DatabaseTransaction, EntityTrait};
+use ulid::Ulid;
 #[cfg(test)]
 pub(crate) use workspace_service::MockWorkspaceService;
 pub(crate) use workspace_service::{WorkspaceService, WorkspaceServiceImpl};
 
+use crate::database::{Persistable, UlidId};
+
 pub(crate) struct Workspace {
+    id: Ulid,
     pub name: String,
+    deleted: bool,
 }
 
 impl Workspace {
-    pub fn new(name: String) -> Self {
-        Self { name }
+    pub fn new(id: Ulid, name: String) -> Self {
+        Self { id, name, deleted: false }
     }
 
-    pub(crate) async fn delete(self) -> Result<()> {
-        todo!()
+    pub(crate) fn delete(&mut self) {
+        self.deleted = true
     }
 }
 
@@ -27,3 +35,20 @@ pub(crate) enum Error {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
+
+#[async_trait]
+impl Persistable for Workspace {
+    type Error = crate::domain::workspace::Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> crate::domain::workspace::Result<()> {
+        if self.deleted {
+            use crate::database::workspace::Entity;
+
+            Entity::delete_by_id(UlidId::from(self.id)).exec(transaction).await?;
+
+            return Ok(());
+        };
+
+        Ok(())
+    }
+}

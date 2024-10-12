@@ -249,3 +249,10 @@ impl sea_orm::sea_query::ValueType for UlidId {
         sea_orm::prelude::ColumnType::String(sea_orm::sea_query::StringLen::N(26))
     }
 }
+
+#[async_trait]
+pub(crate) trait Persistable {
+    type Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error>;
+}

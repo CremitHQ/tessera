@@ -40,7 +40,7 @@ impl WorkspaceService for WorkspaceServiceImpl {
 
         let workspace_models = Entity::find().all(transaction).await?;
 
-        return Ok(workspace_models.into_iter().map(|model| model.into()).collect());
+        return Ok(workspace_models.into_iter().map(|model| Workspace::new(model.id.inner(), model.name)).collect());
     }
 
     async fn get_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<Option<Workspace>> {
@@ -69,12 +69,6 @@ impl WorkspaceService for WorkspaceServiceImpl {
         info!("workspace(name: {name}) created.");
 
         Ok(())
-    }
-}
-
-impl From<crate::database::workspace::Model> for Workspace {
-    fn from(value: crate::database::workspace::Model) -> Self {
-        Self::new(value.name)
     }
 }
 
@@ -191,9 +185,9 @@ mod test {
 
         let result = workspace_service.get_all(&transaction).await;
 
-        transaction.commit().await.expect("commiting transaction should be successful");
-
         assert_eq!(result.expect("creating workspace should be successful")[0].name, WORKSPACE_NAME);
+
+        transaction.commit().await.expect("commiting transaction should be successful");
     }
 
     #[tokio::test]
@@ -208,9 +202,9 @@ mod test {
 
         let result = workspace_service.get_all(&transaction).await;
 
-        transaction.commit().await.expect("commiting transaction should be successful");
-
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
+
+        transaction.commit().await.expect("commiting transaction should be successful");
     }
 }
