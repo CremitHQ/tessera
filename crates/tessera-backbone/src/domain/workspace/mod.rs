@@ -11,6 +11,7 @@ pub(crate) use workspace_service::{WorkspaceService, WorkspaceServiceImpl};
 
 use crate::database::{Persistable, UlidId};
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct Workspace {
     id: Ulid,
     pub name: String,
