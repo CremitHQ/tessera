@@ -1,29 +1,32 @@
-use crate::pest::{PolicyType, PolicyValue};
+use crate::{
+    error::PolicyError,
+    pest::{PolicyType, PolicyValue},
+};
 use pest::iterators::Pair;
 
 #[derive(Parser)]
 #[grammar = "human.policy.pest"]
 pub(crate) struct HumanPolicyParser;
 
-pub(crate) fn parse(pair: Pair<Rule>) -> PolicyValue {
+pub(crate) fn parse(pair: Pair<Rule>) -> Result<PolicyValue, PolicyError> {
     match pair.as_rule() {
         Rule::string | Rule::number => {
             let p = pair.into_inner().next().unwrap();
-            PolicyValue::String((p.as_str(), p.line_col().1))
+            Ok(PolicyValue::String((p.as_str(), p.line_col().1)))
         }
         Rule::and => {
             let mut vec = Vec::new();
             for child in pair.into_inner() {
-                vec.push(parse(child));
+                vec.push(parse(child)?);
             }
-            PolicyValue::Object((PolicyType::And, Box::new(PolicyValue::Array(vec))))
+            Ok(PolicyValue::Object((PolicyType::And, Box::new(PolicyValue::Array(vec)))))
         }
         Rule::or => {
             let mut vec = Vec::new();
             for child in pair.into_inner() {
-                vec.push(parse(child));
+                vec.push(parse(child)?);
             }
-            PolicyValue::Object((PolicyType::Or, Box::new(PolicyValue::Array(vec))))
+            Ok(PolicyValue::Object((PolicyType::Or, Box::new(PolicyValue::Array(vec)))))
         }
         Rule::content
         | Rule::EOI
@@ -40,6 +43,6 @@ pub(crate) fn parse(pair: Pair<Rule>) -> PolicyValue {
         | Rule::BRACEOPEN
         | Rule::BRACECLOSE
         | Rule::QUOTE
-        | Rule::WHITESPACE => unreachable!(),
+        | Rule::WHITESPACE => Err(PolicyError::InvalidPolicyType),
     }
 }
