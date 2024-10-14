@@ -14,15 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
+      - name: Set up toolchain for stable rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Dependency caching
-        uses: actions/cache@v3
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/index
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests
