@@ -15,5 +15,6 @@ trait-variant = "0.1.2"
 zeroize.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
