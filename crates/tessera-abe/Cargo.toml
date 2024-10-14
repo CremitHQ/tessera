@@ -9,19 +9,19 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
-aes-gcm = "0.10"
 sha3 = "0.10"
+rand_core = "0.6"
+aes-gcm = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
 tessera-miracl = { workspace = true }
 tessera-policy = { workspace = true }
-lazy_static = "1.5"
-rand_core = "0.6"
+thiserror = { workspace = true }
+lazy_static = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
-thiserror = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 rand = { workspace = true }

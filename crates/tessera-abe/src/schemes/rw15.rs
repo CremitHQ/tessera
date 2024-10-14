@@ -177,105 +177,104 @@ pub fn encrypt<T: PairingCurve>(
     data: &[u8],
 ) -> Result<Ciphertext<T>, ABEError> {
     let (policy_name, language) = policy;
-    match parse(&policy_name, language) {
-        Ok(policy) => {
-            let s = T::Field::random_within_order(rng);
-            let w = T::Field::new();
+    let policy = parse(&policy_name, language)?;
+    let s = T::Field::random_within_order(rng);
+    let w = T::Field::new();
 
-            let s_shares = gen_shares_policy::<T>(rng, s, &policy, None).unwrap();
-            let w_shares = gen_shares_policy::<T>(rng, w, &policy, None).unwrap();
+    let s_shares = gen_shares_policy::<T>(rng, s, &policy, None);
+    let w_shares = gen_shares_policy::<T>(rng, w, &policy, None);
 
-            let c0 = T::Gt::random(rng);
-            let msg: Vec<u8> = c0.into();
+    let c0 = T::Gt::random(rng);
+    let msg: Vec<u8> = c0.into();
 
-            let c0 = c0 * &(gp.e.pow(&s));
-            let mut c1 = HashMap::new();
-            let mut c2 = HashMap::new();
-            let mut c3 = HashMap::new();
-            let mut c4 = HashMap::new();
+    let c0 = c0 * &(gp.e.pow(&s));
+    let mut c1 = HashMap::new();
+    let mut c2 = HashMap::new();
+    let mut c3 = HashMap::new();
+    let mut c4 = HashMap::new();
 
-            for (attr_name, s_share) in s_shares.into_iter() {
-                let tx = T::Field::random(rng);
-                let authority_name = attr_name.split_once("@").unwrap().0;
-                let attr = remove_index(&attr_name);
+    for (attr_name, s_share) in s_shares.into_iter() {
+        let tx = T::Field::random(rng);
+        let authority_name =
+            attr_name.split_once("@").ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?.0;
+        let attr = remove_index(&attr_name);
 
-                let pk_attr = pks.get(authority_name);
-                if let Some(authority_pk) = pk_attr {
-                    let c1x = gp.e.pow(&s_share);
-                    let c1x = c1x * &(authority_pk.e_alpha.pow(&tx));
-                    c1.insert(attr_name.clone(), c1x);
+        let pk_attr = pks.get(authority_name);
+        if let Some(authority_pk) = pk_attr {
+            let c1x = gp.e.pow(&s_share);
+            let c1x = c1x * &(authority_pk.e_alpha.pow(&tx));
+            c1.insert(attr_name.clone(), c1x);
 
-                    let c2x = -(gp.g1 * &tx);
-                    c2.insert(attr_name.clone(), c2x);
+            let c2x = -(gp.g1 * &tx);
+            c2.insert(attr_name.clone(), c2x);
 
-                    let c3x = (authority_pk.gy * &tx) + (gp.g1 * w_shares.get(&attr_name).unwrap());
-                    c3.insert(attr_name.clone(), c3x);
+            let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
+            let c3x = (authority_pk.gy * &tx) + (gp.g1 * wx);
+            c3.insert(attr_name.clone(), c3x);
 
-                    let c4x = T::hash_to_g2(attr.as_bytes()) * &tx;
-                    c4.insert(attr_name.clone(), c4x);
-                }
-            }
-
-            match encrypt_symmetric::<T, _>(rng, msg, data) {
-                Ok(ct) => Ok(Ciphertext { policy: (policy_name, language), c0, c1, c2, c3, c4, ct }),
-                Err(e) => Err(e),
-            }
+            let c4x = T::hash_to_g2(attr.as_bytes()) * &tx;
+            c4.insert(attr_name.clone(), c4x);
         }
-        Err(e) => Err(ABEError::new("Failed to parse policy")),
     }
+
+    let ct = encrypt_symmetric::<T, _>(rng, msg, data)?;
+    Ok(Ciphertext { policy: (policy_name, language), c0, c1, c2, c3, c4, ct })
 }
 
 pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
     let (policy_name, lang) = ct.policy.clone();
-    match parse(&policy_name, lang) {
-        Ok(policy) => {
-            let attributes = sk.inner.keys().map(|k| k.to_string()).collect::<Vec<_>>();
-            match traverse_policy(&attributes, &policy, tessera_policy::pest::PolicyType::Leaf) {
-                true => {
-                    let pruned = calc_pruned(&attributes, &policy, None);
-                    match pruned {
-                        Ok((is_matched, matched_nodes)) => match is_matched {
-                            true => {
-                                let mut coefficients = HashMap::new();
-                                coefficients =
-                                    calc_coefficients::<T>(&policy, T::Field::one(), coefficients, None).unwrap();
+    let policy = parse(&policy_name, lang)?;
 
-                                let h_user = T::hash_to_g2(sk.gid.as_bytes());
-                                let mut b = T::Gt::one();
-
-                                for (attr, attr_and_index) in matched_nodes {
-                                    let c1 = ct.c1.get(&attr_and_index).unwrap();
-                                    let c2 = ct.c2.get(&attr_and_index).unwrap();
-                                    let c3 = ct.c3.get(&attr_and_index).unwrap();
-                                    let c4 = ct.c4.get(&attr_and_index).unwrap();
-                                    let k = &sk.inner.get(&attr).unwrap().k;
-                                    let kp = &sk.inner.get(&attr).unwrap().kp;
-
-                                    let base = T::pair(&c2, &k) * c1;
-                                    let base = base * &T::pair(&c3, &h_user);
-                                    let base = base * &T::pair(kp, c4);
-                                    let base = base.pow(&coefficients.get(&attr_and_index).unwrap());
-
-                                    b = b * &base;
-                                }
-
-                                b = b.inverse();
-
-                                let c0 = ct.c0;
-                                let msg = c0 * &b;
-                                let msg: Vec<u8> = msg.into();
-                                decrypt_symmetric(msg, &ct.ct)
-                            }
-                            false => Err(ABEError::new("Error: Attributes in user secret doesn't match policy.")),
-                        },
-                        Err(e) => Err(e),
-                    }
-                }
-                false => Err(ABEError::new("Error: Attributes in user secret doesn't match policy.")),
-            }
-        }
-        Err(e) => Err(ABEError::new("Failed to parse policy")),
+    let attributes = sk.inner.keys().map(|k| k.to_string()).collect::<Vec<_>>();
+    let is_satisfied_policy = traverse_policy(&attributes, &policy, tessera_policy::pest::PolicyType::Leaf);
+    if !is_satisfied_policy {
+        return Err(ABEError::PolicyNotSatisfied);
     }
+
+    let (is_matched, matched_nodes) = calc_pruned(&attributes, &policy, None)?;
+    if !is_matched {
+        return Err(ABEError::PolicyNotSatisfied);
+    }
+
+    let mut coefficients = HashMap::new();
+    coefficients = calc_coefficients::<T>(&policy, T::Field::one(), coefficients, None);
+
+    let h_user = T::hash_to_g2(sk.gid.as_bytes());
+    let mut b = T::Gt::one();
+
+    for (attr, attr_and_index) in matched_nodes {
+        let c1 = ct.c1.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c1".to_string()))?;
+        let c2 = ct.c2.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c2".to_string()))?;
+        let c3 = ct.c3.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c3".to_string()))?;
+        let c4 = ct.c4.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c4".to_string()))?;
+        let k = &sk
+            .inner
+            .get(&attr)
+            .ok_or(ABEError::DecryptionError("Failed to get k from user secret key".to_string()))?
+            .k;
+        let kp = &sk
+            .inner
+            .get(&attr)
+            .ok_or(ABEError::DecryptionError("Failed to get kp from user secret key".to_string()))?
+            .kp;
+        let coeff = coefficients
+            .get(&attr_and_index)
+            .ok_or(ABEError::DecryptionError("Failed to get coefficent".to_string()))?;
+
+        let base = T::pair(&c2, &k) * c1;
+        let base = base * &T::pair(&c3, &h_user);
+        let base = base * &T::pair(kp, c4);
+        let base = base.pow(&coeff);
+
+        b = b * &base;
+    }
+
+    b = b.inverse();
+
+    let c0 = ct.c0;
+    let msg = c0 * &b;
+    let msg: Vec<u8> = msg.into();
+    decrypt_symmetric(msg, &ct.ct)
 }
 
 #[cfg(test)]

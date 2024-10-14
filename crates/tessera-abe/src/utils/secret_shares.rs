@@ -11,51 +11,42 @@ pub fn calc_coefficients<T: PairingCurve>(
     coeff: T::Field,
     mut coeff_list: HashMap<String, T::Field>,
     policy_type: Option<PolicyType>,
-) -> Option<HashMap<String, T::Field>> {
-    return match policy_value {
-        PolicyValue::Object(obj) => {
-            match obj.0 {
-                PolicyType::And => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
-                PolicyType::Or => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
-                _ => {
-                    // Single attribute policy use case
-                    coeff_list.insert(get_value(&obj.1), coeff);
-                    return Some(coeff_list);
-                }
+) -> HashMap<String, T::Field> {
+    match policy_value {
+        PolicyValue::Object(obj) => match obj.0 {
+            PolicyType::And => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
+            PolicyType::Or => calc_coefficients::<T>(&obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
+            _ => {
+                coeff_list.insert(get_value(&obj.1), coeff);
+                return coeff_list;
             }
-        }
-        PolicyValue::Array(children) => match policy_type.unwrap() {
-            PolicyType::And => {
+        },
+        PolicyValue::Array(children) => match policy_type {
+            Some(PolicyType::And) => {
                 let mut this_coeff_vec = vec![T::Field::one()];
                 for i in 1..children.len() {
                     this_coeff_vec.push(this_coeff_vec[i - 1] + &T::Field::one());
                 }
                 let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    match calc_coefficients::<T>(&child, coeff * &this_coeff[i], coeff_list.clone(), None) {
-                        None => return None,
-                        Some(res) => coeff_list = res,
-                    }
+                    coeff_list = calc_coefficients::<T>(&child, coeff * &this_coeff[i], coeff_list.clone(), None);
                 }
-                Some(coeff_list)
+                coeff_list
             }
-            PolicyType::Or => {
+            Some(PolicyType::Or) => {
                 let this_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
                 for child in children.iter() {
-                    match calc_coefficients::<T>(&child, coeff * &this_coeff[0], coeff_list.clone(), None) {
-                        None => return None,
-                        Some(res) => coeff_list = res,
-                    }
+                    coeff_list = calc_coefficients::<T>(&child, coeff * &this_coeff[0], coeff_list.clone(), None);
                 }
-                Some(coeff_list)
+                coeff_list
             }
-            _ => None,
+            _ => coeff_list,
         },
         PolicyValue::String(node) => {
             coeff_list.insert(node_index(node), coeff);
-            Some(coeff_list)
+            coeff_list
         }
-    };
+    }
 }
 
 // lagrange interpolation
@@ -73,7 +64,7 @@ pub fn recover_coefficients<T: PairingCurve>(list: Vec<T::Field>) -> Vec<T::Fiel
         }
         coeff.push(result);
     }
-    return coeff;
+    coeff
 }
 
 pub fn node_index(node: &(&str, usize)) -> String {
@@ -89,14 +80,14 @@ pub fn gen_shares_policy<T: PairingCurve>(
     secret: T::Field,
     policy_value: &PolicyValue,
     policy_type: Option<PolicyType>,
-) -> Option<HashMap<String, T::Field>> {
+) -> HashMap<String, T::Field> {
     let mut result: HashMap<String, T::Field> = HashMap::new();
     let k;
     let n;
     match policy_value {
         PolicyValue::String(node) => {
             result.insert(node_index(node), secret);
-            Some(result)
+            result
         }
         PolicyValue::Object(obj) => match obj.0 {
             PolicyType::And => gen_shares_policy::<T>(rng, secret, &obj.1.as_ref(), Some(PolicyType::And)),
@@ -116,14 +107,10 @@ pub fn gen_shares_policy<T: PairingCurve>(
             }
             let shares = gen_shares::<T>(rng, secret, k, n);
             for i in 0..n {
-                match gen_shares_policy::<T>(rng, shares[i + 1], &children[i], None) {
-                    None => panic!("Error in gen_shares_policy: Returned None."),
-                    Some(items) => {
-                        result.extend(items.into_iter());
-                    }
-                }
+                let items = gen_shares_policy::<T>(rng, shares[i + 1], &children[i], None);
+                result.extend(items.into_iter());
             }
-            Some(result)
+            result
         }
     }
 }
@@ -164,14 +151,14 @@ pub fn calc_pruned(
                     let mut policy_match: bool = true;
                     if len >= 2 {
                         for i in 0usize..len {
-                            let (found, list) = calc_pruned(attr, &children[i], None).unwrap();
+                            let (found, list) = calc_pruned(attr, &children[i], None)?;
                             policy_match = policy_match && found;
                             if policy_match {
                                 matched_nodes.extend(list);
                             }
                         }
                     } else {
-                        panic!("Error: Invalid policy (AND with just a single child).");
+                        return Err(ABEError::InvalidPolicy("AND with just a single child.".to_string()));
                     }
                     if !policy_match {
                         matched_nodes = vec![];
@@ -191,10 +178,10 @@ pub fn calc_pruned(
                         }
                         return Ok((policy_match, matched_nodes));
                     } else {
-                        panic!("Error: Invalid policy (OR with just a single child).")
+                        return Err(ABEError::InvalidPolicy("OR with just a single child.".to_string()));
                     }
                 }
-                _ => Err(ABEError::new("Error in calc_pruned: unknown array type!")),
+                _ => Err(ABEError::InvalidPolicy("unknown array type!".to_string())),
             }
         }
         PolicyValue::String(node) => {
@@ -211,7 +198,7 @@ pub fn calc_pruned(
 pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &String) -> T::Field {
     let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
     let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
-    coeff_list = calc_coefficients::<T>(&policy, T::Field::one(), coeff_list, None).unwrap();
+    coeff_list = calc_coefficients::<T>(&policy, T::Field::one(), coeff_list, None);
     let mut secret = T::Field::new();
     for (i, share) in shares {
         let coeff = coeff_list.get(&i).unwrap();
@@ -266,10 +253,10 @@ mod tests {
         );
         match parse(&policy, PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
-                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, secret, &pol, None).unwrap();
+                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, secret, &pol, None);
                 let coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
                 let coeff = Bls24479Field::one();
-                let coeff = calc_coefficients::<Bls24479Curve>(&pol, coeff, coeff_list, None).unwrap();
+                let coeff = calc_coefficients::<Bls24479Curve>(&pol, coeff, coeff_list, None);
                 assert_eq!(coeff.len(), shares.len());
             }
             Err(e) => println!("test_gen_shares_json: could not parse policy {:?}", e),
