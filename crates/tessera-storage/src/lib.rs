@@ -9,5 +9,8 @@ pub trait LocalStorage {
     async fn get(&self, key: &Self::Key) -> Result<<Self::Value as ToOwned>::Owned, Self::StorageError>;
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError>;
     async fn delete(&self, key: &Self::Key) -> Result<(), Self::StorageError>;
-    async fn list(&self) -> Result<impl IntoIterator<Item = <Self::Key as ToOwned>::Owned>, Self::StorageError>;
+    async fn list(
+        &self,
+        key: &Self::Key,
+    ) -> Result<impl IntoIterator<Item = <Self::Key as ToOwned>::Owned>, Self::StorageError>;
 }
