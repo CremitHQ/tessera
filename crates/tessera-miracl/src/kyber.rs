@@ -85,7 +85,7 @@ fn printbinary(array: &[u8]) {
 fn montgomery_reduce(a: i32) -> i16 {
     let dp = PRIME as i32;
     let dt = (((a & 0xffff) * QINV) & 0xffff) as i16;
-    
+
     ((a - ((dt as i32) * dp)) >> 16) as i16
 }
 
