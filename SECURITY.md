@@ -1,4 +1,5 @@
 # Security Policy
+Cremit values the independent security research community and believes that responsible disclosure of security vulnerabilities helps us ensure the security and privacy of all our users.
 
 ## Supported versions
 
@@ -23,10 +24,8 @@ For severe security issues we will provide new versions as above, and also the l
 When a release series is no longer supported, it's your own responsibility to deal with bugs and security issues. If you are not comfortable maintaining your own versions, you should upgrade to a supported version.
 
 ## Reporting a bug
-
-Oracle values the independent security research community and believes that responsible disclosure of security vulnerabilities helps us ensure the security and privacy of all our users.
-
 Please do NOT raise a GitHub Issue to report a security vulnerability. If you believe you have found a security vulnerability, please submit a report to security@cremit.io preferably with a proof of concept. Please review some additional information on how to report security vulnerabilities to Cremit.
+
 We ask that you do not use other channels or contact the project maintainers directly.
 
 Non-vulnerability related security issues including ideas for new or improved security features are welcome on GitHub Issues.
