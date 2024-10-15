@@ -163,7 +163,7 @@ pub fn client_1(
         return INVALID_POINT;
     }
 
-    let mut W = P.pinmul((pin as i32) % MAXPIN, PBLEN);
+    let W = P.pinmul((pin as i32) % MAXPIN, PBLEN);
     T.add(&W);
 
     P = pair8::g1mul(&P, &sx);
