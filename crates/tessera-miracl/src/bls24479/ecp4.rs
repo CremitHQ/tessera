@@ -925,7 +925,7 @@ impl ECP4 {
         let q = BIG::new_ints(&rom::MODULUS);
         let mut dx = DBIG::frombytes(h);
         let mut x = dx.dmod(&q);
-        let mut P = ECP4::hap2point(&mut x);
+        let mut P = ECP4::hap2point(&x);
         P.cfp();
         P
     }

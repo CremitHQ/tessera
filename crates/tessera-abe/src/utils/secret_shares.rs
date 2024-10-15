@@ -185,7 +185,7 @@ pub fn calc_pruned(
             }
         }
         PolicyValue::String(node) => {
-            if contains(attr, &node.0.to_string()) {
+            if contains(attr, node.0) {
                 Ok((true, vec![(node.0.to_string(), node_index(node))]))
             } else {
                 Ok((false, matched_nodes))

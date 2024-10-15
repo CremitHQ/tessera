@@ -104,7 +104,7 @@ pub fn extract_pin(cid: &[u8], pin: i32, token: &mut [u8]) -> isize {
 /* Implement step 2 on client side of MPin protocol */
 #[allow(non_snake_case)]
 pub fn client_2(x: &[u8], y: &[u8], sec: &mut [u8]) -> isize {
-    let mut r = BIG::new_ints(&rom::CURVE_ORDER);
+    let r = BIG::new_ints(&rom::CURVE_ORDER);
     let mut P = ECP::frombytes(sec);
     if P.is_infinity() {
         return INVALID_POINT;
@@ -164,7 +164,7 @@ pub fn client_1(
     }
 
     let mut W = P.pinmul((pin as i32) % MAXPIN, PBLEN);
-    T.add(&mut W);
+    T.add(&W);
 
     P = pair8::g1mul(&P, &sx);
     P.tobytes(xid, false);
@@ -203,7 +203,7 @@ pub fn server(hid: &[u8], y: &[u8], sst: &[u8], xid: &[u8], msec: &[u8]) -> isiz
     }
 
     P = pair8::g1mul(&P, &sy);
-    P.add(&mut R);
+    P.add(&R);
     R = ECP::frombytes(msec);
     if R.is_infinity() {
         return INVALID_POINT;

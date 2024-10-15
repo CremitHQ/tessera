@@ -1109,7 +1109,7 @@ impl ECP8 {
     pub fn mapit(h: &[u8]) -> ECP8 {
         let q = BIG::new_ints(&rom::MODULUS);
         let mut dx = DBIG::frombytes(h);
-        let mut x = dx.dmod(&q);
+        let x = dx.dmod(&q);
         let mut P = ECP8::hap2point(&x);
         P.cfp();
         P

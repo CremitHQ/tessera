@@ -8,7 +8,7 @@ pub fn is_negative(attr: &str) -> bool {
 }
 
 #[inline]
-pub fn contains(data: &Vec<String>, value: &str) -> bool {
+pub fn contains(data: &[String], value: &str) -> bool {
     return data.iter().any(|x| x == value);
 }
 

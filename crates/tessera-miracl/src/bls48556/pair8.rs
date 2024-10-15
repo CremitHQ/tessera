@@ -781,21 +781,21 @@ pub fn gs(ee: &BIG) -> [BIG; 16] {
     u[15].copy(&w);
     if ecp::SIGN_OF_X == ecp::NEGATIVEX {
         let mut t = BIG::new();
-        t.copy(&BIG::modneg(&mut u[1], &q));
+        t.copy(&BIG::modneg(&u[1], &q));
         u[1].copy(&t);
-        t.copy(&BIG::modneg(&mut u[3], &q));
+        t.copy(&BIG::modneg(&u[3], &q));
         u[3].copy(&t);
-        t.copy(&BIG::modneg(&mut u[5], &q));
+        t.copy(&BIG::modneg(&u[5], &q));
         u[5].copy(&t);
-        t.copy(&BIG::modneg(&mut u[7], &q));
+        t.copy(&BIG::modneg(&u[7], &q));
         u[7].copy(&t);
-        t.copy(&BIG::modneg(&mut u[9], &q));
+        t.copy(&BIG::modneg(&u[9], &q));
         u[9].copy(&t);
-        t.copy(&BIG::modneg(&mut u[11], &q));
+        t.copy(&BIG::modneg(&u[11], &q));
         u[11].copy(&t);
-        t.copy(&BIG::modneg(&mut u[13], &q));
+        t.copy(&BIG::modneg(&u[13], &q));
         u[13].copy(&t);
-        t.copy(&BIG::modneg(&mut u[15], &q));
+        t.copy(&BIG::modneg(&u[15], &q));
         u[15].copy(&t);
     }
     u
@@ -819,7 +819,7 @@ pub fn g1mul(P: &ECP, e: &BIG) -> ECP {
         Q.mulx(&mut cru);
 
         let mut np = u[0].nbits();
-        let mut t: BIG = BIG::modneg(&mut u[0], &q);
+        let mut t: BIG = BIG::modneg(&u[0], &q);
         let mut nn = t.nbits();
         if nn < np {
             u[0].copy(&t);
@@ -827,7 +827,7 @@ pub fn g1mul(P: &ECP, e: &BIG) -> ECP {
         }
 
         np = u[1].nbits();
-        t = BIG::modneg(&mut u[1], &q);
+        t = BIG::modneg(&u[1], &q);
         nn = t.nbits();
         if nn < np {
             u[1].copy(&t);
