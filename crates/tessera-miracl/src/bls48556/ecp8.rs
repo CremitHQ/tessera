@@ -611,7 +611,7 @@ impl ECP8 {
         for i in 1..8 {
             C.copy(&W[i - 1]);
             W[i].copy(&C);
-            W[i].add(&mut Q);
+            W[i].add(&Q);
         }
 
         /* make exponent odd - add 2P if even, P if odd */
@@ -646,9 +646,9 @@ impl ECP8 {
             P.dbl();
             P.dbl();
             P.dbl();
-            P.add(&mut Q);
+            P.add(&Q);
         }
-        P.sub(&mut C);
+        P.sub(&C);
         P.affine();
         P
     }
@@ -657,16 +657,16 @@ impl ECP8 {
     #[allow(non_snake_case)]
     pub fn cfp(&mut self) {
         let f = ECP8::frob_constants();
-        let mut x = BIG::new_ints(&rom::CURVE_BNX);
+        let x = BIG::new_ints(&rom::CURVE_BNX);
 
-        let mut xQ = self.mul(&mut x);
-        let mut x2Q = xQ.mul(&mut x);
-        let mut x3Q = x2Q.mul(&mut x);
-        let mut x4Q = x3Q.mul(&mut x);
-        let mut x5Q = x4Q.mul(&mut x);
-        let mut x6Q = x5Q.mul(&mut x);
-        let mut x7Q = x6Q.mul(&mut x);
-        let mut x8Q = x7Q.mul(&mut x);
+        let mut xQ = self.mul(&x);
+        let mut x2Q = xQ.mul(&x);
+        let mut x3Q = x2Q.mul(&x);
+        let mut x4Q = x3Q.mul(&x);
+        let mut x5Q = x4Q.mul(&x);
+        let mut x6Q = x5Q.mul(&x);
+        let mut x7Q = x6Q.mul(&x);
+        let mut x8Q = x7Q.mul(&x);
 
         if ecp::SIGN_OF_X == ecp::NEGATIVEX {
             xQ.neg();
@@ -1110,7 +1110,7 @@ impl ECP8 {
         let q = BIG::new_ints(&rom::MODULUS);
         let mut dx = DBIG::frombytes(h);
         let mut x = dx.dmod(&q);
-        let mut P = ECP8::hap2point(&mut x);
+        let mut P = ECP8::hap2point(&x);
         P.cfp();
         P
     }

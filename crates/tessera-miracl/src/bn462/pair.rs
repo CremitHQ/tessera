@@ -729,7 +729,7 @@ fn glv(ee: &BIG) -> [BIG; 2] {
         for i in 0..2 {
             for j in 0..2 {
                 t = BIG::new_ints(&rom::CURVE_SB[j][i]);
-                t = BIG::modmul(&mut v[j], &mut t, &q);
+                t = BIG::modmul(&v[j], &t, &q);
                 u[i].add(&q);
                 u[i].sub(&t);
                 u[i].ctmod(&q, 1);
@@ -768,7 +768,7 @@ pub fn gs(ee: &BIG) -> [BIG; 4] {
         for i in 0..4 {
             for j in 0..4 {
                 t = BIG::new_ints(&rom::CURVE_BB[j][i]);
-                t = BIG::modmul(&mut v[j], &mut t, &q);
+                t = BIG::modmul(&v[j], &t, &q);
                 u[i].add(&q);
                 u[i].sub(&t);
                 u[i].ctmod(&q, 1);

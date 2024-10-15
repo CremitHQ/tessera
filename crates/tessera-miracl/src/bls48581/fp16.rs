@@ -400,7 +400,7 @@ impl FP16 {
             let bt = z.parity();
             z.fshr(1);
             if bt == 1 {
-                r.mul(&mut w)
+                r.mul(&w)
             };
             if z.iszilch() {
                 break;

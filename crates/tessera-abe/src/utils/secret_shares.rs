@@ -70,7 +70,7 @@ pub fn recover_coefficients<T: PairingCurve>(list: Vec<T::Field>) -> Vec<T::Fiel
 pub fn node_index(node: &(&str, usize)) -> String {
     format!("{}_{}", node.0, node.1)
 }
-pub fn remove_index(node: &String) -> String {
+pub fn remove_index(node: &str) -> String {
     let parts: Vec<_> = node.split('_').collect();
     parts[0].to_string()
 }
@@ -150,8 +150,8 @@ pub fn calc_pruned(
                 Some(PolicyType::And) => {
                     let mut policy_match: bool = true;
                     if len >= 2 {
-                        for i in 0usize..len {
-                            let (found, list) = calc_pruned(attr, &children[i], None)?;
+                        for child in children.iter().take(len) {
+                            let (found, list) = calc_pruned(attr, child, None)?;
                             policy_match = policy_match && found;
                             if policy_match {
                                 matched_nodes.extend(list);
@@ -168,8 +168,8 @@ pub fn calc_pruned(
                 Some(PolicyType::Or) => {
                     let mut policy_match: bool = false;
                     if len >= 2 {
-                        for _i in 0usize..len {
-                            let (found, list) = calc_pruned(attr, &children[_i], None).unwrap();
+                        for child in children.iter().take(len) {
+                            let (found, list) = calc_pruned(attr, child, None).unwrap();
                             policy_match = policy_match || found;
                             if policy_match {
                                 matched_nodes.extend(list);
@@ -195,7 +195,7 @@ pub fn calc_pruned(
 }
 
 #[allow(dead_code)]
-pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &String) -> T::Field {
+pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &str) -> T::Field {
     let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
     let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
     coeff_list = calc_coefficients::<T>(&policy, T::Field::one(), coeff_list, None);
@@ -209,9 +209,9 @@ pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _polic
 
 pub fn polynomial<T: PairingCurve>(coeff: Vec<T::Field>, x: T::Field) -> T::Field {
     let mut share = coeff[0];
-    for i in 1..coeff.len() {
+    for (i, c) in coeff.iter().enumerate().skip(1) {
         let x_pow = x.pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
-        share = share + (x_pow * &coeff[i]);
+        share = share + (x_pow * c);
     }
     share
 }
@@ -232,7 +232,6 @@ mod tests {
         let mut rng = MiraclRng::new();
         let secret = Bls24479Field::random(&mut rng);
         let shares = gen_shares::<Bls24479Curve>(&mut rng, secret, 1, 2);
-        let k = shares[0];
 
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
         input.insert("A_38".to_string(), shares[1]);

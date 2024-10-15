@@ -835,7 +835,7 @@ pub fn g1mul(P: &ECP, e: &BIG) -> ECP {
         }
         u[0].norm();
         u[1].norm();
-        R = R.mul2(&u[0], &mut Q, &u[1]);
+        R = R.mul2(&u[0], &Q, &u[1]);
     } else {
         R = P.clmul(&ee, &q);
     }
@@ -884,7 +884,7 @@ pub fn g2mul(P: &ECP8, e: &BIG) -> ECP8 {
         //println!("");
         for i in 0..16 {
             let np = u[i].nbits();
-            t.copy(&BIG::modneg(&mut u[i], &q));
+            t.copy(&BIG::modneg(&u[i], &q));
             let nn = t.nbits();
             if nn < np {
                 u[i].copy(&t);
@@ -895,7 +895,7 @@ pub fn g2mul(P: &ECP8, e: &BIG) -> ECP8 {
             //println!("u= {}",u[i].tostring());
         }
 
-        R.copy(&ECP8::mul16(&mut Q, &u));
+        R.copy(&ECP8::mul16(&Q, &u));
     } else {
         R.copy(&P.mul(&ee));
     }
@@ -942,7 +942,7 @@ pub fn gtpow(d: &FP48, e: &BIG) -> FP48 {
         }
         for i in 0..16 {
             let np = u[i].nbits();
-            t.copy(&BIG::modneg(&mut u[i], &q));
+            t.copy(&BIG::modneg(&u[i], &q));
             let nn = t.nbits();
             if nn < np {
                 u[i].copy(&t);
@@ -950,7 +950,7 @@ pub fn gtpow(d: &FP48, e: &BIG) -> FP48 {
             }
             u[i].norm();
         }
-        r.copy(&FP48::pow16(&mut g, &u));
+        r.copy(&FP48::pow16(&g, &u));
     } else {
         r.copy(&d.pow(&ee));
     }

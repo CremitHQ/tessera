@@ -41,8 +41,8 @@ impl RngCore for MiraclRng {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for i in 0..dest.len() {
-            dest[i] = self.inner.getbyte();
+        for d in dest {
+            *d = self.inner.getbyte();
         }
     }
 

@@ -317,7 +317,7 @@ impl FP48 {
     pub fn mul(&mut self, y: &FP48) {
         let mut z0 = FP16::new_copy(&self.a);
         let mut z1 = FP16::new();
-        let mut z2 = FP16::new_copy(&mut self.b);
+        let mut z2 = FP16::new_copy(&self.b);
         let mut z3 = FP16::new();
         let mut t0 = FP16::new_copy(&self.a);
         let mut t1 = FP16::new_copy(&y.a);

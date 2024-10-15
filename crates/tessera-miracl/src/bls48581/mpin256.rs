@@ -96,7 +96,7 @@ pub fn extract_pin(cid: &[u8], pin: i32, token: &mut [u8]) -> isize {
     }
 
     R = R.pinmul(pin % MAXPIN, PBLEN);
-    P.sub(&mut R);
+    P.sub(&R);
     P.tobytes(token, false);
     0
 }
@@ -113,7 +113,7 @@ pub fn client_2(x: &[u8], y: &[u8], sec: &mut [u8]) -> isize {
     let mut px = BIG::frombytes(x);
     let py = BIG::frombytes(y);
     px.add(&py);
-    px.rmod(&mut r);
+    px.rmod(&r);
 
     P = pair8::g1mul(&P, &px);
     P.neg();

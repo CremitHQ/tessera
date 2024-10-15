@@ -2,13 +2,13 @@ use crate::utils::secret_shares::node_index;
 use std::collections::HashSet;
 use tessera_policy::pest::{PolicyType, PolicyValue};
 
-pub fn is_negative(attr: &String) -> bool {
+pub fn is_negative(attr: &str) -> bool {
     let first_char = &attr[..1];
     first_char == '!'.to_string()
 }
 
 #[inline]
-pub fn contains(data: &Vec<String>, value: &String) -> bool {
+pub fn contains(data: &Vec<String>, value: &str) -> bool {
     return data.iter().any(|x| x == value);
 }
 
@@ -20,7 +20,7 @@ pub fn is_subset(subset: &[&str], attr: &[&str]) -> bool {
 }
 
 // used to traverse / check policy tree
-pub fn traverse_policy(attr: &Vec<String>, policy_value: &PolicyValue, policy_type: PolicyType) -> bool {
+pub fn traverse_policy(attr: &[String], policy_value: &PolicyValue, policy_type: PolicyType) -> bool {
     return (!attr.is_empty())
         && match policy_value {
             PolicyValue::String(node) => attr.iter().any(|x| x == node.0),

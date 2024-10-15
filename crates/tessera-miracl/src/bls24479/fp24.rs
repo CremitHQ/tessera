@@ -319,7 +319,7 @@ impl FP24 {
     pub fn mul(&mut self, y: &FP24) {
         let mut z0 = FP8::new_copy(&self.a);
         let mut z1 = FP8::new();
-        let mut z2 = FP8::new_copy(&mut self.b);
+        let mut z2 = FP8::new_copy(&self.b);
         let mut z3 = FP8::new();
         let mut t0 = FP8::new_copy(&self.a);
         let mut t1 = FP8::new_copy(&y.a);

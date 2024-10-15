@@ -1900,14 +1900,13 @@ impl ECP {
     }
 
     pub fn generator() -> ECP {
-        let G: ECP;
         let gx = BIG::new_ints(&rom::CURVE_GX);
-        if CURVETYPE != MONTGOMERY {
+        let G: ECP = if CURVETYPE != MONTGOMERY {
             let gy = BIG::new_ints(&rom::CURVE_GY);
-            G = ECP::new_bigs(&gx, &gy);
+            ECP::new_bigs(&gx, &gy)
         } else {
-            G = ECP::new_big(&gx);
-        }
+            ECP::new_big(&gx)
+        };
         G
     }
 }
