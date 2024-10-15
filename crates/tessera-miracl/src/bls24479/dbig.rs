@@ -31,7 +31,7 @@ impl std::fmt::Debug for DBIG {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "{}", self.tostring())
     }
-}    
+}
 
 #[cfg(feature = "std")]
 impl std::fmt::Display for DBIG {
@@ -42,9 +42,7 @@ impl std::fmt::Display for DBIG {
 
 impl DBIG {
     pub fn new() -> DBIG {
-        DBIG {
-            w: [0; big::DNLEN as usize],
-        }
+        DBIG { w: [0; big::DNLEN] }
     }
 
     pub fn new_copy(y: &DBIG) -> DBIG {
@@ -91,8 +89,7 @@ impl DBIG {
         self.w[big::DNLEN - 1] =
             (self.w[big::DNLEN - 1 - m] << n) | (self.w[big::DNLEN - m - 2] >> (big::BASEBITS - n));
         for i in (m + 1..big::DNLEN - 1).rev() {
-            self.w[i] =
-                ((self.w[i - m] << n) & big::BMASK) | (self.w[i - m - 1] >> (big::BASEBITS - n));
+            self.w[i] = ((self.w[i - m] << n) & big::BMASK) | (self.w[i - m - 1] >> (big::BASEBITS - n));
         }
 
         self.w[m] = (self.w[0] << n) & big::BMASK;
@@ -106,8 +103,7 @@ impl DBIG {
         let n = k % big::BASEBITS;
         let m = k / big::BASEBITS;
         for i in 0..big::DNLEN - m - 1 {
-            self.w[i] =
-                (self.w[m + i] >> n) | ((self.w[m + i + 1] << (big::BASEBITS - n)) & big::BMASK);
+            self.w[i] = (self.w[m + i] >> n) | ((self.w[m + i + 1] << (big::BASEBITS - n)) & big::BMASK);
         }
         self.w[big::DNLEN - m - 1] = self.w[big::DNLEN - 1] >> n;
         for i in big::DNLEN - m..big::DNLEN {
@@ -133,16 +129,18 @@ impl DBIG {
 
     pub fn cmove(&mut self, g: &DBIG, d: isize) -> Chunk {
         let b = -d as Chunk;
-        let mut w=0 as Chunk;
-        let r=self.w[0]^g.w[1];
-        let mut ra=r.wrapping_add(r); ra >>= 1;
+        let mut w = 0 as Chunk;
+        let r = self.w[0] ^ g.w[1];
+        let mut ra = r.wrapping_add(r);
+        ra >>= 1;
         for i in 0..big::DNLEN {
             let mut t = b & (self.w[i] ^ g.w[i]);
-            t^=r;
-            let e=self.w[i]^t; w^=e;
-            self.w[i]=e^ra; 
+            t ^= r;
+            let e = self.w[i] ^ t;
+            w ^= e;
+            self.w[i] = e ^ ra;
         }
-        return w;
+        w
     }
 
     /* self+=x */
@@ -171,10 +169,10 @@ impl DBIG {
         let mut gt = 0 as Chunk;
         let mut eq = 1 as Chunk;
         for i in (0..big::DNLEN).rev() {
-  		    gt |= ((b.w[i]-a.w[i]) >> big::BASEBITS) & eq;
-		    eq &= ((b.w[i]^a.w[i])-1) >> big::BASEBITS;
+            gt |= ((b.w[i] - a.w[i]) >> big::BASEBITS) & eq;
+            eq &= ((b.w[i] ^ a.w[i]) - 1) >> big::BASEBITS;
         }
-        (gt+gt+eq-1) as isize
+        (gt + gt + eq - 1) as isize
     }
 
     /* convert from byte array to BIG */
@@ -189,7 +187,7 @@ impl DBIG {
 
     /* normalise BIG - force all digits < 2^big::BASEBITS */
     pub fn norm(&mut self) {
-        let mut carry  = self.w[0]>>big::BASEBITS;
+        let mut carry = self.w[0] >> big::BASEBITS;
         self.w[0] &= big::BMASK;
         for i in 1..big::DNLEN - 1 {
             let d = self.w[i] + carry;
@@ -199,10 +197,10 @@ impl DBIG {
         self.w[big::DNLEN - 1] += carry
     }
 
-// Set self=self mod m in constant time (if bd is known at compile time)
-// bd is Max number of bits in b - Actual number of bits in m
+    // Set self=self mod m in constant time (if bd is known at compile time)
+    // bd is Max number of bits in b - Actual number of bits in m
     pub fn ctdmod(&mut self, m: &BIG, bd: usize) -> BIG {
-        let mut k=bd;
+        let mut k = bd;
         self.norm();
         let mut c = DBIG::new_scopy(m);
         let mut dr = DBIG::new();
@@ -213,27 +211,31 @@ impl DBIG {
             dr.copy(self);
             dr.sub(&c);
             dr.norm();
-            self.cmove(&dr,(1 - ((dr.w[big::DNLEN - 1] >> (arch::CHUNK - 1)) & 1)) as isize);
-            if k==0 {break;}
+            self.cmove(&dr, (1 - ((dr.w[big::DNLEN - 1] >> (arch::CHUNK - 1)) & 1)) as isize);
+            if k == 0 {
+                break;
+            }
             c.shr(1);
-            k -= 1; 
+            k -= 1;
         }
         BIG::new_dcopy(self)
     }
 
     /* reduces self DBIG mod a BIG, and returns the BIG */
     pub fn dmod(&mut self, m: &BIG) -> BIG {
-        let ss=self.nbits() as isize;
-        let ms=m.nbits() as isize;
-        let mut k=(ss-ms) as usize;
-        if ss<ms {k=0;}
-        self.ctdmod(m,k)
+        let ss = self.nbits() as isize;
+        let ms = m.nbits() as isize;
+        let mut k = (ss - ms) as usize;
+        if ss < ms {
+            k = 0;
+        }
+        self.ctdmod(m, k)
     }
 
-// self=self/m  in constant time (if bd is known at compile time)
-// bd is Max number of bits in b - Actual number of bits in m
-    pub fn ctdiv(&mut self, m: &BIG, bd:usize) -> BIG {
-        let mut k=bd;
+    // self=self/m  in constant time (if bd is known at compile time)
+    // bd is Max number of bits in b - Actual number of bits in m
+    pub fn ctdiv(&mut self, m: &BIG, bd: usize) -> BIG {
+        let mut k = bd;
         let mut c = DBIG::new_scopy(m);
         let mut a = BIG::new();
         let mut e = BIG::new_int(1);
@@ -254,7 +256,9 @@ impl DBIG {
             r.add(&e);
             r.norm();
             a.cmove(&r, d);
-            if k==0 {break;}
+            if k == 0 {
+                break;
+            }
             k -= 1;
             c.shr(1);
             e.shr(1);
@@ -264,17 +268,19 @@ impl DBIG {
 
     /* return this/c */
     pub fn div(&mut self, m: &BIG) -> BIG {
-        let ss=self.nbits() as isize;
-        let ms=m.nbits() as isize;
-        let mut k=(ss-ms) as usize;
-        if ss<ms {k=0;}
-        self.ctdiv(m,k)
+        let ss = self.nbits() as isize;
+        let ms = m.nbits() as isize;
+        let mut k = (ss - ms) as usize;
+        if ss < ms {
+            k = 0;
+        }
+        self.ctdiv(m, k)
     }
 
     /* return number of bits */
     pub fn nbits(&self) -> usize {
         let mut k = big::DNLEN - 1;
-        let mut s = DBIG::new_copy(&self);
+        let mut s = DBIG::new_copy(self);
         s.norm();
         while (k as isize) >= 0 && s.w[k] == 0 {
             k = k.wrapping_sub(1)
@@ -282,13 +288,13 @@ impl DBIG {
         if (k as isize) < 0 {
             return 0;
         }
-        let mut bts = (big::BASEBITS as usize) * k;
+        let mut bts = big::BASEBITS * k;
         let mut c = s.w[k];
         while c != 0 {
             c /= 2;
             bts += 1;
         }
-       bts
+        bts
     }
 
     /* Convert to Hex String */
@@ -305,7 +311,7 @@ impl DBIG {
         }
 
         for i in (0..len).rev() {
-            let mut b = DBIG::new_copy(&self);
+            let mut b = DBIG::new_copy(self);
             b.shr(i * 4);
             s = s + &format!("{:X}", b.w[0] & 15);
         }

@@ -125,7 +125,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
         }
         let storage_key = self.generate_key().await?;
         let shield_key = AESShieldKey { version: AES_GCM_VERSION, key: storage_key };
-        let shield_key = bincode::serialize(&shield_key).map_err(|e| InitializationError::SerializationError(e))?;
+        let shield_key = bincode::serialize(&shield_key).map_err(InitializationError::SerializationError)?;
         let shield_key = self.encrypt(master_key, &shield_key)?;
         self.inner
             .set(SHIELD_KEY_PATH, &shield_key)
@@ -153,7 +153,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
         // We manually zeroize `shield_key` to make sure it doesn't linger in memory.
         let shield_key = ZeroizingKey::new(self.decrypt(master_key, &armored_shield_key)?);
         let shield_key: AESShieldKey =
-            bincode::deserialize(&shield_key).map_err(|e| InitializationError::SerializationError(e))?;
+            bincode::deserialize(&shield_key).map_err(InitializationError::SerializationError)?;
         let mut shield = self.shield_key.write().await;
         let shield = shield.deref_mut();
         *shield = Some(shield_key);

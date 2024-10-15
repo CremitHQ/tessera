@@ -16,9 +16,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+use crate::bls24479::dbig::DBIG;
 use crate::bls24479::ecp;
 use crate::bls24479::ecp::ECP;
-use crate::bls24479::dbig::DBIG;
 use crate::bls24479::ecp4::ECP4;
 //use crate::bls24479::fp8::FP8;
 
@@ -31,8 +31,8 @@ use crate::hmac;
 
 /* Boneh-Lynn-Shacham signature 192-bit API Functions */
 
-pub const BFS: usize = big::MODBYTES as usize;
-pub const BGS: usize = big::MODBYTES as usize;
+pub const BFS: usize = big::MODBYTES;
+pub const BGS: usize = big::MODBYTES;
 pub const BLS_OK: isize = 0;
 pub const BLS_FAIL: isize = -1;
 
@@ -43,25 +43,25 @@ pub const BLS_FAIL: isize = -1;
 // Uncomment to use precomp - Note this example code may no longer work when Rust 2024 appears in version 1.82, and may need restructuring
 //static mut G2_TAB: [FP8; ecp::G2_TABLE] = [FP8::new(); ecp::G2_TABLE];
 
-fn ceil(a: usize,b: usize) -> usize {
-    (a-1)/b+1
+fn ceil(a: usize, b: usize) -> usize {
+    (a - 1) / b + 1
 }
 
 /* output u \in F_p */
-fn hash_to_field(hash: usize,hlen: usize ,u: &mut [FP], dst: &[u8],m: &[u8],ctr: usize) {
+fn hash_to_field(hash: usize, hlen: usize, u: &mut [FP], dst: &[u8], m: &[u8], ctr: usize) {
     let q = BIG::new_ints(&rom::MODULUS);
-    let nbq=q.nbits();
-    let el = ceil(nbq+ecp::AESKEY*8,8);
+    let nbq = q.nbits();
+    let el = ceil(nbq + ecp::AESKEY * 8, 8);
 
-    let mut okm: [u8;256]=[0;256];
-    let mut fd: [u8;128]=[0;128];
+    let mut okm: [u8; 256] = [0; 256];
+    let mut fd: [u8; 128] = [0; 128];
 
-    hmac::xmd_expand(hash,hlen,&mut okm,el*ctr,&dst,&m);
+    hmac::xmd_expand(hash, hlen, &mut okm, el * ctr, dst, m);
     for i in 0..ctr {
         for j in 0..el {
-            fd[j]=okm[el*i+j];
+            fd[j] = okm[el * i + j];
         }
-        u[i]=FP::new_big(&DBIG::frombytes(&fd[0 .. el]).ctdmod(&q,8*el-nbq));
+        u[i] = FP::new_big(&DBIG::frombytes(&fd[0..el]).ctdmod(&q, 8 * el - nbq));
     }
 }
 
@@ -69,15 +69,12 @@ fn hash_to_field(hash: usize,hlen: usize ,u: &mut [FP], dst: &[u8],m: &[u8],ctr:
 #[allow(non_snake_case)]
 pub fn bls_hash_to_point(m: &[u8]) -> ECP {
     //let dst= String::from("BLS_SIG_ZZZG1_XMD:SHA-384_SVDW_RO_NUL_".to_ascii_uppercase());
-    let dst= "BLS_SIG_ZZZG1_XMD:SHA-384_SVDW_RO_NUL_";
-    let mut u: [FP; 2] = [
-        FP::new(),
-        FP::new(),
-    ];
-    hash_to_field(hmac::MC_SHA2,ecp::HASH_TYPE,&mut u,dst.as_bytes(),m,2);
+    let dst = "BLS_SIG_ZZZG1_XMD:SHA-384_SVDW_RO_NUL_";
+    let mut u: [FP; 2] = [FP::new(), FP::new()];
+    hash_to_field(hmac::MC_SHA2, ecp::HASH_TYPE, &mut u, dst.as_bytes(), m, 2);
 
-    let mut P=ECP::map2point(&u[0]);
-    let P1=ECP::map2point(&u[1]);
+    let mut P = ECP::map2point(&u[0]);
+    let P1 = ECP::map2point(&u[1]);
     P.add(&P1);
     P.cfp();
     P.affine();
@@ -85,47 +82,47 @@ pub fn bls_hash_to_point(m: &[u8]) -> ECP {
 }
 
 pub fn init() -> isize {
-// Uncomment to use precomp
-//    let g = ECP4::generator();
-//    if g.is_infinity() {
-//        return BLS_FAIL;
-//    }
-//    unsafe {
-//        pair4::precomp(&mut G2_TAB, &g);
-//    }
+    // Uncomment to use precomp
+    //    let g = ECP4::generator();
+    //    if g.is_infinity() {
+    //        return BLS_FAIL;
+    //    }
+    //    unsafe {
+    //        pair4::precomp(&mut G2_TAB, &g);
+    //    }
     BLS_OK
 }
 
 /* generate key pair, private key s, public key w */
 pub fn key_pair_generate(ikm: &[u8], s: &mut [u8], w: &mut [u8]) -> isize {
-    let r = BIG::new_ints(&rom::CURVE_ORDER);   
-    let nbr=r.nbits();
-    let el = ceil(3*ceil(nbr,8),2);
+    let r = BIG::new_ints(&rom::CURVE_ORDER);
+    let nbr = r.nbits();
+    let el = ceil(3 * ceil(nbr, 8), 2);
     let g = ECP4::generator();
     let mut len: [u8; 2] = [0; 2];
-    hmac::inttobytes(el,&mut len);
-    
-    let salt="BLS-SIG-KEYGEN-SALT-";
+    hmac::inttobytes(el, &mut len);
 
-    let mut prk: [u8;64]=[0;64];
-    let mut okm: [u8;128]=[0;128];
-    let mut aikm: [u8;65]=[0;65];
-    let likm=ikm.len();
+    let salt = "BLS-SIG-KEYGEN-SALT-";
+
+    let mut prk: [u8; 64] = [0; 64];
+    let mut okm: [u8; 128] = [0; 128];
+    let mut aikm: [u8; 65] = [0; 65];
+    let likm = ikm.len();
     for i in 0..likm {
-        aikm[i]=ikm[i];
+        aikm[i] = ikm[i];
     }
-    aikm[likm]=0;
+    aikm[likm] = 0;
 
-    let hlen=ecp::HASH_TYPE;
+    let hlen = ecp::HASH_TYPE;
 
-    hmac::hkdf_extract(hmac::MC_SHA2,hlen,&mut prk,Some(&salt.as_bytes()),&aikm[0 .. likm+1]);
-    hmac::hkdf_expand(hmac::MC_SHA2,hlen,&mut okm,el,&prk[0 .. hlen],&len);
+    hmac::hkdf_extract(hmac::MC_SHA2, hlen, &mut prk, Some(salt.as_bytes()), &aikm[0..likm + 1]);
+    hmac::hkdf_expand(hmac::MC_SHA2, hlen, &mut okm, el, &prk[0..hlen], &len);
 
-    let mut dx = DBIG::frombytes(&okm[0 .. el]);
-    let sc = dx.ctdmod(&r,8*el-nbr);
+    let mut dx = DBIG::frombytes(&okm[0..el]);
+    let sc = dx.ctdmod(&r, 8 * el - nbr);
     sc.tobytes(s);
-// SkToPk
-    pair4::g2mul(&g, &sc).tobytes(w,true);  // true for public key compression
+    // SkToPk
+    pair4::g2mul(&g, &sc).tobytes(w, true); // true for public key compression
     BLS_OK
 }
 
@@ -133,7 +130,7 @@ pub fn key_pair_generate(ikm: &[u8], s: &mut [u8], w: &mut [u8]) -> isize {
 
 pub fn core_sign(sig: &mut [u8], m: &[u8], s: &[u8]) -> isize {
     let d = bls_hash_to_point(m);
-    let sc = BIG::frombytes(&s);
+    let sc = BIG::frombytes(s);
     pair4::g1mul(&d, &sc).tobytes(sig, true);
     BLS_OK
 }
@@ -143,18 +140,18 @@ pub fn core_sign(sig: &mut [u8], m: &[u8], s: &[u8]) -> isize {
 pub fn core_verify(sig: &[u8], m: &[u8], w: &[u8]) -> isize {
     let hm = bls_hash_to_point(m);
 
-    let mut d = ECP::frombytes(&sig);
+    let mut d = ECP::frombytes(sig);
     if !pair4::g1member(&d) {
         return BLS_FAIL;
     }
     d.neg();
 
-    let pk = ECP4::frombytes(&w);
+    let pk = ECP4::frombytes(w);
     if !pair4::g2member(&pk) {
         return BLS_FAIL;
     }
 
-// Uncomment to use precomp
+    // Uncomment to use precomp
     // Use new multi-pairing mechanism
     //let mut r = pair4::initmp();
     //    pair4::another(&mut r,&g,&d);
@@ -165,8 +162,8 @@ pub fn core_verify(sig: &[u8], m: &[u8], w: &[u8]) -> isize {
     //let mut v = pair4::miller(&mut r);
 
     //.. or alternatively
-        let g = ECP4::generator();
-        let mut v = pair4::ate2(&g, &d, &pk, &hm);
+    let g = ECP4::generator();
+    let mut v = pair4::ate2(&g, &d, &pk, &hm);
 
     v = pair4::fexp(&v);
     if v.isunity() {

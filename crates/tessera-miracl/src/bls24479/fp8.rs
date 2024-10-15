@@ -102,17 +102,17 @@ impl FP8 {
     }
 
     pub fn set_fp4s(&mut self, c: &FP4, d: &FP4) {
-        self.a.copy(&c);
-        self.b.copy(&d);
+        self.a.copy(c);
+        self.b.copy(d);
     }
 
     pub fn set_fp4(&mut self, c: &FP4) {
-        self.a.copy(&c);
+        self.a.copy(c);
         self.b.zero();
     }
 
     pub fn set_fp4h(&mut self, c: &FP4) {
-        self.b.copy(&c);
+        self.b.copy(c);
         self.a.zero();
     }
 
@@ -150,7 +150,7 @@ impl FP8 {
     }
 
     pub fn tobytes(&self, bf: &mut [u8]) {
-        const MB: usize = 4 * (big::MODBYTES as usize);
+        const MB: usize = 4 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         self.b.tobytes(&mut t);
         for i in 0..MB {
@@ -163,7 +163,7 @@ impl FP8 {
     }
 
     pub fn frombytes(bf: &[u8]) -> FP8 {
-        const MB: usize = 4 * (big::MODBYTES as usize);
+        const MB: usize = 4 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
             t[i] = bf[i];
@@ -227,11 +227,11 @@ impl FP8 {
         if fp::BIG_ENDIAN_SIGN {
             let u = self.b.iszilch() as isize;
             p2 ^= (p1 ^ p2) & u;
-            return p2;
+            p2
         } else {
             let u = self.a.iszilch() as isize;
             p1 ^= (p1 ^ p2) & u;
-            return p1;
+            p1
         }
     }
 

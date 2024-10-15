@@ -58,7 +58,7 @@ pub fn serialize_policy(val: &PolicyValue, language: PolicyLanguage, parent: Opt
                     format!("{{\"name\": \"and\", {}}}", serialize_policy(obj.1.as_ref(), language, None))
                 }
                 PolicyType::Or => format!("{{\"name\": \"or\", {}}}", serialize_policy(obj.1.as_ref(), language, None)),
-                PolicyType::Leaf => serialize_policy(&obj.1.as_ref(), language, None),
+                PolicyType::Leaf => serialize_policy(obj.1.as_ref(), language, None),
             },
             Array(a) => {
                 let contents: Vec<_> = a.iter().map(|val| serialize_policy(val, language, None)).collect();
@@ -68,9 +68,9 @@ pub fn serialize_policy(val: &PolicyValue, language: PolicyLanguage, parent: Opt
         },
         PolicyLanguage::HumanPolicy => match val {
             Object(obj) => match obj.0 {
-                PolicyType::And => format!("{}", serialize_policy(obj.1.as_ref(), language, Some(PolicyType::And))),
-                PolicyType::Or => format!("{}", serialize_policy(obj.1.as_ref(), language, Some(PolicyType::Or))),
-                PolicyType::Leaf => serialize_policy(&obj.1.as_ref(), language, Some(PolicyType::Leaf)),
+                PolicyType::And => serialize_policy(obj.1.as_ref(), language, Some(PolicyType::And)).to_string(),
+                PolicyType::Or => serialize_policy(obj.1.as_ref(), language, Some(PolicyType::Or)).to_string(),
+                PolicyType::Leaf => serialize_policy(obj.1.as_ref(), language, Some(PolicyType::Leaf)),
             },
             Array(a) => {
                 let contents: Vec<_> = a.iter().map(|val| serialize_policy(val, language, None)).collect();
@@ -80,7 +80,7 @@ pub fn serialize_policy(val: &PolicyValue, language: PolicyLanguage, parent: Opt
                     _ => panic!("children without parent"),
                 }
             }
-            String(s) => format!("{}", s.0),
+            String(s) => s.0.to_string(),
         },
     }
 }

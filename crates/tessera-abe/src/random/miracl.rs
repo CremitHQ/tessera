@@ -7,6 +7,12 @@ pub struct MiraclRng {
 
 impl CryptoRng for MiraclRng {}
 
+impl Default for MiraclRng {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MiraclRng {
     pub fn new() -> Self {
         Self { inner: RAND::new() }
@@ -35,8 +41,8 @@ impl RngCore for MiraclRng {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for i in 0..dest.len() {
-            dest[i] = self.inner.getbyte();
+        for d in dest {
+            *d = self.inner.getbyte();
         }
     }
 

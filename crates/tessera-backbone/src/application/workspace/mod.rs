@@ -110,7 +110,7 @@ mod test {
 
     #[tokio::test]
     async fn when_creating_workspace_use_case_should_delegate_to_service() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
@@ -129,7 +129,7 @@ mod test {
 
     #[tokio::test]
     async fn when_creating_workspace_succeed_use_case_should_returns_empty_ok() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
@@ -147,7 +147,7 @@ mod test {
 
     #[tokio::test]
     async fn when_creating_workspace_failed_with_anyhow_use_case_should_returns_anyhow() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
@@ -167,7 +167,7 @@ mod test {
     #[tokio::test]
     async fn when_creating_workspace_failed_with_workspace_name_conflicted_use_case_should_returns_workspace_name_conflicted_err(
     ) {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
@@ -201,7 +201,7 @@ mod test {
 
     #[tokio::test]
     async fn when_deleting_workspace_succeed_use_case_should_returns_empty_ok() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
 
@@ -222,7 +222,7 @@ mod test {
 
     #[tokio::test]
     async fn when_deleting_workspace_failed_with_empty_workspace_use_case_should_returns_workspace_not_exists_error() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 

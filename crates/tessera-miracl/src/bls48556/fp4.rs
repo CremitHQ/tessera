@@ -99,22 +99,22 @@ impl FP4 {
     }
 
     pub fn set_fp2s(&mut self, c: &FP2, d: &FP2) {
-        self.a.copy(&c);
-        self.b.copy(&d);
+        self.a.copy(c);
+        self.b.copy(d);
     }
 
     pub fn set_fp(&mut self, c: &FP) {
-        self.a.set_fp(&c);
+        self.a.set_fp(c);
         self.b.zero();
     }
 
     pub fn set_fp2(&mut self, c: &FP2) {
-        self.a.copy(&c);
+        self.a.copy(c);
         self.b.zero();
     }
 
     pub fn set_fp2h(&mut self, c: &FP2) {
-        self.b.copy(&c);
+        self.b.copy(c);
         self.a.zero();
     }
 
@@ -154,7 +154,7 @@ impl FP4 {
     }
 
     pub fn tobytes(&self, bf: &mut [u8]) {
-        const MB: usize = 2 * (big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         self.b.tobytes(&mut t);
         for i in 0..MB {
@@ -167,7 +167,7 @@ impl FP4 {
     }
 
     pub fn frombytes(bf: &[u8]) -> FP4 {
-        const MB: usize = 2 * (big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
             t[i] = bf[i];
@@ -776,7 +776,7 @@ impl FP4 {
         self.b.cmove(&t, 1 - qr);
 
         let sgn = self.sign();
-        let mut nr = FP4::new_copy(&self);
+        let mut nr = FP4::new_copy(self);
         nr.neg();
         nr.norm();
         self.cmove(&nr, sgn);

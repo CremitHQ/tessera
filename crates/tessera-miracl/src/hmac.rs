@@ -183,15 +183,7 @@ pub fn kdf2(hash: usize, sha: usize, z: &[u8], p: Option<&[u8]>, olen: usize, k:
 /* Password based Key Derivation Function */
 /* Input password p, salt s, and repeat count */
 /* Output key of length olen */
-pub fn pbkdf2(
-    hash: usize,
-    sha: usize,
-    pass: &[u8],
-    salt: &[u8],
-    rep: usize,
-    olen: usize,
-    k: &mut [u8],
-) {
+pub fn pbkdf2(hash: usize, sha: usize, pass: &[u8], salt: &[u8], rep: usize, olen: usize, k: &mut [u8]) {
     let mut d = olen / sha;
     if olen % sha != 0 {
         d += 1
@@ -287,16 +279,7 @@ pub fn hmac1(hash: usize, sha: usize, tag: &mut [u8], olen: usize, k: &[u8], m: 
     for i in 0..lb {
         k0[i] ^= 0x6a
     }
-    GPhashit(
-        hash,
-        sha,
-        tag,
-        olen,
-        0,
-        Some(&k0[0..lb]),
-        -1,
-        Some(&b[0..sha]),
-    );
+    GPhashit(hash, sha, tag, olen, 0, Some(&k0[0..lb]), -1, Some(&b[0..sha]));
 
     true
 }
@@ -373,16 +356,7 @@ pub fn xof_expand(hlen: usize, okm: &mut [u8], olen: usize, dst: &[u8], msg: &[u
 pub fn xmd_expand(hash: usize, hlen: usize, okm: &mut [u8], olen: usize, dst: &[u8], msg: &[u8]) {
     let mut w: [u8; 64] = [0; 64];
     if dst.len() >= 256 {
-        GPhashit(
-            hash,
-            hlen,
-            &mut w,
-            0,
-            0,
-            Some(b"H2C-OVERSIZE-DST-"),
-            -1,
-            Some(dst),
-        );
+        GPhashit(hash, hlen, &mut w, 0, 0, Some(b"H2C-OVERSIZE-DST-"), -1, Some(dst));
         xmd_expand_short_dst(hash, hlen, okm, olen, &w[0..hlen], msg);
     } else {
         xmd_expand_short_dst(hash, hlen, okm, olen, dst, msg);
@@ -390,14 +364,7 @@ pub fn xmd_expand(hash: usize, hlen: usize, okm: &mut [u8], olen: usize, dst: &[
 }
 
 // Assumes dst.len() < 256.
-fn xmd_expand_short_dst(
-    hash: usize,
-    hlen: usize,
-    okm: &mut [u8],
-    olen: usize,
-    dst: &[u8],
-    msg: &[u8],
-) {
+fn xmd_expand_short_dst(hash: usize, hlen: usize, okm: &mut [u8], olen: usize, dst: &[u8], msg: &[u8]) {
     let mut tmp: [u8; 260] = [0; 260];
     let mut h0: [u8; 64] = [0; 64];
     let mut h1: [u8; 64] = [0; 64];
@@ -414,16 +381,7 @@ fn xmd_expand_short_dst(
     }
     tmp[3 + dst.len()] = (dst.len() & 0xff) as u8;
 
-    GPhashit(
-        hash,
-        hlen,
-        &mut h0,
-        0,
-        blk,
-        Some(msg),
-        -1,
-        Some(&tmp[0..dst.len() + 4]),
-    );
+    GPhashit(hash, hlen, &mut h0, 0, blk, Some(msg), -1, Some(&tmp[0..dst.len() + 4]));
 
     let mut k = 0;
     for i in 1..=ell {
@@ -438,16 +396,7 @@ fn xmd_expand_short_dst(
         }
         tmp[1 + dst.len()] = (dst.len() & 0xff) as u8;
 
-        GPhashit(
-            hash,
-            hlen,
-            &mut h1,
-            0,
-            0,
-            Some(&h2[0..hlen]),
-            -1,
-            Some(&tmp[0..dst.len() + 2]),
-        );
+        GPhashit(hash, hlen, &mut h1, 0, 0, Some(&h2[0..hlen]), -1, Some(&tmp[0..dst.len() + 2]));
         for j in 0..hlen {
             okm[k] = h1[j];
             k += 1;
@@ -519,18 +468,12 @@ pub fn mgf1xor(sha: usize, z: &[u8], olen: usize, k: &mut [u8]) {
 
 // PKCS 1.5
 /* SHAXXX identifier strings */
-const SHA256ID: [u8; 19] = [
-    0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05,
-    0x00, 0x04, 0x20,
-];
-const SHA384ID: [u8; 19] = [
-    0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05,
-    0x00, 0x04, 0x30,
-];
-const SHA512ID: [u8; 19] = [
-    0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05,
-    0x00, 0x04, 0x40,
-];
+const SHA256ID: [u8; 19] =
+    [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
+const SHA384ID: [u8; 19] =
+    [0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
+const SHA512ID: [u8; 19] =
+    [0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
 
 pub fn pkcs15(sha: usize, m: &[u8], w: &mut [u8], rfs: usize) -> bool {
     let olen = rfs;
@@ -584,18 +527,12 @@ pub fn pkcs15(sha: usize, m: &[u8], w: &mut [u8], rfs: usize) -> bool {
 
 // Alternate PKCS 1.5
 /* SHAXXX identifier strings */
-const SHA256IDB: [u8; 17] = [
-    0x30, 0x2f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x04,
-    0x20,
-];
-const SHA384IDB: [u8; 17] = [
-    0x30, 0x3f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x04,
-    0x30,
-];
-const SHA512IDB: [u8; 17] = [
-    0x30, 0x4f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x04,
-    0x40,
-];
+const SHA256IDB: [u8; 17] =
+    [0x30, 0x2f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x04, 0x20];
+const SHA384IDB: [u8; 17] =
+    [0x30, 0x3f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x04, 0x30];
+const SHA512IDB: [u8; 17] =
+    [0x30, 0x4f, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x04, 0x40];
 
 pub fn pkcs15b(sha: usize, m: &[u8], w: &mut [u8], rfs: usize) -> bool {
     let olen = rfs;
@@ -751,14 +688,7 @@ pub fn pss_verify(sha: usize, m: &[u8], f: &[u8]) -> bool {
 }
 
 /* OAEP Message Encoding for Encryption */
-pub fn oaep_encode(
-    sha: usize,
-    m: &[u8],
-    rng: &mut RAND,
-    p: Option<&[u8]>,
-    f: &mut [u8],
-    rfs: usize,
-) -> bool {
+pub fn oaep_encode(sha: usize, m: &[u8], rng: &mut RAND, p: Option<&[u8]>, f: &mut [u8], rfs: usize) -> bool {
     let olen = rfs - 1;
     let mlen = m.len();
 

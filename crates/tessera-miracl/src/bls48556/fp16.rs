@@ -78,17 +78,17 @@ impl FP16 {
     }
 
     pub fn set_fp8s(&mut self, c: &FP8, d: &FP8) {
-        self.a.copy(&c);
-        self.b.copy(&d);
+        self.a.copy(c);
+        self.b.copy(d);
     }
 
     pub fn set_fp8(&mut self, c: &FP8) {
-        self.a.copy(&c);
+        self.a.copy(c);
         self.b.zero();
     }
 
     pub fn set_fp8h(&mut self, c: &FP8) {
-        self.b.copy(&c);
+        self.b.copy(c);
         self.a.zero();
     }
 
@@ -115,7 +115,7 @@ impl FP16 {
     }
 
     pub fn tobytes(&self, bf: &mut [u8]) {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         self.b.tobytes(&mut t);
         for i in 0..MB {
@@ -128,7 +128,7 @@ impl FP16 {
     }
 
     pub fn frombytes(bf: &[u8]) -> FP16 {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
             t[i] = bf[i];
@@ -394,14 +394,14 @@ impl FP16 {
     pub fn pow(&self, e: &BIG) -> FP16 {
         let mut w = FP16::new_copy(self);
         w.norm();
-        let mut z = BIG::new_copy(&e);
+        let mut z = BIG::new_copy(e);
         let mut r = FP16::new_int(1);
         z.norm();
         loop {
             let bt = z.parity();
             z.fshr(1);
             if bt == 1 {
-                r.mul(&mut w)
+                r.mul(&w)
             };
             if z.iszilch() {
                 break;

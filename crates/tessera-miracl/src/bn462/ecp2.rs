@@ -19,12 +19,12 @@
 
 use crate::bn462::big;
 use crate::bn462::big::BIG;
+use crate::bn462::dbig::DBIG;
 use crate::bn462::ecp;
-use crate::bn462::fp2::FP2;
-use crate::bn462::rom;
 use crate::bn462::fp;
 use crate::bn462::fp::FP;
-use crate::bn462::dbig::DBIG;
+use crate::bn462::fp2::FP2;
+use crate::bn462::rom;
 
 #[derive(Clone)]
 pub struct ECP2 {
@@ -38,7 +38,7 @@ impl std::fmt::Debug for ECP2 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "{}", self.tostring())
     }
-}    
+}
 
 #[cfg(feature = "std")]
 impl std::fmt::Display for ECP2 {
@@ -50,18 +50,14 @@ impl std::fmt::Display for ECP2 {
 #[allow(non_snake_case)]
 impl ECP2 {
     pub fn new() -> ECP2 {
-        ECP2 {
-            x: FP2::new(),
-            y: FP2::new_int(1),
-            z: FP2::new(),
-        }
+        ECP2 { x: FP2::new(), y: FP2::new_int(1), z: FP2::new() }
     }
     #[allow(non_snake_case)]
     /* construct this from (x,y) - but set to O if not on curve */
     pub fn new_fp2s(ix: &FP2, iy: &FP2) -> ECP2 {
         let mut E = ECP2::new();
-        E.x.copy(&ix);
-        E.y.copy(&iy);
+        E.x.copy(ix);
+        E.y.copy(iy);
         E.z.one();
         E.x.norm();
 
@@ -75,21 +71,21 @@ impl ECP2 {
     }
 
     /* construct this from x - but set to O if not on curve */
-    pub fn new_fp2(ix: &FP2, s:isize) -> ECP2 {
+    pub fn new_fp2(ix: &FP2, s: isize) -> ECP2 {
         let mut E = ECP2::new();
         let mut h = FP::new();
-        E.x.copy(&ix);
+        E.x.copy(ix);
         E.y.one();
         E.z.one();
         E.x.norm();
         let mut rhs = ECP2::rhs(&E.x);
- 	    if rhs.qr(Some(&mut h)) == 1 {
-		    rhs.sqrt(Some(&h));
-		    if rhs.sign() != s {
-			    rhs.neg();
-		    }
-		    rhs.reduce();
-		    E.y.copy(&rhs);
+        if rhs.qr(Some(&mut h)) == 1 {
+            rhs.sqrt(Some(&h));
+            if rhs.sign() != s {
+                rhs.neg();
+            }
+            rhs.reduce();
+            E.y.copy(&rhs);
         } else {
             E.inf();
         }
@@ -228,97 +224,96 @@ impl ECP2 {
 
     /* convert to byte array */
     pub fn tobytes(&self, b: &mut [u8], compress: bool) {
-        const MB:usize = 2*(big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
-        let mut alt=false;
+        let mut alt = false;
         let mut W = ECP2::new();
         W.copy(self);
         W.affine();
         W.x.tobytes(&mut t);
 
-        if (fp::MODBITS-1)%8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
-            alt=true;
+        if (fp::MODBITS - 1) % 8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
+            alt = true;
         }
         if alt {
-		    for i in 0..MB {
-			    b[i]=t[i]
-		    }
+            for i in 0..MB {
+                b[i] = t[i]
+            }
             if !compress {
                 W.y.tobytes(&mut t);
                 for i in 0..MB {
-				    b[i+MB]=t[i];
-			    }
+                    b[i + MB] = t[i];
+                }
             } else {
-                b[0]|=0x80;
-                if W.y.islarger()==1 {
-				    b[0]|=0x20;
-			    }
+                b[0] |= 0x80;
+                if W.y.islarger() == 1 {
+                    b[0] |= 0x20;
+                }
             }
-
-	    } else {
-		    for i in 0..MB {
-			    b[i+1]=t[i];
-		    }
+        } else {
+            for i in 0..MB {
+                b[i + 1] = t[i];
+            }
             if !compress {
-                b[0]=0x04;
+                b[0] = 0x04;
                 W.y.tobytes(&mut t);
-	            for i in 0..MB {
-			        b[i+MB+1]=t[i];
-			    }
+                for i in 0..MB {
+                    b[i + MB + 1] = t[i];
+                }
             } else {
-                b[0]=0x02;
+                b[0] = 0x02;
                 if W.y.sign() == 1 {
-                    b[0]=0x03;
-			    }
+                    b[0] = 0x03;
+                }
             }
-	    }
+        }
     }
 
     /* convert from byte array to point */
     pub fn frombytes(b: &[u8]) -> ECP2 {
-        const MB:usize = 2*(big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
-        let typ=b[0] as isize;
-        let mut alt=false;
+        let typ = b[0] as isize;
+        let mut alt = false;
 
-        if (fp::MODBITS-1)%8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
-            alt=true;
+        if (fp::MODBITS - 1) % 8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
+            alt = true;
         }
 
-	if alt {
-            for i in 0..MB  {
-			    t[i]=b[i];
-		    }
-            t[0]&=0x1f;
-            let rx=FP2::frombytes(&t);
-            if (b[0]&0x80)==0 {
+        if alt {
+            for i in 0..MB {
+                t[i] = b[i];
+            }
+            t[0] &= 0x1f;
+            let rx = FP2::frombytes(&t);
+            if (b[0] & 0x80) == 0 {
                 for i in 0..MB {
-				    t[i]=b[i+MB];
-			    }
-                let ry=FP2::frombytes(&t);
-                ECP2::new_fp2s(&rx,&ry)
+                    t[i] = b[i + MB];
+                }
+                let ry = FP2::frombytes(&t);
+                ECP2::new_fp2s(&rx, &ry)
             } else {
-                let sgn=(b[0]&0x20)>>5;
-                let mut P=ECP2::new_fp2(&rx,0);
-                let cmp=P.y.islarger();
+                let sgn = (b[0] & 0x20) >> 5;
+                let mut P = ECP2::new_fp2(&rx, 0);
+                let cmp = P.y.islarger();
                 if (sgn == 1 && cmp != 1) || (sgn == 0 && cmp == 1) {
-				    P.neg();
-			    }
+                    P.neg();
+                }
                 P
             }
         } else {
             for i in 0..MB {
-                 t[i]=b[i+1];
+                t[i] = b[i + 1];
             }
-            let rx=FP2::frombytes(&t);
+            let rx = FP2::frombytes(&t);
             if typ == 0x04 {
-		        for i in 0..MB {
-				    t[i]=b[i+MB+1];
-			    }
-		        let ry=FP2::frombytes(&t);
-		        ECP2::new_fp2s(&rx,&ry)
+                for i in 0..MB {
+                    t[i] = b[i + MB + 1];
+                }
+                let ry = FP2::frombytes(&t);
+                ECP2::new_fp2s(&rx, &ry)
             } else {
-                ECP2::new_fp2(&rx,typ&1)
+                ECP2::new_fp2(&rx, typ & 1)
             }
         }
     }
@@ -553,25 +548,17 @@ impl ECP2 {
             return P;
         }
 
-        let mut W: [ECP2; 8] = [
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-        ];
+        let mut W: [ECP2; 8] =
+            [ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new()];
 
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
         let mut w: [i8; CT] = [0; CT];
 
         /* precompute table */
-        Q.copy(&self);
+        Q.copy(self);
         Q.dbl();
 
-        W[0].copy(&self);
+        W[0].copy(self);
 
         for i in 1..8 {
             C.copy(&W[i - 1]);
@@ -580,7 +567,7 @@ impl ECP2 {
         }
 
         /* make exponent odd - add 2P if even, P if odd */
-        t.copy(&e);
+        t.copy(e);
         let s = t.parity();
         t.inc(1);
         t.norm();
@@ -589,7 +576,7 @@ impl ECP2 {
         mt.inc(1);
         mt.norm();
         t.cmove(&mt, s);
-        Q.cmove(&self, ns);
+        Q.cmove(self, ns);
         C.copy(&Q);
 
         let nb = 1 + (t.nbits() + 3) / 4;
@@ -619,15 +606,15 @@ impl ECP2 {
     }
 
     #[allow(non_snake_case)]
-    pub fn cfp(&mut self)  {
+    pub fn cfp(&mut self) {
         let mut X = FP2::new_bigs(&BIG::new_ints(&rom::FRA), &BIG::new_ints(&rom::FRB));
         if ecp::SEXTIC_TWIST == ecp::M_TYPE {
             X.inverse(None);
             X.norm();
         }
         let x = BIG::new_ints(&rom::CURVE_BNX);
-    // Faster Hashing to G2 - Fuentes-Castaneda, Knapp and Rodriguez-Henriquez
-    // Q -> xQ + F(3xQ) + F(F(xQ)) + F(F(F(Q))).
+        // Faster Hashing to G2 - Fuentes-Castaneda, Knapp and Rodriguez-Henriquez
+        // Q -> xQ + F(3xQ) + F(F(xQ)) + F(F(F(Q))).
         if ecp::CURVE_PAIRING_TYPE == ecp::BN {
             let mut T = self.mul(&x);
             if ecp::SIGN_OF_X == ecp::NEGATIVEX {
@@ -648,8 +635,8 @@ impl ECP2 {
             T.frob(&X);
             self.add(&T);
         }
-    // Efficient hash maps to G2 on BLS curves - Budroni, Pintore
-    // Q -> x2Q -xQ -Q +F(xQ -Q) +F(F(2Q))
+        // Efficient hash maps to G2 on BLS curves - Budroni, Pintore
+        // Q -> x2Q -xQ -Q +F(xQ -Q) +F(F(2Q))
         if ecp::CURVE_PAIRING_TYPE > ecp::BN {
             let mut xQ = self.mul(&x);
             let mut x2Q = xQ.mul(&x);
@@ -658,9 +645,9 @@ impl ECP2 {
                 xQ.neg();
             }
             x2Q.sub(&xQ);
-            x2Q.sub(&self);
+            x2Q.sub(self);
 
-            xQ.sub(&self);
+            xQ.sub(self);
             xQ.frob(&X);
 
             self.dbl();
@@ -672,7 +659,6 @@ impl ECP2 {
         }
     }
 
-
     /* P=u0.Q0+u1*Q1+u2*Q2+u3*Q3 */
     // Bos & Costello https://eprint.iacr.org/2013/458.pdf
     // Faz-Hernandez & Longa & Sanchez  https://eprint.iacr.org/2013/158.pdf
@@ -682,27 +668,14 @@ impl ECP2 {
         let mut W = ECP2::new();
         let mut P = ECP2::new();
 
-        let mut T: [ECP2; 8] = [
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-            ECP2::new(),
-        ];
+        let mut T: [ECP2; 8] =
+            [ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new()];
 
         let mut mt = BIG::new();
 
-        let mut t: [BIG; 4] = [
-            BIG::new_copy(&u[0]),
-            BIG::new_copy(&u[1]),
-            BIG::new_copy(&u[2]),
-            BIG::new_copy(&u[3]),
-        ];
+        let mut t: [BIG; 4] = [BIG::new_copy(&u[0]), BIG::new_copy(&u[1]), BIG::new_copy(&u[2]), BIG::new_copy(&u[3])];
 
-        const CT: usize = 1 + big::NLEN * (big::BASEBITS as usize);
+        const CT: usize = 1 + big::NLEN * big::BASEBITS;
         let mut w: [i8; CT] = [0; CT];
         let mut s: [i8; CT] = [0; CT];
 
@@ -783,15 +756,15 @@ impl ECP2 {
         P
     }
 
-/* Hunt and Peck a BIG to a curve point */
+    /* Hunt and Peck a BIG to a curve point */
     #[allow(non_snake_case)]
     pub fn hap2point(h: &BIG) -> ECP2 {
         let mut Q: ECP2;
         let one = BIG::new_int(1);
-        let mut x =BIG::new_copy(&h);
+        let mut x = BIG::new_copy(h);
         loop {
             let X = FP2::new_bigs(&one, &x);
-            Q = ECP2::new_fp2(&X,0);
+            Q = ECP2::new_fp2(&X, 0);
             if !Q.is_infinity() {
                 break;
             }
@@ -801,24 +774,24 @@ impl ECP2 {
         Q
     }
 
-/* Constant time Map to Point */
+    /* Constant time Map to Point */
     #[allow(unreachable_code)]
     #[allow(non_snake_case)]
     pub fn map2point(H: &FP2) -> ECP2 {
-        let mut T=FP2::new_copy(H); /**/
-        let sgn=T.sign(); /**/
+        let mut T = FP2::new_copy(H); /**/
+        let sgn = T.sign(); /**/
         if ecp::HTC_ISO_G2 == 0 {
-    // Shallue and van de Woestijne
-/* */
-            let mut NY=FP2::new_int(1);
-            let mut Z=FP::new_int(fp::RIADZG2A);
-            let mut X1=FP2::new_fp(&Z);
-            let mut X3=FP2::new_copy(&X1);
-            let mut A=ECP2::rhs(&X1);
-            let mut W=FP2::new_copy(&A);
+            // Shallue and van de Woestijne
+            /* */
+            let mut NY = FP2::new_int(1);
+            let mut Z = FP::new_int(fp::RIADZG2A);
+            let mut X1 = FP2::new_fp(&Z);
+            let mut X3 = FP2::new_copy(&X1);
+            let mut A = ECP2::rhs(&X1);
+            let mut W = FP2::new_copy(&A);
 
-            if fp::RIADZG2A==-1 && fp::RIADZG2B==0 && ecp::SEXTIC_TWIST == ecp::M_TYPE && rom::CURVE_B_I==4 {
-                W.copy(&FP2::new_ints(2,1));
+            if fp::RIADZG2A == -1 && fp::RIADZG2B == 0 && ecp::SEXTIC_TWIST == ecp::M_TYPE && rom::CURVE_B_I == 4 {
+                W.copy(&FP2::new_ints(2, 1));
             } else {
                 W.sqrt(None);
             }
@@ -826,174 +799,185 @@ impl ECP2 {
             Z.mul(&s);
 
             T.sqr();
-            let mut Y=FP2::new_copy(&A); Y.mul(&T);
-            T.copy(&NY); T.add(&Y); T.norm();
-            Y.rsub(&NY); Y.norm();
-            NY.copy(&T); NY.mul(&Y); 
-        
+            let mut Y = FP2::new_copy(&A);
+            Y.mul(&T);
+            T.copy(&NY);
+            T.add(&Y);
+            T.norm();
+            Y.rsub(&NY);
+            Y.norm();
+            NY.copy(&T);
+            NY.mul(&Y);
+
             NY.pmul(&Z);
             NY.inverse(None);
 
             W.pmul(&Z);
-            if W.sign()==1 {
+            if W.sign() == 1 {
                 W.neg();
                 W.norm();
             }
             W.pmul(&Z);
-            W.mul(&H); W.mul(&Y); W.mul(&NY);
+            W.mul(H);
+            W.mul(&Y);
+            W.mul(&NY);
 
-            X1.neg(); X1.norm(); X1.div2();
-            let mut X2=FP2::new_copy(&X1);
-            X1.sub(&W); X1.norm();
-            X2.add(&W); X2.norm();
-            A.dbl(); A.dbl(); A.norm();
-            T.sqr(); T.mul(&NY); T.sqr();
+            X1.neg();
+            X1.norm();
+            X1.div2();
+            let mut X2 = FP2::new_copy(&X1);
+            X1.sub(&W);
+            X1.norm();
+            X2.add(&W);
+            X2.norm();
+            A.dbl();
+            A.dbl();
+            A.norm();
+            T.sqr();
+            T.mul(&NY);
+            T.sqr();
             A.mul(&T);
-            X3.add(&A); X3.norm();
+            X3.add(&A);
+            X3.norm();
 
             Y.copy(&ECP2::rhs(&X2));
-            X3.cmove(&X2,Y.qr(None));
+            X3.cmove(&X2, Y.qr(None));
             Y.copy(&ECP2::rhs(&X1));
-            X3.cmove(&X1,Y.qr(None));
+            X3.cmove(&X1, Y.qr(None));
             Y.copy(&ECP2::rhs(&X3));
             Y.sqrt(None);
 
-            let ne=Y.sign()^sgn;
-            W.copy(&Y); W.neg(); W.norm();
-            Y.cmove(&W,ne);
+            let ne = Y.sign() ^ sgn;
+            W.copy(&Y);
+            W.neg();
+            W.norm();
+            Y.cmove(&W, ne);
 
-            return ECP2::new_fp2s(&X3,&Y);
-/* */
+            return ECP2::new_fp2s(&X3, &Y);
+        /* */
         } else {
-/* CAHCZS
-            let NY=FP2::new_int(1);
-            let Ad=FP2::new_bigs(&BIG::new_ints(&rom::CURVE_ADR),&BIG::new_ints(&rom::CURVE_ADI));
-            let Bd=FP2::new_bigs(&BIG::new_ints(&rom::CURVE_BDR),&BIG::new_ints(&rom::CURVE_BDI));  
-            let ZZ=FP2::new_ints(fp::RIADZG2A,fp::RIADZG2B);
-            let mut hint=FP::new();
+            /* CAHCZS
+                        let NY=FP2::new_int(1);
+                        let Ad=FP2::new_bigs(&BIG::new_ints(&rom::CURVE_ADR),&BIG::new_ints(&rom::CURVE_ADI));
+                        let Bd=FP2::new_bigs(&BIG::new_ints(&rom::CURVE_BDR),&BIG::new_ints(&rom::CURVE_BDI));
+                        let ZZ=FP2::new_ints(fp::RIADZG2A,fp::RIADZG2B);
+                        let mut hint=FP::new();
 
-            T.sqr();
-            T.mul(&ZZ);
-            let mut W=FP2::new_copy(&T);
-            W.add(&NY); W.norm();
+                        T.sqr();
+                        T.mul(&ZZ);
+                        let mut W=FP2::new_copy(&T);
+                        W.add(&NY); W.norm();
 
-            W.mul(&T);
-            let mut D=FP2::new_copy(&Ad);
-            D.mul(&W);
-    
-            W.add(&NY); W.norm();
-            W.mul(&Bd);
-            W.neg(); W.norm();
+                        W.mul(&T);
+                        let mut D=FP2::new_copy(&Ad);
+                        D.mul(&W);
 
-            let mut X2=FP2::new_copy(&W);
-            let mut X3=FP2::new_copy(&T);
-            X3.mul(&X2);
+                        W.add(&NY); W.norm();
+                        W.mul(&Bd);
+                        W.neg(); W.norm();
 
-            let mut GX1=FP2::new_copy(&X2); GX1.sqr();
-            let mut D2=FP2::new_copy(&D); D2.sqr();
+                        let mut X2=FP2::new_copy(&W);
+                        let mut X3=FP2::new_copy(&T);
+                        X3.mul(&X2);
 
-            W.copy(&Ad); W.mul(&D2); GX1.add(&W); GX1.norm(); GX1.mul(&X2); D2.mul(&D); W.copy(&Bd); W.mul(&D2); GX1.add(&W); GX1.norm(); // x^3+Ax+b
+                        let mut GX1=FP2::new_copy(&X2); GX1.sqr();
+                        let mut D2=FP2::new_copy(&D); D2.sqr();
 
-            W.copy(&GX1); W.mul(&D);
-            let qr=W.qr(Some(&mut hint));
-            D.copy(&W); D.inverse(Some(&hint));
-            D.mul(&GX1);
-            X2.mul(&D);
-            X3.mul(&D);
-            T.mul(&H);
-            D2.copy(&D); D2.sqr();
+                        W.copy(&Ad); W.mul(&D2); GX1.add(&W); GX1.norm(); GX1.mul(&X2); D2.mul(&D); W.copy(&Bd); W.mul(&D2); GX1.add(&W); GX1.norm(); // x^3+Ax+b
 
-            D.copy(&D2); D.mul(&T);
-            T.copy(&W); T.mul(&ZZ);
+                        W.copy(&GX1); W.mul(&D);
+                        let qr=W.qr(Some(&mut hint));
+                        D.copy(&W); D.inverse(Some(&hint));
+                        D.mul(&GX1);
+                        X2.mul(&D);
+                        X3.mul(&D);
+                        T.mul(&H);
+                        D2.copy(&D); D2.sqr();
 
-            let mut s=FP::new_big(&BIG::new_ints(&rom::CURVE_HTPC2));
-            s.mul(&hint);
+                        D.copy(&D2); D.mul(&T);
+                        T.copy(&W); T.mul(&ZZ);
 
-            X2.cmove(&X3,1-qr);
-            W.cmove(&T,1-qr);
-            D2.cmove(&D,1-qr);
-            hint.cmove(&s,1-qr);
+                        let mut s=FP::new_big(&BIG::new_ints(&rom::CURVE_HTPC2));
+                        s.mul(&hint);
 
-            let mut Y=FP2::new_copy(&W); Y.sqrt(Some(&hint));
-            Y.mul(&D2);
+                        X2.cmove(&X3,1-qr);
+                        W.cmove(&T,1-qr);
+                        D2.cmove(&D,1-qr);
+                        hint.cmove(&s,1-qr);
 
-            let ne=Y.sign()^sgn;
-            W.copy(&Y); W.neg(); W.norm();
-            Y.cmove(&W,ne);
+                        let mut Y=FP2::new_copy(&W); Y.sqrt(Some(&hint));
+                        Y.mul(&D2);
 
-            let mut k=0;
-            let isox=ecp::HTC_ISO_G2;
-            let isoy=3*(isox-1)/2;
+                        let ne=Y.sign()^sgn;
+                        W.copy(&Y); W.neg(); W.norm();
+                        Y.cmove(&W,ne);
 
-        // xnum
-            let mut xnum=FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k])); k+=1;
-            for _ in 0..isox {
-                xnum.mul(&X2);
-                xnum.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-                xnum.norm();
-            }
-        //xden
-            let mut xden=FP2::new_copy(&X2);
-            xden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-            xden.norm();
-            for _ in 0..isox-2 {
-                xden.mul(&X2);
-                xden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-                xden.norm();                
-            }
-        //ynum
-            let mut ynum=FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k])); k+=1;            
-            for _ in 0..isoy {
-                ynum.mul(&X2);
-                ynum.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-                ynum.norm();
-            }
-        //yden
-            let mut yden=FP2::new_copy(&X2);
-            yden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-            yden.norm(); 
-            for _ in 0..isoy-1 {
-                yden.mul(&X2);
-                yden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
-                yden.norm();
-            }
-            ynum.mul(&Y);
+                        let mut k=0;
+                        let isox=ecp::HTC_ISO_G2;
+                        let isoy=3*(isox-1)/2;
 
-            let mut Q=ECP2::new();
-            T.copy(&xnum); T.mul(&yden);
-            Q.x.copy(&T);
-            T.copy(&ynum); T.mul(&xden);
-            Q.y.copy(&T);
-            T.copy(&xden); T.mul(&yden);
-            Q.z.copy(&T);
-            return Q;
-CAHCZF */
+                    // xnum
+                        let mut xnum=FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k])); k+=1;
+                        for _ in 0..isox {
+                            xnum.mul(&X2);
+                            xnum.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                            xnum.norm();
+                        }
+                    //xden
+                        let mut xden=FP2::new_copy(&X2);
+                        xden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                        xden.norm();
+                        for _ in 0..isox-2 {
+                            xden.mul(&X2);
+                            xden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                            xden.norm();
+                        }
+                    //ynum
+                        let mut ynum=FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k])); k+=1;
+                        for _ in 0..isoy {
+                            ynum.mul(&X2);
+                            ynum.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                            ynum.norm();
+                        }
+                    //yden
+                        let mut yden=FP2::new_copy(&X2);
+                        yden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                        yden.norm();
+                        for _ in 0..isoy-1 {
+                            yden.mul(&X2);
+                            yden.add(&FP2::new_bigs(&BIG::new_ints(&rom::PCR[k]),&BIG::new_ints(&rom::PCI[k]))); k+=1;
+                            yden.norm();
+                        }
+                        ynum.mul(&Y);
 
+                        let mut Q=ECP2::new();
+                        T.copy(&xnum); T.mul(&yden);
+                        Q.x.copy(&T);
+                        T.copy(&ynum); T.mul(&xden);
+                        Q.y.copy(&T);
+                        T.copy(&xden); T.mul(&yden);
+                        Q.z.copy(&T);
+                        return Q;
+            CAHCZF */
         }
         ECP2::new()
     }
 
-/* Map byte string to curve point */
+    /* Map byte string to curve point */
     #[allow(non_snake_case)]
     pub fn mapit(h: &[u8]) -> ECP2 {
         let q = BIG::new_ints(&rom::MODULUS);
         let mut dx = DBIG::frombytes(h);
-        let x=dx.dmod(&q);
-        let mut P=ECP2::hap2point(&x);
+        let x = dx.dmod(&q);
+        let mut P = ECP2::hap2point(&x);
         P.cfp();
         P
     }
 
     pub fn generator() -> ECP2 {
         ECP2::new_fp2s(
-            &FP2::new_bigs(
-                &BIG::new_ints(&rom::CURVE_PXA),
-                &BIG::new_ints(&rom::CURVE_PXB),
-            ),
-            &FP2::new_bigs(
-                &BIG::new_ints(&rom::CURVE_PYA),
-                &BIG::new_ints(&rom::CURVE_PYB),
-            ),
+            &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PXA), &BIG::new_ints(&rom::CURVE_PXB)),
+            &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PYA), &BIG::new_ints(&rom::CURVE_PYB)),
         )
     }
 }

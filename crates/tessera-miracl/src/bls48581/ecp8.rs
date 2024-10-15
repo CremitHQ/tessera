@@ -19,14 +19,14 @@
 
 use crate::bls48581::big;
 use crate::bls48581::big::BIG;
+use crate::bls48581::dbig::DBIG;
 use crate::bls48581::ecp;
+use crate::bls48581::fp;
+use crate::bls48581::fp::FP;
 use crate::bls48581::fp2::FP2;
 use crate::bls48581::fp4::FP4;
 use crate::bls48581::fp8::FP8;
 use crate::bls48581::rom;
-use crate::bls48581::fp;
-use crate::bls48581::fp::FP;
-use crate::bls48581::dbig::DBIG;
 
 pub struct ECP8 {
     x: FP8,
@@ -39,7 +39,7 @@ impl std::fmt::Debug for ECP8 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "{}", self.tostring())
     }
-}    
+}
 
 #[cfg(feature = "std")]
 impl std::fmt::Display for ECP8 {
@@ -51,18 +51,14 @@ impl std::fmt::Display for ECP8 {
 #[allow(non_snake_case)]
 impl ECP8 {
     pub fn new() -> ECP8 {
-        ECP8 {
-            x: FP8::new(),
-            y: FP8::new_int(1),
-            z: FP8::new(),
-        }
+        ECP8 { x: FP8::new(), y: FP8::new_int(1), z: FP8::new() }
     }
     #[allow(non_snake_case)]
     /* construct this from (x,y) - but set to O if not on curve */
     pub fn new_fp8s(ix: &FP8, iy: &FP8) -> ECP8 {
         let mut E = ECP8::new();
-        E.x.copy(&ix);
-        E.y.copy(&iy);
+        E.x.copy(ix);
+        E.y.copy(iy);
         E.z.one();
         E.x.norm();
 
@@ -76,22 +72,22 @@ impl ECP8 {
     }
 
     /* construct this from x - but set to O if not on curve */
-    pub fn new_fp8(ix: &FP8, s:isize) -> ECP8 {
+    pub fn new_fp8(ix: &FP8, s: isize) -> ECP8 {
         let mut E = ECP8::new();
         let mut h = FP::new();
-        E.x.copy(&ix);
+        E.x.copy(ix);
         E.y.one();
         E.z.one();
         E.x.norm();
 
         let mut rhs = ECP8::rhs(&E.x);
- 	    if rhs.qr(Some(&mut h)) == 1 {
-		    rhs.sqrt(Some(&h));
-		    if rhs.sign() != s {
-			    rhs.neg();
-		    }
-		    rhs.reduce();
-		    E.y.copy(&rhs);
+        if rhs.qr(Some(&mut h)) == 1 {
+            rhs.sqrt(Some(&h));
+            if rhs.sign() != s {
+                rhs.neg();
+            }
+            rhs.reduce();
+            E.y.copy(&rhs);
         } else {
             E.inf();
         }
@@ -229,98 +225,97 @@ impl ECP8 {
     }
 
     /* convert to byte array */
-    pub fn tobytes(&self, b: &mut [u8],compress: bool) {
-        const MB:usize = 8*(big::MODBYTES as usize);
+    pub fn tobytes(&self, b: &mut [u8], compress: bool) {
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
-        let mut alt=false;
+        let mut alt = false;
         let mut W = ECP8::new();
         W.copy(self);
         W.affine();
         W.x.tobytes(&mut t);
 
-        if (fp::MODBITS-1)%8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
-            alt=true;
+        if (fp::MODBITS - 1) % 8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
+            alt = true;
         }
         if alt {
-		    for i in 0..MB {
-			    b[i]=t[i]
-		    }
+            for i in 0..MB {
+                b[i] = t[i]
+            }
             if !compress {
                 W.y.tobytes(&mut t);
                 for i in 0..MB {
-				    b[i+MB]=t[i];
-			    }
+                    b[i + MB] = t[i];
+                }
             } else {
-                b[0]|=0x80;
-                if W.y.islarger()==1 {
-				    b[0]|=0x20;
-			    }
+                b[0] |= 0x80;
+                if W.y.islarger() == 1 {
+                    b[0] |= 0x20;
+                }
             }
-
-	    } else {
-		    for i in 0..MB {
-			    b[i+1]=t[i];
-		    }
+        } else {
+            for i in 0..MB {
+                b[i + 1] = t[i];
+            }
             if !compress {
-                b[0]=0x04;
+                b[0] = 0x04;
                 W.y.tobytes(&mut t);
-	            for i in 0..MB {
-			        b[i+MB+1]=t[i];
-			    }
+                for i in 0..MB {
+                    b[i + MB + 1] = t[i];
+                }
             } else {
-                b[0]=0x02;
+                b[0] = 0x02;
                 if W.y.sign() == 1 {
-                    b[0]=0x03;
-			    }
+                    b[0] = 0x03;
+                }
             }
-	    }
+        }
     }
 
     /* convert from byte array to point */
     pub fn frombytes(b: &[u8]) -> ECP8 {
-        const MB:usize = 8*(big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
-        let typ=b[0] as isize;
-        let mut alt=false;
+        let typ = b[0] as isize;
+        let mut alt = false;
 
-        if (fp::MODBITS-1)%8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
-            alt=true;
+        if (fp::MODBITS - 1) % 8 <= 4 && ecp::ALLOW_ALT_COMPRESS {
+            alt = true;
         }
 
-	    if alt {
-            for i in 0..MB  {
-			    t[i]=b[i];
-		    }
-            t[0]&=0x1f;
-            let rx=FP8::frombytes(&t);
-            if (b[0]&0x80)==0 {
+        if alt {
+            for i in 0..MB {
+                t[i] = b[i];
+            }
+            t[0] &= 0x1f;
+            let rx = FP8::frombytes(&t);
+            if (b[0] & 0x80) == 0 {
                 for i in 0..MB {
-				    t[i]=b[i+MB];
-			    }
-                let ry=FP8::frombytes(&t);
-                ECP8::new_fp8s(&rx,&ry)
+                    t[i] = b[i + MB];
+                }
+                let ry = FP8::frombytes(&t);
+                ECP8::new_fp8s(&rx, &ry)
             } else {
-                let sgn=(b[0]&0x20)>>5;
-                let mut P=ECP8::new_fp8(&rx,0);
-                let cmp=P.y.islarger();
+                let sgn = (b[0] & 0x20) >> 5;
+                let mut P = ECP8::new_fp8(&rx, 0);
+                let cmp = P.y.islarger();
                 if (sgn == 1 && cmp != 1) || (sgn == 0 && cmp == 1) {
-				    P.neg();
-			    }
+                    P.neg();
+                }
                 P
             }
         } else {
-		    for i in 0..MB {
-			    t[i]=b[i+1];
-		    }
-            let rx=FP8::frombytes(&t);
+            for i in 0..MB {
+                t[i] = b[i + 1];
+            }
+            let rx = FP8::frombytes(&t);
             if typ == 0x04 {
-		        for i in 0..MB {
-				    t[i]=b[i+MB+1];
-			    }
-		        let ry=FP8::frombytes(&t);
-		        ECP8::new_fp8s(&rx,&ry)
+                for i in 0..MB {
+                    t[i] = b[i + MB + 1];
+                }
+                let ry = FP8::frombytes(&t);
+                ECP8::new_fp8s(&rx, &ry)
             } else {
-                ECP8::new_fp8(&rx,typ&1)
+                ECP8::new_fp8(&rx, typ & 1)
             }
         }
     }
@@ -599,34 +594,26 @@ impl ECP8 {
             return P;
         }
 
-        let mut W: [ECP8; 8] = [
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-        ];
+        let mut W: [ECP8; 8] =
+            [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
 
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
         let mut w: [i8; CT] = [0; CT];
 
         /* precompute table */
-        Q.copy(&self);
+        Q.copy(self);
         Q.dbl();
 
-        W[0].copy(&self);
+        W[0].copy(self);
 
         for i in 1..8 {
             C.copy(&W[i - 1]);
             W[i].copy(&C);
-            W[i].add(&mut Q);
+            W[i].add(&Q);
         }
 
         /* make exponent odd - add 2P if even, P if odd */
-        t.copy(&e);
+        t.copy(e);
         let s = t.parity();
         t.inc(1);
         t.norm();
@@ -635,7 +622,7 @@ impl ECP8 {
         mt.inc(1);
         mt.norm();
         t.cmove(&mt, s);
-        Q.cmove(&self, ns);
+        Q.cmove(self, ns);
         C.copy(&Q);
 
         let nb = 1 + (t.nbits() + 3) / 4;
@@ -657,9 +644,9 @@ impl ECP8 {
             P.dbl();
             P.dbl();
             P.dbl();
-            P.add(&mut Q);
+            P.add(&Q);
         }
-        P.sub(&mut C);
+        P.sub(&C);
         P.affine();
         P
     }
@@ -668,16 +655,16 @@ impl ECP8 {
     #[allow(non_snake_case)]
     pub fn cfp(&mut self) {
         let f = ECP8::frob_constants();
-        let mut x = BIG::new_ints(&rom::CURVE_BNX);
+        let x = BIG::new_ints(&rom::CURVE_BNX);
 
-        let mut xQ = self.mul(&mut x);
-        let mut x2Q = xQ.mul(&mut x);
-        let mut x3Q = x2Q.mul(&mut x);
-        let mut x4Q = x3Q.mul(&mut x);
-        let mut x5Q = x4Q.mul(&mut x);
-        let mut x6Q = x5Q.mul(&mut x);
-        let mut x7Q = x6Q.mul(&mut x);
-        let mut x8Q = x7Q.mul(&mut x);
+        let mut xQ = self.mul(&x);
+        let mut x2Q = xQ.mul(&x);
+        let mut x3Q = x2Q.mul(&x);
+        let mut x4Q = x3Q.mul(&x);
+        let mut x5Q = x4Q.mul(&x);
+        let mut x6Q = x5Q.mul(&x);
+        let mut x7Q = x6Q.mul(&x);
+        let mut x8Q = x7Q.mul(&x);
 
         if ecp::SIGN_OF_X == ecp::NEGATIVEX {
             xQ.neg();
@@ -687,7 +674,7 @@ impl ECP8 {
         }
 
         x8Q.sub(&x7Q);
-        x8Q.sub(&self);
+        x8Q.sub(self);
 
         x7Q.sub(&x6Q);
         x7Q.frob(&f, 1);
@@ -707,7 +694,7 @@ impl ECP8 {
         x2Q.sub(&xQ);
         x2Q.frob(&f, 6);
 
-        xQ.sub(&self);
+        xQ.sub(self);
         xQ.frob(&f, 7);
 
         self.dbl();
@@ -735,46 +722,14 @@ impl ECP8 {
         let mut W = ECP8::new();
         let mut P = ECP8::new();
 
-        let mut T1: [ECP8; 8] = [
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-        ];
-        let mut T2: [ECP8; 8] = [
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-        ];
-        let mut T3: [ECP8; 8] = [
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-        ];
-        let mut T4: [ECP8; 8] = [
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-            ECP8::new(),
-        ];
+        let mut T1: [ECP8; 8] =
+            [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
+        let mut T2: [ECP8; 8] =
+            [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
+        let mut T3: [ECP8; 8] =
+            [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
+        let mut T4: [ECP8; 8] =
+            [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
 
         let mut mt = BIG::new();
 
@@ -797,7 +752,7 @@ impl ECP8 {
             BIG::new_copy(&u[15]),
         ];
 
-        const CT: usize = 1 + big::NLEN * (big::BASEBITS as usize);
+        const CT: usize = 1 + big::NLEN * big::BASEBITS;
         let mut w1: [i8; CT] = [0; CT];
         let mut s1: [i8; CT] = [0; CT];
         let mut w2: [i8; CT] = [0; CT];
@@ -949,7 +904,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w1[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w2[i] = 0;
@@ -960,7 +915,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w2[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w3[i] = 0;
@@ -971,7 +926,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w3[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w4[i] = 0;
@@ -982,7 +937,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w4[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
         }
 
@@ -1032,60 +987,36 @@ impl ECP8 {
         ECP8::new_fp8s(
             &FP8::new_fp4s(
                 &FP4::new_fp2s(
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PXAAA),
-                        &BIG::new_ints(&rom::CURVE_PXAAB),
-                    ),
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PXABA),
-                        &BIG::new_ints(&rom::CURVE_PXABB),
-                    ),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PXAAA), &BIG::new_ints(&rom::CURVE_PXAAB)),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PXABA), &BIG::new_ints(&rom::CURVE_PXABB)),
                 ),
                 &FP4::new_fp2s(
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PXBAA),
-                        &BIG::new_ints(&rom::CURVE_PXBAB),
-                    ),
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PXBBA),
-                        &BIG::new_ints(&rom::CURVE_PXBBB),
-                    ),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PXBAA), &BIG::new_ints(&rom::CURVE_PXBAB)),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PXBBA), &BIG::new_ints(&rom::CURVE_PXBBB)),
                 ),
             ),
             &FP8::new_fp4s(
                 &FP4::new_fp2s(
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PYAAA),
-                        &BIG::new_ints(&rom::CURVE_PYAAB),
-                    ),
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PYABA),
-                        &BIG::new_ints(&rom::CURVE_PYABB),
-                    ),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PYAAA), &BIG::new_ints(&rom::CURVE_PYAAB)),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PYABA), &BIG::new_ints(&rom::CURVE_PYABB)),
                 ),
                 &FP4::new_fp2s(
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PYBAA),
-                        &BIG::new_ints(&rom::CURVE_PYBAB),
-                    ),
-                    &FP2::new_bigs(
-                        &BIG::new_ints(&rom::CURVE_PYBBA),
-                        &BIG::new_ints(&rom::CURVE_PYBBB),
-                    ),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PYBAA), &BIG::new_ints(&rom::CURVE_PYBAB)),
+                    &FP2::new_bigs(&BIG::new_ints(&rom::CURVE_PYBBA), &BIG::new_ints(&rom::CURVE_PYBBB)),
                 ),
             ),
         )
     }
 
-/* Hunt and Peck a BIG to a curve point */
+    /* Hunt and Peck a BIG to a curve point */
     #[allow(non_snake_case)]
     pub fn hap2point(h: &BIG) -> ECP8 {
         let mut Q: ECP8;
         let one = BIG::new_int(1);
-        let mut x =BIG::new_copy(&h);
+        let mut x = BIG::new_copy(h);
         loop {
             let X = FP8::new_fp4(&FP4::new_fp2(&FP2::new_bigs(&one, &x)));
-            Q = ECP8::new_fp8(&X,0);
+            Q = ECP8::new_fp8(&X, 0);
             if !Q.is_infinity() {
                 break Q;
             }
@@ -1094,19 +1025,19 @@ impl ECP8 {
         }
     }
 
-/* Constant time Map to Point */
+    /* Constant time Map to Point */
     #[allow(non_snake_case)]
     pub fn map2point(H: &FP8) -> ECP8 {
-    // Shallue and van de Woestijne
-        let mut NY=FP8::new_int(1);
-        let mut T=FP8::new_copy(H);
-        let sgn=T.sign();
+        // Shallue and van de Woestijne
+        let mut NY = FP8::new_int(1);
+        let mut T = FP8::new_copy(H);
+        let sgn = T.sign();
 
-        let mut Z=FP::new_int(fp::RIADZG2A);
-        let mut X1=FP8::new_fp(&Z);
-        let mut X3=FP8::new_copy(&X1);
-        let mut A=ECP8::rhs(&X1);
-        let mut W=FP8::new_copy(&A);
+        let mut Z = FP::new_int(fp::RIADZG2A);
+        let mut X1 = FP8::new_fp(&Z);
+        let mut X3 = FP8::new_copy(&X1);
+        let mut A = ECP8::rhs(&X1);
+        let mut W = FP8::new_copy(&A);
 
         W.sqrt(None);
 
@@ -1114,55 +1045,71 @@ impl ECP8 {
         Z.mul(&s);
 
         T.sqr();
-        let mut Y=FP8::new_copy(&A); Y.mul(&T);
-        T.copy(&NY); T.add(&Y); T.norm();
-        Y.rsub(&NY); Y.norm();
-        NY.copy(&T); NY.mul(&Y); 
-        
+        let mut Y = FP8::new_copy(&A);
+        Y.mul(&T);
+        T.copy(&NY);
+        T.add(&Y);
+        T.norm();
+        Y.rsub(&NY);
+        Y.norm();
+        NY.copy(&T);
+        NY.mul(&Y);
+
         NY.tmul(&Z);
         NY.inverse(None);
 
         W.tmul(&Z);
-        if W.sign()==1 {
+        if W.sign() == 1 {
             W.neg();
             W.norm();
         }
         W.tmul(&Z);
-        W.mul(&H); W.mul(&Y); W.mul(&NY);
+        W.mul(H);
+        W.mul(&Y);
+        W.mul(&NY);
 
-        X1.neg(); X1.norm(); X1.div2();
-        let mut X2=FP8::new_copy(&X1);
-        X1.sub(&W); X1.norm();
-        X2.add(&W); X2.norm();
-        A.dbl(); A.dbl(); A.norm();
-        T.sqr(); T.mul(&NY); T.sqr();
+        X1.neg();
+        X1.norm();
+        X1.div2();
+        let mut X2 = FP8::new_copy(&X1);
+        X1.sub(&W);
+        X1.norm();
+        X2.add(&W);
+        X2.norm();
+        A.dbl();
+        A.dbl();
+        A.norm();
+        T.sqr();
+        T.mul(&NY);
+        T.sqr();
         A.mul(&T);
-        X3.add(&A); X3.norm();
+        X3.add(&A);
+        X3.norm();
 
         Y.copy(&ECP8::rhs(&X2));
-        X3.cmove(&X2,Y.qr(None));
+        X3.cmove(&X2, Y.qr(None));
         Y.copy(&ECP8::rhs(&X1));
-        X3.cmove(&X1,Y.qr(None));
+        X3.cmove(&X1, Y.qr(None));
         Y.copy(&ECP8::rhs(&X3));
         Y.sqrt(None);
 
-        let ne=Y.sign()^sgn;
-        W.copy(&Y); W.neg(); W.norm();
-        Y.cmove(&W,ne);
+        let ne = Y.sign() ^ sgn;
+        W.copy(&Y);
+        W.neg();
+        W.norm();
+        Y.cmove(&W, ne);
 
-        ECP8::new_fp8s(&X3,&Y)
+        ECP8::new_fp8s(&X3, &Y)
     }
 
-/* Map byte string to curve point */
+    /* Map byte string to curve point */
     #[allow(non_snake_case)]
     pub fn mapit(h: &[u8]) -> ECP8 {
         let q = BIG::new_ints(&rom::MODULUS);
         let mut dx = DBIG::frombytes(h);
-        let mut x=dx.dmod(&q);
-        let mut P=ECP8::hap2point(&mut x);
+        let x = dx.dmod(&q);
+        let mut P = ECP8::hap2point(&x);
         P.cfp();
         P
     }
-
-
 }

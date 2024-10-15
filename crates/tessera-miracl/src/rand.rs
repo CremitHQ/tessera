@@ -38,13 +38,7 @@ pub struct RAND {
 
 impl RAND {
     pub fn new() -> RAND {
-        RAND {
-            ira: [0; RAND_NK],
-            rndptr: 0,
-            borrow: 0,
-            pool_ptr: 0,
-            pool: [0; 32],
-        }
+        RAND { ira: [0; RAND_NK], rndptr: 0, borrow: 0, pool_ptr: 0, pool: [0; 32] }
     }
 
     #[allow(dead_code)]

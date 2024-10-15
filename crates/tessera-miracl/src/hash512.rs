@@ -331,21 +331,13 @@ impl HASH512 {
     }
 
     pub fn new() -> HASH512 {
-        let mut nh = HASH512 {
-            length: [0; 2],
-            h: [0; 8],
-            w: [0; 80],
-        };
+        let mut nh = HASH512 { length: [0; 2], h: [0; 8], w: [0; 80] };
         nh.init();
         nh
     }
 
     pub fn new_copy(hh: &HASH512) -> HASH512 {
-        let mut nh = HASH512 {
-            length: [0; 2],
-            h: [0; 8],
-            w: [0; 80],
-        };
+        let mut nh = HASH512 { length: [0; 2], h: [0; 8], w: [0; 80] };
         nh.length[0] = hh.length[0];
         nh.length[1] = hh.length[1];
         for i in 0..80 {

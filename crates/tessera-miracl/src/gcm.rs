@@ -47,12 +47,7 @@ impl GCM {
 
     fn unpack(a: u32) -> [u8; 4] {
         /* unpack bytes from a word */
-        [
-            ((a >> 24) & 0xff) as u8,
-            ((a >> 16) & 0xff) as u8,
-            ((a >> 8) & 0xff) as u8,
-            (a & 0xff) as u8,
-        ]
+        [((a >> 24) & 0xff) as u8, ((a >> 16) & 0xff) as u8, ((a >> 8) & 0xff) as u8, (a & 0xff) as u8]
     }
 
     fn precompute(&mut self, h: &[u8]) {

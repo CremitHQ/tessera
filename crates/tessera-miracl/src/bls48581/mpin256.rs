@@ -19,14 +19,14 @@
 
 use crate::bls48581::big;
 use crate::bls48581::big::BIG;
+use crate::bls48581::dbig::DBIG;
 use crate::bls48581::ecp;
 use crate::bls48581::ecp::ECP;
 use crate::bls48581::ecp8::ECP8;
+use crate::bls48581::fp::FP;
 use crate::bls48581::fp48::FP48;
 use crate::bls48581::pair8;
 use crate::bls48581::rom;
-use crate::bls48581::fp::FP;
-use crate::bls48581::dbig::DBIG;
 
 use crate::hmac;
 use crate::rand::RAND;
@@ -35,8 +35,8 @@ use crate::rand::RAND;
 
 /* Configure mode of operation */
 
-pub const EFS: usize = big::MODBYTES as usize;
-pub const EGS: usize = big::MODBYTES as usize;
+pub const EFS: usize = big::MODBYTES;
+pub const EGS: usize = big::MODBYTES;
 pub const BAD_PARAMS: isize = -11;
 pub const INVALID_POINT: isize = -14;
 pub const WRONG_ORDER: isize = -18;
@@ -50,29 +50,29 @@ pub const SHA512: usize = 64;
 pub const MAXPIN: i32 = 10000; /* PIN less than this */
 pub const PBLEN: i32 = 14; /* Number of bits in PIN */
 
-fn ceil(a: usize,b: usize) -> usize {
-    (a-1)/b+1
+fn ceil(a: usize, b: usize) -> usize {
+    (a - 1) / b + 1
 }
 
 #[allow(non_snake_case)]
-pub fn encode_to_curve(dst: &[u8],id: &[u8],hcid: &mut [u8]) {
+pub fn encode_to_curve(dst: &[u8], id: &[u8], hcid: &mut [u8]) {
     let q = BIG::new_ints(&rom::MODULUS);
-    let k=q.nbits();
+    let k = q.nbits();
     let r = BIG::new_ints(&rom::CURVE_ORDER);
-    let m=r.nbits();
-    let el=ceil(k+ceil(m,2),8);
-    let mut okm: [u8;512]=[0;512];
-    hmac::xmd_expand(hmac::MC_SHA2,ecp::HASH_TYPE,&mut okm,el,&dst,&id);
-    let mut fd: [u8;256]=[0;256];
+    let m = r.nbits();
+    let el = ceil(k + ceil(m, 2), 8);
+    let mut okm: [u8; 512] = [0; 512];
+    hmac::xmd_expand(hmac::MC_SHA2, ecp::HASH_TYPE, &mut okm, el, dst, id);
+    let mut fd: [u8; 256] = [0; 256];
     for j in 0..el {
-        fd[j]=okm[j];
+        fd[j] = okm[j];
     }
-	let mut dx=DBIG::frombytes(&fd[0..el]);
-    let u=FP::new_big(&dx.dmod(&q));
-    let mut P=ECP::map2point(&u);
+    let mut dx = DBIG::frombytes(&fd[0..el]);
+    let u = FP::new_big(&dx.dmod(&q));
+    let mut P = ECP::map2point(&u);
     P.cfp();
     P.affine();
-    P.tobytes(hcid,false);
+    P.tobytes(hcid, false);
 }
 
 /* create random secret S */
@@ -86,17 +86,17 @@ pub fn random_generate(rng: &mut RAND, s: &mut [u8]) -> isize {
 /* Extract PIN from TOKEN for identity CID */
 #[allow(non_snake_case)]
 pub fn extract_pin(cid: &[u8], pin: i32, token: &mut [u8]) -> isize {
-    let mut P = ECP::frombytes(&token);
+    let mut P = ECP::frombytes(token);
     if P.is_infinity() {
         return INVALID_POINT;
     }
-    let mut R = ECP::frombytes(&cid);
+    let mut R = ECP::frombytes(cid);
     if R.is_infinity() {
         return INVALID_POINT;
     }
 
-    R = R.pinmul(pin%MAXPIN, PBLEN);
-    P.sub(&mut R);
+    R = R.pinmul(pin % MAXPIN, PBLEN);
+    P.sub(&R);
     P.tobytes(token, false);
     0
 }
@@ -104,7 +104,7 @@ pub fn extract_pin(cid: &[u8], pin: i32, token: &mut [u8]) -> isize {
 /* Implement step 2 on client side of MPin protocol */
 #[allow(non_snake_case)]
 pub fn client_2(x: &[u8], y: &[u8], sec: &mut [u8]) -> isize {
-    let mut r = BIG::new_ints(&rom::CURVE_ORDER);
+    let r = BIG::new_ints(&rom::CURVE_ORDER);
     let mut P = ECP::frombytes(sec);
     if P.is_infinity() {
         return INVALID_POINT;
@@ -113,7 +113,7 @@ pub fn client_2(x: &[u8], y: &[u8], sec: &mut [u8]) -> isize {
     let mut px = BIG::frombytes(x);
     let py = BIG::frombytes(y);
     px.add(&py);
-    px.rmod(&mut r);
+    px.rmod(&r);
 
     P = pair8::g1mul(&P, &px);
     P.neg();
@@ -124,8 +124,8 @@ pub fn client_2(x: &[u8], y: &[u8], sec: &mut [u8]) -> isize {
 /* Client secret CST=S*H(CID) where CID is client ID and S is master secret */
 #[allow(non_snake_case)]
 pub fn get_client_secret(s: &mut [u8], idhtc: &[u8], cst: &mut [u8]) -> isize {
-    let sx=BIG::frombytes(s);
-    let P=ECP::frombytes(idhtc);
+    let sx = BIG::frombytes(s);
+    let P = ECP::frombytes(idhtc);
     if P.is_infinity() {
         return INVALID_POINT;
     }
@@ -142,7 +142,7 @@ pub fn client_1(
     pin: usize,
     token: &[u8],
     sec: &mut [u8],
-    xid: &mut [u8]
+    xid: &mut [u8],
 ) -> isize {
     let r = BIG::new_ints(&rom::CURVE_ORDER);
     let sx: BIG;
@@ -153,18 +153,18 @@ pub fn client_1(
     } else {
         sx = BIG::frombytes(x);
     }
-    let mut P=ECP::frombytes(cid);
+    let mut P = ECP::frombytes(cid);
     if P.is_infinity() {
         return INVALID_POINT;
     }
 
-    let mut T = ECP::frombytes(&token);
+    let mut T = ECP::frombytes(token);
     if T.is_infinity() {
         return INVALID_POINT;
     }
 
-    let mut W = P.pinmul((pin as i32) % MAXPIN, PBLEN);
-    T.add(&mut W);
+    let W = P.pinmul((pin as i32) % MAXPIN, PBLEN);
+    T.add(&W);
 
     P = pair8::g1mul(&P, &sx);
     P.tobytes(xid, false);
@@ -173,45 +173,38 @@ pub fn client_1(
     0
 }
 
-
 /* Extract Server Secret SST=S*Q where Q is fixed generator in G2 and S is master secret */
 #[allow(non_snake_case)]
 pub fn get_server_secret(s: &[u8], sst: &mut [u8]) -> isize {
     let mut Q = ECP8::generator();
     let sc = BIG::frombytes(s);
     Q = pair8::g2mul(&Q, &sc);
-    Q.tobytes(sst,false);
+    Q.tobytes(sst, false);
     0
 }
 
 /* Implement step 2 of MPin protocol on server side */
 #[allow(non_snake_case)]
-pub fn server(
-    hid: &[u8],
-    y: &[u8],
-    sst: &[u8],
-    xid: &[u8],
-    msec: &[u8],
-) -> isize {
+pub fn server(hid: &[u8], y: &[u8], sst: &[u8], xid: &[u8], msec: &[u8]) -> isize {
     let Q = ECP8::generator();
-    let sQ = ECP8::frombytes(&sst);
+    let sQ = ECP8::frombytes(sst);
     if sQ.is_infinity() {
         return INVALID_POINT;
     }
-    let mut R = ECP::frombytes(&xid);
+    let mut R = ECP::frombytes(xid);
     if R.is_infinity() {
         return INVALID_POINT;
     }
 
-    let sy = BIG::frombytes(&y);
-    let mut P = ECP::frombytes(&hid);
+    let sy = BIG::frombytes(y);
+    let mut P = ECP::frombytes(hid);
     if P.is_infinity() {
         return INVALID_POINT;
     }
 
     P = pair8::g1mul(&P, &sy);
-    P.add(&mut R);
-    R = ECP::frombytes(&msec);
+    P.add(&R);
+    R = ECP::frombytes(msec);
     if R.is_infinity() {
         return INVALID_POINT;
     }
