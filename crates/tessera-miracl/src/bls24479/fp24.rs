@@ -392,7 +392,7 @@ impl FP24 {
     /* Usually w is denser than y */
     pub fn ssmul(&mut self, y: &FP24) {
         if self.stype == ONE {
-            self.copy(&y);
+            self.copy(y);
             return;
         }
         if y.stype == ONE {
@@ -511,7 +511,7 @@ impl FP24 {
             self.a.add(&z3);
         } else {
             if self.stype == SPARSER || self.stype == SPARSEST {
-                self.smul(&y);
+                self.smul(y);
                 return;
             }
             if ecp::SEXTIC_TWIST == ecp::D_TYPE {
@@ -647,14 +647,12 @@ impl FP24 {
                     let mut t = FP::new_copy(&self.b.geta().geta().getA());
                     t.mul(&y.b.geta().geta().getA());
                     w3 = FP4::new_fp(&t);
+                } else if y.stype != SPARSEST {
+                    w3 = FP4::new_copy(&y.b.geta());
+                    w3.qmul(&self.b.geta().geta().getA());
                 } else {
-                    if y.stype != SPARSEST {
-                        w3 = FP4::new_copy(&y.b.geta());
-                        w3.qmul(&self.b.geta().geta().getA());
-                    } else {
-                        w3 = FP4::new_copy(&self.b.geta());
-                        w3.qmul(&y.b.geta().geta().getA());
-                    }
+                    w3 = FP4::new_copy(&self.b.geta());
+                    w3.qmul(&y.b.geta().geta().getA());
                 }
             } else {
                 w3 = FP4::new_copy(&self.b.geta());
@@ -722,14 +720,12 @@ impl FP24 {
                     let mut t = FP::new_copy(&self.c.getb().geta().getA());
                     t.mul(&y.c.getb().geta().getA());
                     w3 = FP4::new_fp(&t);
+                } else if y.stype != SPARSEST {
+                    w3 = FP4::new_copy(&y.c.getb());
+                    w3.qmul(&self.c.getb().geta().getA());
                 } else {
-                    if y.stype != SPARSEST {
-                        w3 = FP4::new_copy(&y.c.getb());
-                        w3.qmul(&self.c.getb().geta().getA());
-                    } else {
-                        w3 = FP4::new_copy(&self.c.getb());
-                        w3.qmul(&y.c.getb().geta().getA());
-                    }
+                    w3 = FP4::new_copy(&self.c.getb());
+                    w3.qmul(&y.c.getb().geta().getA());
                 }
             } else {
                 w3 = FP4::new_copy(&self.c.getb());
@@ -877,7 +873,7 @@ impl FP24 {
 
     /* convert from byte array to FP24 */
     pub fn frombytes(w: &[u8]) -> FP24 {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
             t[i] = w[i];
@@ -896,7 +892,7 @@ impl FP24 {
 
     /* convert this to byte array */
     pub fn tobytes(&self, w: &mut [u8]) {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
 
         self.c.tobytes(&mut t);
@@ -1015,7 +1011,7 @@ impl FP24 {
 
         let mut r = FP24::new();
         let mut p = FP24::new();
-        const CT: usize = 1 + big::NLEN * (big::BASEBITS as usize);
+        const CT: usize = 1 + big::NLEN * big::BASEBITS;
         let mut w1: [i8; CT] = [0; CT];
         let mut s1: [i8; CT] = [0; CT];
         let mut w2: [i8; CT] = [0; CT];
@@ -1120,7 +1116,7 @@ impl FP24 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w1[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w2[i] = 0;
@@ -1131,7 +1127,7 @@ impl FP24 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w2[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
         }
 

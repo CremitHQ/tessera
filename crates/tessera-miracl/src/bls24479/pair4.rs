@@ -36,7 +36,7 @@ fn dbl(A: &mut ECP4, aa: &mut FP4, bb: &mut FP4, cc: &mut FP4) {
     bb.copy(&A.getpz()); //Z
 
     aa.copy(&yy); //Y
-    aa.mul(&bb); //YZ
+    aa.mul(bb); //YZ
     cc.sqr(); //X^2
     yy.sqr(); //Y^2
     bb.sqr(); //Z^2
@@ -71,12 +71,12 @@ fn add(A: &mut ECP4, B: &ECP4, aa: &mut FP4, bb: &mut FP4, cc: &mut FP4) {
     t1.mul(&B.getpy()); // T1=Z1.Y2
     bb.mul(&B.getpx()); // T2=Z1.X2
 
-    aa.sub(&bb);
+    aa.sub(bb);
     aa.norm(); // X1=X1-Z1.X2
     cc.sub(&t1);
     cc.norm(); // Y1=Y1-Z1.Y2
 
-    t1.copy(&aa); // T1=X1-Z1.X2
+    t1.copy(aa); // T1=X1-Z1.X2
 
     if ecp::SEXTIC_TWIST == ecp::M_TYPE {
         aa.times_i();
@@ -84,7 +84,7 @@ fn add(A: &mut ECP4, B: &ECP4, aa: &mut FP4, bb: &mut FP4, cc: &mut FP4) {
 
     t1.mul(&B.getpy()); // T1=(X1-Z1.X2).Y2
 
-    bb.copy(&cc); // T2=Y1-Z1.Y2
+    bb.copy(cc); // T2=Y1-Z1.Y2
     bb.mul(&B.getpx()); // T2=(Y1-Z1.Y2).X2
     bb.sub(&t1);
     bb.norm(); // T2=(Y1-Z1.Y2).X2 - (X1-Z1.X2).Y2
@@ -154,7 +154,7 @@ fn lineadd(A: &mut ECP4, B: &ECP4, qx: &FP, qy: &FP) -> FP24 {
 #[allow(non_snake_case)]
 fn lbits(n3: &mut BIG, n: &mut BIG) -> usize {
     n.copy(&BIG::new_ints(&rom::CURVE_BNX));
-    n3.copy(&n);
+    n3.copy(n);
     n3.pmul(3);
     n3.norm();
     n3.nbits()
@@ -629,9 +629,9 @@ fn glv(ee: &BIG) -> [BIG; 2] {
     x.copy(&BIG::smul(&x2, &x2));
     let bd = q.nbits() - x.nbits();
 
-    u[0].copy(&ee);
+    u[0].copy(ee);
     u[0].ctmod(&x, bd);
-    u[1].copy(&ee);
+    u[1].copy(ee);
     u[1].ctdiv(&x, bd);
     u[1].rsub(&q);
 
@@ -648,7 +648,7 @@ pub fn gs(ee: &BIG) -> [BIG; 8] {
 
     let bd = q.nbits() - x.nbits(); // fixed
 
-    let mut w = BIG::new_copy(&ee);
+    let mut w = BIG::new_copy(ee);
     for i in 0..7 {
         u[i].copy(&w);
         u[i].ctmod(&x, bd);
@@ -727,7 +727,7 @@ pub fn g2mul(P: &ECP4, e: &BIG) -> ECP4 {
         let f = ECP4::frob_constants();
 
         let mut t = BIG::new();
-        Q[0].copy(&P);
+        Q[0].copy(P);
         for i in 1..8 {
             T.copy(&Q[i - 1]);
             Q[i].copy(&T);
@@ -767,7 +767,7 @@ pub fn gtpow(d: &FP24, e: &BIG) -> FP24 {
         let mut u = gs(&ee);
         let mut w = FP24::new();
 
-        g[0].copy(&d);
+        g[0].copy(d);
         for i in 1..8 {
             w.copy(&g[i - 1]);
             g[i].copy(&w);
@@ -869,22 +869,22 @@ pub fn gtcyclotomic(m: &FP24) -> bool {
     if m.isunity() {
         return false;
     }
-    let mut r = FP24::new_copy(&m);
+    let mut r = FP24::new_copy(m);
     r.conj();
-    r.mul(&m);
+    r.mul(m);
     if !r.isunity() {
         return false;
     }
     let f = FP2::new_bigs(&BIG::new_ints(&rom::FRA), &BIG::new_ints(&rom::FRB));
-    r.copy(&m);
+    r.copy(m);
     r.frob(&f, 4);
     let mut w = FP24::new_copy(&r);
     w.frob(&f, 4);
-    w.mul(&m);
+    w.mul(m);
     if !w.equals(&r) {
         return false;
     }
-    return true;
+    true
 }
 
 /* test for full GT group membership */

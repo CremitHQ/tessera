@@ -204,7 +204,7 @@ impl ECP {
             x3.mul(x);
             r.imul(CURVE_A);
             r.add(&x3);
-            r.add(&x);
+            r.add(x);
         }
         r.reduce();
         r
@@ -380,7 +380,7 @@ impl ECP {
 
     /* convert to byte array */
     pub fn tobytes(&self, b: &mut [u8], compress: bool) {
-        const MB: usize = big::MODBYTES as usize;
+        const MB: usize = big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let mut alt = false;
         let mut W = ECP::new();
@@ -435,7 +435,7 @@ impl ECP {
 
     /* convert from byte array to point */
     pub fn frombytes(b: &[u8]) -> ECP {
-        const MB: usize = big::MODBYTES as usize;
+        const MB: usize = big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let mut alt = false;
         let p = BIG::new_ints(&rom::MODULUS);
@@ -512,10 +512,10 @@ impl ECP {
             return String::from("infinity");
         }
         if CURVETYPE == MONTGOMERY {
-            return format!("({})", W.x.redc().tostring());
+            format!("({})", W.x.redc().tostring())
         } else {
-            return format!("({},{})", W.x.redc().tostring(), W.y.redc().tostring());
-        };
+            format!("({},{})", W.x.redc().tostring(), W.y.redc().tostring())
+        }
     }
 
     /* this*=2 */
@@ -1025,7 +1025,7 @@ impl ECP {
             let mut P = ECP::new();
             let mut R0 = ECP::new();
             let mut R1 = ECP::new();
-            R1.copy(&self);
+            R1.copy(self);
 
             for i in (0..bts).rev() {
                 let b = ((e >> i) & 1) as isize;
@@ -1052,7 +1052,7 @@ impl ECP {
 
     // So this function leaks information about the length of e...
     pub fn mul(&self, e: &BIG) -> ECP {
-        return self.clmul(e, e);
+        self.clmul(e, e)
     }
 
     // .. but this one does not (typically set maxe=r)
@@ -1070,11 +1070,11 @@ impl ECP {
             /* use Ladder */
             let mut D = ECP::new();
             let mut R0 = ECP::new();
-            R0.copy(&self);
+            R0.copy(self);
             let mut R1 = ECP::new();
-            R1.copy(&self);
+            R1.copy(self);
             R1.dbl();
-            D.copy(&self);
+            D.copy(self);
             D.affine();
             let nb = max;
 
@@ -1098,13 +1098,13 @@ impl ECP {
             let mut W: [ECP; 8] =
                 [ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new()];
 
-            const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+            const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
             let mut w: [i8; CT] = [0; CT];
 
-            Q.copy(&self);
+            Q.copy(self);
             Q.dbl();
 
-            W[0].copy(&self);
+            W[0].copy(self);
 
             for i in 1..8 {
                 C.copy(&W[i - 1]);
@@ -1113,7 +1113,7 @@ impl ECP {
             }
 
             // make exponent odd - add 2P if even, P if odd
-            t.copy(&e);
+            t.copy(e);
             let s = t.parity();
             t.inc(1);
             t.norm();
@@ -1122,7 +1122,7 @@ impl ECP {
             mt.inc(1);
             mt.norm();
             t.cmove(&mt, s);
-            Q.cmove(&self, ns);
+            Q.cmove(self, ns);
             C.copy(&Q);
 
             let nb = 1 + (max + 3) / 4;
@@ -1196,7 +1196,7 @@ impl ECP {
             for j in 0..n {
                 mt.copy(&e[j]);
                 mt.norm();
-                mt.shr((i * 4) as usize);
+                mt.shr(i * 4);
                 let k = mt.lastbits(4) as usize;
                 B[k].add(&X[j]);
             }
@@ -1227,7 +1227,7 @@ impl ECP {
         let mut W: [ECP; 8] =
             [ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new(), ECP::new()];
 
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 1) / 2;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 1) / 2;
         let mut w: [i8; CT] = [0; CT];
 
         te.copy(e);
@@ -1235,11 +1235,11 @@ impl ECP {
 
         // precompute table
 
-        W[1].copy(&self);
+        W[1].copy(self);
         W[1].sub(Q);
-        W[2].copy(&self);
+        W[2].copy(self);
         W[2].add(Q);
-        S.copy(&Q);
+        S.copy(Q);
         S.dbl();
         C.copy(&W[1]);
         W[0].copy(&C);
@@ -1247,7 +1247,7 @@ impl ECP {
         C.copy(&W[2]);
         W[3].copy(&C);
         W[3].add(&S);
-        T.copy(&self);
+        T.copy(self);
         T.dbl();
         C.copy(&W[1]);
         W[5].copy(&C);
@@ -1272,7 +1272,7 @@ impl ECP {
         mt.inc(1);
         mt.norm();
         te.cmove(&mt, s);
-        T.cmove(&self, ns);
+        T.cmove(self, ns);
         C.copy(&T);
 
         s = tf.parity();
@@ -1283,7 +1283,7 @@ impl ECP {
         mt.inc(1);
         mt.norm();
         tf.cmove(&mt, s);
-        S.cmove(&Q, ns);
+        S.cmove(Q, ns);
         C.add(&S);
 
         mt.copy(&te);
@@ -1342,7 +1342,7 @@ impl ECP {
     #[allow(non_snake_case)]
     pub fn hap2point(h: &BIG) -> ECP {
         let mut P: ECP;
-        let mut x = BIG::new_copy(&h);
+        let mut x = BIG::new_copy(h);
         loop {
             if CURVETYPE != MONTGOMERY {
                 P = ECP::new_bigint(&x, 0);
@@ -1541,7 +1541,7 @@ impl ECP {
             w.copy(&FP::new_big(&BIG::new_ints(&rom::CURVE_HTPC)));
             w.mul(&hint);
             w2.copy(&D);
-            w2.mul(&h);
+            w2.mul(h);
 
             X1.cmove(&X2, 1 - qres);
             B.cmove(&w1, 1 - qres);
@@ -1844,7 +1844,7 @@ impl ECP {
                     w.norm();
                 }
                 w.mul(&B);
-                w.mul(&h);
+                w.mul(h);
                 w.mul(&Y);
                 w.mul(&D);
 

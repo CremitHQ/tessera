@@ -803,10 +803,10 @@ pub fn cbc_iv0_decrypt(k: &[u8], c: &[u8], m: &mut [u8]) -> usize {
     a.end();
     let mut bad = false;
     let padlen = buff[15] as usize;
-    if i != 15 || padlen < 1 || padlen > 16 {
+    if i != 15 || !(1..=16).contains(&padlen) {
         bad = true
     }
-    if padlen >= 2 && padlen <= 16 {
+    if (2..=16).contains(&padlen) {
         for j in 16 - padlen..16 {
             if buff[j] != padlen as u8 {
                 bad = true

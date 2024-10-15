@@ -65,7 +65,7 @@ pub const MODTYPE: usize = NOT_SPECIAL;
 pub const QNRI: usize = 0; /* Fp2 QNR 2^i+sqrt(-1) */
 pub const TOWER: usize = NEGATOWER; /* Tower type */
 
-pub const FEXCESS: i32 = ((1 as i32) << 25) - 1;
+pub const FEXCESS: i32 = (1_i32 << 25) - 1;
 pub const OMASK: Chunk = (-1) << (MODBITS % big::BASEBITS);
 pub const TBITS: usize = MODBITS % big::BASEBITS; // Number of active bits in top word
 pub const TMASK: Chunk = (1 << TBITS) - 1;
@@ -141,7 +141,7 @@ impl FP {
         if MODTYPE == PSEUDO_MERSENNE {
             let mut b = BIG::new();
             let mut t = d.split(MODBITS);
-            b.dcopy(&d);
+            b.dcopy(d);
             let v = t.pmul(rom::MCONST as isize);
 
             t.add(&b);
@@ -177,8 +177,8 @@ impl FP {
             // GoldiLocks Only
             let mut b = BIG::new();
             let t = d.split(MODBITS);
-            let rm2 = (MODBITS / 2) as usize;
-            b.dcopy(&d);
+            let rm2 = MODBITS / 2;
+            b.dcopy(d);
             b.add(&t);
             let mut dd = DBIG::new_scopy(&t);
             dd.shl(rm2);
@@ -195,7 +195,7 @@ impl FP {
             b.w[big::NLEN - 1] &= TMASK;
             b.w[0] += carry;
 
-            let ix = (224 / big::BASEBITS) as usize;
+            let ix = 224 / big::BASEBITS;
             b.w[ix] += carry << (224 % big::BASEBITS);
             b.norm();
             return b;
@@ -300,7 +300,7 @@ impl FP {
 
     /* copy from BIG b */
     pub fn bcopy(&mut self, b: &BIG) {
-        self.x.copy(&b);
+        self.x.copy(b);
         self.nres();
     }
 
@@ -459,7 +459,7 @@ impl FP {
     /* self=b-self */
     pub fn rsub(&mut self, b: &FP) {
         self.neg();
-        self.add(&b);
+        self.add(b);
     }
 
     /* self/=2 mod Modulus */
@@ -510,10 +510,10 @@ impl FP {
             FP::new(),
             FP::new(),
         ];
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
         let mut w: [i8; CT] = [0; CT];
 
-        let mut s = FP::new_copy(&self);
+        let mut s = FP::new_copy(self);
         s.norm();
         let mut t = BIG::new_copy(e);
         t.norm();
@@ -566,12 +566,12 @@ impl FP {
         ];
         // phase 1
         let mut t = FP::new();
-        xp[0].copy(&self); // 1
-        xp[1].copy(&self);
+        xp[0].copy(self); // 1
+        xp[1].copy(self);
         xp[1].sqr(); // 2
         t.copy(&xp[1]);
         xp[2].copy(&t);
-        xp[2].mul(&self); // 3
+        xp[2].mul(self); // 3
         t.copy(&xp[2]);
         xp[3].copy(&t);
         xp[3].sqr(); // 6
@@ -694,7 +694,7 @@ impl FP {
             // Goldilocks ONLY
             key.copy(&r);
             r.sqr();
-            r.mul(&self);
+            r.mul(self);
             for _ in 0..n + 1 {
                 r.sqr();
             }
@@ -713,7 +713,7 @@ impl FP {
             self.copy(&self.fpow());
             return;
         }
-        let e = PM1D2 as usize;
+        let e = PM1D2;
         let mut m = BIG::new_ints(&rom::MODULUS);
         m.dec(1);
         m.shr(e);
@@ -733,7 +733,7 @@ impl FP {
             s.mul(self);
         }
         if let Some(hint) = take_hint {
-            self.copy(&hint);
+            self.copy(hint);
         } else {
             self.progen();
         }
@@ -773,14 +773,14 @@ impl FP {
 
     // Two for the price of One  - See Hamburg https://eprint.iacr.org/2012/309.pdf
     // Calculate inverse of i and square root of s, return QR
-    pub fn tpo(mut i: &mut FP, mut s: &mut FP) -> isize {
+    pub fn tpo(i: &mut FP, s: &mut FP) -> isize {
         let mut w = FP::new_copy(s);
         let mut t = FP::new_copy(i);
-        w.mul(&i);
+        w.mul(i);
         t.mul(&w);
-        let qr = t.invsqrt(&mut i, &mut s);
+        let qr = t.invsqrt(i, s);
         i.mul(&w);
-        s.mul(&i);
+        s.mul(i);
         qr
     }
 
@@ -790,7 +790,7 @@ impl FP {
         let mut g = FP::new_copy(self);
 
         if let Some(hint) = take_hint {
-            g.copy(&hint);
+            g.copy(hint);
         } else {
             g.progen();
         }

@@ -30,8 +30,8 @@ use crate::hmac;
 
 /* Boneh-Lynn-Shacham signature 256-bit API Functions */
 
-pub const BFS: usize = big::MODBYTES as usize;
-pub const BGS: usize = big::MODBYTES as usize;
+pub const BFS: usize = big::MODBYTES;
+pub const BGS: usize = big::MODBYTES;
 pub const BLS_OK: isize = 0;
 pub const BLS_FAIL: isize = -1;
 
@@ -55,7 +55,7 @@ fn hash_to_field(hash: usize, hlen: usize, u: &mut [FP], dst: &[u8], m: &[u8], c
     let mut okm: [u8; 256] = [0; 256];
     let mut fd: [u8; 128] = [0; 128];
 
-    hmac::xmd_expand(hash, hlen, &mut okm, el * ctr, &dst, &m);
+    hmac::xmd_expand(hash, hlen, &mut okm, el * ctr, dst, m);
     for i in 0..ctr {
         for j in 0..el {
             fd[j] = okm[el * i + j];
@@ -114,7 +114,7 @@ pub fn key_pair_generate(ikm: &[u8], s: &mut [u8], w: &mut [u8]) -> isize {
 
     let hlen = ecp::HASH_TYPE;
 
-    hmac::hkdf_extract(hmac::MC_SHA2, hlen, &mut prk, Some(&salt.as_bytes()), &aikm[0..likm + 1]);
+    hmac::hkdf_extract(hmac::MC_SHA2, hlen, &mut prk, Some(salt.as_bytes()), &aikm[0..likm + 1]);
     hmac::hkdf_expand(hmac::MC_SHA2, hlen, &mut okm, el, &prk[0..hlen], &len);
 
     let mut dx = DBIG::frombytes(&okm[0..el]);
@@ -129,7 +129,7 @@ pub fn key_pair_generate(ikm: &[u8], s: &mut [u8], w: &mut [u8]) -> isize {
 
 pub fn core_sign(sig: &mut [u8], m: &[u8], s: &[u8]) -> isize {
     let d = bls_hash_to_point(m);
-    let sc = BIG::frombytes(&s);
+    let sc = BIG::frombytes(s);
     pair8::g1mul(&d, &sc).tobytes(sig, true);
     BLS_OK
 }
@@ -139,13 +139,13 @@ pub fn core_sign(sig: &mut [u8], m: &[u8], s: &[u8]) -> isize {
 pub fn core_verify(sig: &[u8], m: &[u8], w: &[u8]) -> isize {
     let hm = bls_hash_to_point(m);
 
-    let mut d = ECP::frombytes(&sig);
+    let mut d = ECP::frombytes(sig);
     if !pair8::g1member(&d) {
         return BLS_FAIL;
     }
     d.neg();
 
-    let pk = ECP8::frombytes(&w);
+    let pk = ECP8::frombytes(w);
     if !pair8::g2member(&pk) {
         return BLS_FAIL;
     }

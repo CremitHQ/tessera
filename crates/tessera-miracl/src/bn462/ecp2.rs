@@ -56,8 +56,8 @@ impl ECP2 {
     /* construct this from (x,y) - but set to O if not on curve */
     pub fn new_fp2s(ix: &FP2, iy: &FP2) -> ECP2 {
         let mut E = ECP2::new();
-        E.x.copy(&ix);
-        E.y.copy(&iy);
+        E.x.copy(ix);
+        E.y.copy(iy);
         E.z.one();
         E.x.norm();
 
@@ -74,7 +74,7 @@ impl ECP2 {
     pub fn new_fp2(ix: &FP2, s: isize) -> ECP2 {
         let mut E = ECP2::new();
         let mut h = FP::new();
-        E.x.copy(&ix);
+        E.x.copy(ix);
         E.y.one();
         E.z.one();
         E.x.norm();
@@ -224,7 +224,7 @@ impl ECP2 {
 
     /* convert to byte array */
     pub fn tobytes(&self, b: &mut [u8], compress: bool) {
-        const MB: usize = 2 * (big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let mut alt = false;
         let mut W = ECP2::new();
@@ -271,7 +271,7 @@ impl ECP2 {
 
     /* convert from byte array to point */
     pub fn frombytes(b: &[u8]) -> ECP2 {
-        const MB: usize = 2 * (big::MODBYTES as usize);
+        const MB: usize = 2 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let typ = b[0] as isize;
         let mut alt = false;
@@ -551,14 +551,14 @@ impl ECP2 {
         let mut W: [ECP2; 8] =
             [ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new(), ECP2::new()];
 
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
         let mut w: [i8; CT] = [0; CT];
 
         /* precompute table */
-        Q.copy(&self);
+        Q.copy(self);
         Q.dbl();
 
-        W[0].copy(&self);
+        W[0].copy(self);
 
         for i in 1..8 {
             C.copy(&W[i - 1]);
@@ -567,7 +567,7 @@ impl ECP2 {
         }
 
         /* make exponent odd - add 2P if even, P if odd */
-        t.copy(&e);
+        t.copy(e);
         let s = t.parity();
         t.inc(1);
         t.norm();
@@ -576,7 +576,7 @@ impl ECP2 {
         mt.inc(1);
         mt.norm();
         t.cmove(&mt, s);
-        Q.cmove(&self, ns);
+        Q.cmove(self, ns);
         C.copy(&Q);
 
         let nb = 1 + (t.nbits() + 3) / 4;
@@ -645,9 +645,9 @@ impl ECP2 {
                 xQ.neg();
             }
             x2Q.sub(&xQ);
-            x2Q.sub(&self);
+            x2Q.sub(self);
 
-            xQ.sub(&self);
+            xQ.sub(self);
             xQ.frob(&X);
 
             self.dbl();
@@ -675,7 +675,7 @@ impl ECP2 {
 
         let mut t: [BIG; 4] = [BIG::new_copy(&u[0]), BIG::new_copy(&u[1]), BIG::new_copy(&u[2]), BIG::new_copy(&u[3])];
 
-        const CT: usize = 1 + big::NLEN * (big::BASEBITS as usize);
+        const CT: usize = 1 + big::NLEN * big::BASEBITS;
         let mut w: [i8; CT] = [0; CT];
         let mut s: [i8; CT] = [0; CT];
 
@@ -761,7 +761,7 @@ impl ECP2 {
     pub fn hap2point(h: &BIG) -> ECP2 {
         let mut Q: ECP2;
         let one = BIG::new_int(1);
-        let mut x = BIG::new_copy(&h);
+        let mut x = BIG::new_copy(h);
         loop {
             let X = FP2::new_bigs(&one, &x);
             Q = ECP2::new_fp2(&X, 0);
@@ -818,7 +818,7 @@ impl ECP2 {
                 W.norm();
             }
             W.pmul(&Z);
-            W.mul(&H);
+            W.mul(H);
             W.mul(&Y);
             W.mul(&NY);
 

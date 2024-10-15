@@ -112,7 +112,7 @@ mod test {
     async fn when_insert_is_successful_then_workspace_service_returns_ok() {
         use crate::database::workspace::Model;
 
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([[maplit::btreemap! {
@@ -121,8 +121,8 @@ mod test {
             .append_query_results([vec![Model {
                 id: Ulid::new().into(),
                 name: WORKSPACE_NAME.to_owned(),
-                created_at: now.clone(),
-                updated_at: now.clone(),
+                created_at: now,
+                updated_at: now,
             }]]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -139,7 +139,7 @@ mod test {
 
     #[tokio::test]
     async fn when_workspace_already_exists_then_workspace_service_returns_workspace_name_conflicted_error() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
             "num_items" => sea_orm::Value::BigInt(Some(1))
         }]]);
@@ -158,7 +158,7 @@ mod test {
 
     #[tokio::test]
     async fn when_insert_is_failed_then_workspace_service_returns_anyhow_err() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -179,13 +179,13 @@ mod test {
     async fn when_getting_workspaces_is_successful_then_workspace_service_returns_workspaces_ok() {
         use crate::database::workspace::Model;
 
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
             id: Ulid::new().into(),
             name: WORKSPACE_NAME.to_owned(),
-            created_at: now.clone(),
-            updated_at: now.clone(),
+            created_at: now,
+            updated_at: now,
         }]]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -219,7 +219,7 @@ mod test {
     #[tokio::test]
     async fn when_getting_not_existing_workspace_then_workspace_service_returns_ok_of_none() {
         use crate::database::workspace::Model;
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([Vec::<Model>::new()]);
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -235,7 +235,7 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_workspace_is_failed_then_workspace_service_returns_anyhow_err() {
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -254,14 +254,14 @@ mod test {
     #[tokio::test]
     async fn when_getting_workspace_is_succeed_then_workspace_service_returns_ok_of_workspace() {
         use crate::database::workspace::Model;
-        const WORKSPACE_NAME: &'static str = "test_workspace";
+        const WORKSPACE_NAME: &str = "test_workspace";
 
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
             id: Ulid::new().into(),
             name: WORKSPACE_NAME.to_owned(),
-            created_at: now.clone(),
-            updated_at: now.clone(),
+            created_at: now,
+            updated_at: now,
         }]]);
         let mock_connection = Arc::new(mock_database.into_connection());
 

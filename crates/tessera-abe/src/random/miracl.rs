@@ -7,6 +7,12 @@ pub struct MiraclRng {
 
 impl CryptoRng for MiraclRng {}
 
+impl Default for MiraclRng {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MiraclRng {
     pub fn new() -> Self {
         Self { inner: RAND::new() }

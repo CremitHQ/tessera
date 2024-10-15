@@ -61,12 +61,12 @@ impl<'a, T> AuthorityKeyPair<'a, T>
 where
     T: PairingCurve,
 {
-    pub fn new<S>(mut rng: &mut <T::Field as Random>::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<'a, T>
+    pub fn new<S>(rng: &mut <T::Field as Random>::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<'a, T>
     where
         S: Into<Cow<'a, str>>,
     {
-        let alpha = T::Field::random(&mut rng);
-        let y = T::Field::random(&mut rng);
+        let alpha = T::Field::random(rng);
+        let y = T::Field::random(rng);
         let e_alpha = gp.e.pow(&alpha);
         let gy = gp.g1 * &y;
 
@@ -93,13 +93,13 @@ where
     T: PairingCurve,
 {
     pub fn new<S: AsRef<str>>(
-        mut rng: &mut <T::Field as Random>::Rng,
+        rng: &mut <T::Field as Random>::Rng,
         gp: &GlobalParams<T>,
         mk: &AuthorityMasterKey<T>,
         gid: &str,
         attribute: S,
     ) -> Self {
-        let t = T::Field::random(&mut rng);
+        let t = T::Field::random(rng);
         let k = gp.g2 * &mk.alpha;
         let k = k + (T::hash_to_g2(gid.as_bytes()) * &mk.y);
         let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()) * &t);
@@ -261,10 +261,10 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
             .get(&attr_and_index)
             .ok_or(ABEError::DecryptionError("Failed to get coefficent".to_string()))?;
 
-        let base = T::pair(&c2, &k) * c1;
-        let base = base * &T::pair(&c3, &h_user);
+        let base = T::pair(c2, k) * c1;
+        let base = base * &T::pair(c3, &h_user);
         let base = base * &T::pair(kp, c4);
-        let base = base.pow(&coeff);
+        let base = base.pow(coeff);
 
         b = b * &base;
     }

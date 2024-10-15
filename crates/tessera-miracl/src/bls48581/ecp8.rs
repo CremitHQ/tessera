@@ -57,8 +57,8 @@ impl ECP8 {
     /* construct this from (x,y) - but set to O if not on curve */
     pub fn new_fp8s(ix: &FP8, iy: &FP8) -> ECP8 {
         let mut E = ECP8::new();
-        E.x.copy(&ix);
-        E.y.copy(&iy);
+        E.x.copy(ix);
+        E.y.copy(iy);
         E.z.one();
         E.x.norm();
 
@@ -75,7 +75,7 @@ impl ECP8 {
     pub fn new_fp8(ix: &FP8, s: isize) -> ECP8 {
         let mut E = ECP8::new();
         let mut h = FP::new();
-        E.x.copy(&ix);
+        E.x.copy(ix);
         E.y.one();
         E.z.one();
         E.x.norm();
@@ -226,7 +226,7 @@ impl ECP8 {
 
     /* convert to byte array */
     pub fn tobytes(&self, b: &mut [u8], compress: bool) {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let mut alt = false;
         let mut W = ECP8::new();
@@ -273,7 +273,7 @@ impl ECP8 {
 
     /* convert from byte array to point */
     pub fn frombytes(b: &[u8]) -> ECP8 {
-        const MB: usize = 8 * (big::MODBYTES as usize);
+        const MB: usize = 8 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         let typ = b[0] as isize;
         let mut alt = false;
@@ -597,14 +597,14 @@ impl ECP8 {
         let mut W: [ECP8; 8] =
             [ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new(), ECP8::new()];
 
-        const CT: usize = 1 + (big::NLEN * (big::BASEBITS as usize) + 3) / 4;
+        const CT: usize = 1 + (big::NLEN * big::BASEBITS + 3) / 4;
         let mut w: [i8; CT] = [0; CT];
 
         /* precompute table */
-        Q.copy(&self);
+        Q.copy(self);
         Q.dbl();
 
-        W[0].copy(&self);
+        W[0].copy(self);
 
         for i in 1..8 {
             C.copy(&W[i - 1]);
@@ -613,7 +613,7 @@ impl ECP8 {
         }
 
         /* make exponent odd - add 2P if even, P if odd */
-        t.copy(&e);
+        t.copy(e);
         let s = t.parity();
         t.inc(1);
         t.norm();
@@ -622,7 +622,7 @@ impl ECP8 {
         mt.inc(1);
         mt.norm();
         t.cmove(&mt, s);
-        Q.cmove(&self, ns);
+        Q.cmove(self, ns);
         C.copy(&Q);
 
         let nb = 1 + (t.nbits() + 3) / 4;
@@ -674,7 +674,7 @@ impl ECP8 {
         }
 
         x8Q.sub(&x7Q);
-        x8Q.sub(&self);
+        x8Q.sub(self);
 
         x7Q.sub(&x6Q);
         x7Q.frob(&f, 1);
@@ -694,7 +694,7 @@ impl ECP8 {
         x2Q.sub(&xQ);
         x2Q.frob(&f, 6);
 
-        xQ.sub(&self);
+        xQ.sub(self);
         xQ.frob(&f, 7);
 
         self.dbl();
@@ -752,7 +752,7 @@ impl ECP8 {
             BIG::new_copy(&u[15]),
         ];
 
-        const CT: usize = 1 + big::NLEN * (big::BASEBITS as usize);
+        const CT: usize = 1 + big::NLEN * big::BASEBITS;
         let mut w1: [i8; CT] = [0; CT];
         let mut s1: [i8; CT] = [0; CT];
         let mut w2: [i8; CT] = [0; CT];
@@ -904,7 +904,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w1[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w2[i] = 0;
@@ -915,7 +915,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w2[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w3[i] = 0;
@@ -926,7 +926,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w3[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
 
             w4[i] = 0;
@@ -937,7 +937,7 @@ impl ECP8 {
                 t[j].dec((bt >> 1) as isize);
                 t[j].norm();
                 w4[i] += bt * (k as i8);
-                k = 2 * k;
+                k *= 2;
             }
         }
 
@@ -1013,7 +1013,7 @@ impl ECP8 {
     pub fn hap2point(h: &BIG) -> ECP8 {
         let mut Q: ECP8;
         let one = BIG::new_int(1);
-        let mut x = BIG::new_copy(&h);
+        let mut x = BIG::new_copy(h);
         loop {
             let X = FP8::new_fp4(&FP4::new_fp2(&FP2::new_bigs(&one, &x)));
             Q = ECP8::new_fp8(&X, 0);
@@ -1064,7 +1064,7 @@ impl ECP8 {
             W.norm();
         }
         W.tmul(&Z);
-        W.mul(&H);
+        W.mul(H);
         W.mul(&Y);
         W.mul(&NY);
 

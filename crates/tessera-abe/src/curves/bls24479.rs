@@ -25,7 +25,7 @@ pub struct Bls24479Field {
 }
 
 const MODULUS: [i64; NLEN] = CURVE_ORDER;
-const MSG_SIZE: usize = 48 * (MODBYTES as usize);
+const MSG_SIZE: usize = 48 * MODBYTES;
 
 lazy_static! {
     pub static ref MODULUS_BIG: BIG = BIG::new_ints(&MODULUS);
@@ -60,7 +60,7 @@ impl Random for Bls24479Field {
 
 impl FieldWithOrder for Bls24479Field {
     fn order() -> Self {
-        Self { inner: MODULUS_BIG.clone() }
+        Self { inner: *MODULUS_BIG }
     }
 
     fn random_within_order(rng: &mut <Self as Random>::Rng) -> Self {

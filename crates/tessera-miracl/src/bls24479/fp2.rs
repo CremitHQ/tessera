@@ -135,7 +135,7 @@ impl FP2 {
     }
 
     pub fn tobytes(&self, bf: &mut [u8]) {
-        const MB: usize = big::MODBYTES as usize;
+        const MB: usize = big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         self.b.tobytes(&mut t);
         for i in 0..MB {
@@ -148,7 +148,7 @@ impl FP2 {
     }
 
     pub fn frombytes(bf: &[u8]) -> FP2 {
-        const MB: usize = big::MODBYTES as usize;
+        const MB: usize = big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
         for i in 0..MB {
             t[i] = bf[i];
@@ -450,7 +450,7 @@ impl FP2 {
                 self.b.cmove(&w4,1-qr);
         */
         let sgn = self.sign();
-        let mut nr = FP2::new_copy(&self);
+        let mut nr = FP2::new_copy(self);
         nr.neg();
         nr.norm();
         self.cmove(&nr, sgn);
