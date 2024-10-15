@@ -235,11 +235,11 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
         self.inner.delete(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
     }
 
-    async fn list(&self, key: &str) -> Result<impl IntoIterator<Item = String>, Self::StorageError> {
+    async fn list(&self, prefix: &str) -> Result<impl IntoIterator<Item = String>, Self::StorageError> {
         if self.is_armored().await {
             return Err(AESShieldStorageError::ShieldSealed);
         }
 
-        self.inner.list(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
+        self.inner.list(prefix).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
     }
 }
