@@ -45,7 +45,7 @@ impl std::fmt::Debug for FP12 {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "{}", self.tostring())
     }
-}    
+}
 
 #[cfg(feature = "std")]
 impl std::fmt::Display for FP12 {
@@ -56,12 +56,7 @@ impl std::fmt::Display for FP12 {
 
 impl FP12 {
     pub fn new() -> FP12 {
-        FP12 {
-            a: FP4::new(),
-            b: FP4::new(),
-            c: FP4::new(),
-            stype: ZERO,
-        }
+        FP12 { a: FP4::new(), b: FP4::new(), c: FP4::new(), stype: ZERO }
     }
 
     pub fn settype(&mut self, t: usize) {
@@ -870,56 +865,51 @@ impl FP12 {
 
     /* convert from byte array to FP12 */
     pub fn frombytes(w: &[u8]) -> FP12 {
-        const MB:usize = 4*(big::MODBYTES as usize);
+        const MB: usize = 4 * (big::MODBYTES as usize);
         let mut t: [u8; MB] = [0; MB];
-	    for i in 0..MB {
-		    t[i]=w[i];
-	    }
-        let c=FP4::frombytes(&t);
-	    for i in 0..MB {
-		    t[i]=w[i+MB];
-	    }
-        let b=FP4::frombytes(&t);
-	    for i in 0..MB {
-		    t[i]=w[i+2*MB];
-	    }
-        let a=FP4::frombytes(&t);
-	    FP12::new_fp4s(&a,&b,&c)
+        for i in 0..MB {
+            t[i] = w[i];
+        }
+        let c = FP4::frombytes(&t);
+        for i in 0..MB {
+            t[i] = w[i + MB];
+        }
+        let b = FP4::frombytes(&t);
+        for i in 0..MB {
+            t[i] = w[i + 2 * MB];
+        }
+        let a = FP4::frombytes(&t);
+        FP12::new_fp4s(&a, &b, &c)
     }
 
     /* convert this to byte array */
     pub fn tobytes(&mut self, w: &mut [u8]) {
-        const MB:usize = 4*(big::MODBYTES as usize);
+        const MB: usize = 4 * (big::MODBYTES as usize);
         let mut t: [u8; MB] = [0; MB];
 
         self.c.tobytes(&mut t);
-	    for i in 0..MB { 
-		    w[i]=t[i];
-	    }
+        for i in 0..MB {
+            w[i] = t[i];
+        }
         self.b.tobytes(&mut t);
-	    for i in 0..MB {
-		    w[i+MB]=t[i];
-	    }
+        for i in 0..MB {
+            w[i + MB] = t[i];
+        }
         self.a.tobytes(&mut t);
-	    for i in 0..MB {
-		    w[i+2*MB]=t[i];
-	    }
+        for i in 0..MB {
+            w[i + 2 * MB] = t[i];
+        }
     }
 
     /* output to hex string */
     #[cfg(feature = "std")]
     pub fn tostring(&self) -> String {
-        format!(
-            "[{},{},{}]",
-            self.a.tostring(),
-            self.b.tostring(),
-            self.c.tostring()
-        )
+        format!("[{},{},{}]", self.a.tostring(), self.b.tostring(), self.c.tostring())
     }
 
-/* Note this is simple square and multiply, so not side-channel safe */
-/* But fast for final exponentiation where exponent is not a secret */
-/* return this^e */
+    /* Note this is simple square and multiply, so not side-channel safe */
+    /* But fast for final exponentiation where exponent is not a secret */
+    /* return this^e */
     pub fn pow(&self, e: &BIG) -> FP12 {
         let mut r = FP12::new_copy(self);
         r.norm();
@@ -1005,16 +995,8 @@ impl FP12 {
     // Faz-Hernandez & Longa & Sanchez  https://eprint.iacr.org/2013/158.pdf
     // Side channel attack secure
     pub fn pow4(q: &[FP12], u: &[BIG]) -> FP12 {
-        let mut g: [FP12; 8] = [
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-            FP12::new(),
-        ];
+        let mut g: [FP12; 8] =
+            [FP12::new(), FP12::new(), FP12::new(), FP12::new(), FP12::new(), FP12::new(), FP12::new(), FP12::new()];
 
         let mut r = FP12::new();
         let mut p = FP12::new();
@@ -1023,12 +1005,7 @@ impl FP12 {
         let mut s: [i8; CT] = [0; CT];
 
         let mut mt = BIG::new();
-        let mut t: [BIG; 4] = [
-            BIG::new_copy(&u[0]),
-            BIG::new_copy(&u[1]),
-            BIG::new_copy(&u[2]),
-            BIG::new_copy(&u[3]),
-        ];
+        let mut t: [BIG; 4] = [BIG::new_copy(&u[0]), BIG::new_copy(&u[1]), BIG::new_copy(&u[2]), BIG::new_copy(&u[3])];
 
         for i in 0..4 {
             t[i].norm();

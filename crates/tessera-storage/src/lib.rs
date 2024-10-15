@@ -1,5 +1,4 @@
 pub mod shield;
-pub mod storages;
 
 #[trait_variant::make(Storage: Send + Sync)]
 pub trait LocalStorage {

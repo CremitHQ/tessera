@@ -156,23 +156,13 @@ impl SHA3 {
     }
 
     pub fn new(olen: usize) -> SHA3 {
-        let mut nh = SHA3 {
-            length: 0,
-            rate: 0,
-            len: 0,
-            s: [0; 25],
-        };
+        let mut nh = SHA3 { length: 0, rate: 0, len: 0, s: [0; 25] };
         nh.init(olen);
         nh
     }
 
     pub fn new_copy(hh: &SHA3) -> SHA3 {
-        let mut nh = SHA3 {
-            length: 0,
-            rate: 0,
-            len: 0,
-            s: [0; 25],
-        };
+        let mut nh = SHA3 { length: 0, rate: 0, len: 0, s: [0; 25] };
         nh.length = hh.length;
         nh.len = hh.len;
         nh.rate = hh.rate;
