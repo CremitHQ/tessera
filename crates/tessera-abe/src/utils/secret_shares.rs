@@ -9,42 +9,38 @@ use tessera_policy::pest::{parse, PolicyLanguage, PolicyType, PolicyValue};
 pub fn calc_coefficients<T: PairingCurve>(
     policy_value: &PolicyValue,
     coeff: T::Field,
-    mut coeff_list: HashMap<String, T::Field>,
+    coeff_list: &mut HashMap<String, T::Field>,
     policy_type: Option<PolicyType>,
-) -> HashMap<String, T::Field> {
+) {
     match policy_value {
         PolicyValue::Object(obj) => match obj.0 {
             PolicyType::And => calc_coefficients::<T>(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
             PolicyType::Or => calc_coefficients::<T>(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
             _ => {
                 coeff_list.insert(get_value(&obj.1), coeff);
-                coeff_list
             }
         },
         PolicyValue::Array(children) => match policy_type {
             Some(PolicyType::And) => {
                 let mut this_coeff_vec = vec![T::Field::one()];
                 for i in 1..children.len() {
-                    this_coeff_vec.push(this_coeff_vec[i - 1] + &T::Field::one());
+                    this_coeff_vec.push(this_coeff_vec[i - 1] + T::Field::one());
                 }
                 let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    coeff_list = calc_coefficients::<T>(child, coeff * &this_coeff[i], coeff_list.clone(), None);
+                    calc_coefficients::<T>(child, coeff * this_coeff[i], coeff_list, None);
                 }
-                coeff_list
             }
             Some(PolicyType::Or) => {
                 let this_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
                 for child in children.iter() {
-                    coeff_list = calc_coefficients::<T>(child, coeff * &this_coeff[0], coeff_list.clone(), None);
+                    calc_coefficients::<T>(child, coeff * this_coeff[0], coeff_list, None);
                 }
-                coeff_list
             }
-            _ => coeff_list,
+            _ => (),
         },
         PolicyValue::String(node) => {
             coeff_list.insert(node_index(node), coeff);
-            coeff_list
         }
     }
 }
@@ -198,7 +194,7 @@ pub fn calc_pruned(
 pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &str) -> T::Field {
     let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
     let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
-    coeff_list = calc_coefficients::<T>(&policy, T::Field::one(), coeff_list, None);
+    calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list, None);
     let mut secret = T::Field::new();
     for (i, share) in shares {
         let coeff = coeff_list.get(&i).unwrap();
@@ -253,10 +249,10 @@ mod tests {
         match parse(&policy, PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
                 let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, secret, &pol, None);
-                let coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
+                let mut coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
                 let coeff = Bls24479Field::one();
-                let coeff = calc_coefficients::<Bls24479Curve>(&pol, coeff, coeff_list, None);
-                assert_eq!(coeff.len(), shares.len());
+                calc_coefficients::<Bls24479Curve>(&pol, coeff, &mut coeff_list, None);
+                assert_eq!(coeff_list.len(), shares.len());
             }
             Err(e) => println!("test_gen_shares_json: could not parse policy {:?}", e),
         }
@@ -294,10 +290,7 @@ mod tests {
     #[test]
     fn test_pruning() {
         // a set of two attributes
-        let mut _attributes: Vec<String> = Vec::new();
-        _attributes.push(String::from("A"));
-        _attributes.push(String::from("B"));
-        _attributes.push(String::from("C"));
+        let mut _attributes: Vec<String> = vec![String::from("A"), String::from("B"), String::from("C")];
 
         let pol1 = String::from(
             r#"{"name": "or", "children": [{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}, {"name": "and", "children": [{"name": "C"}, {"name": "D"}]}]}"#,

@@ -167,15 +167,15 @@ pub struct AES {
 }
 
 fn rotl8(x: u32) -> u32 {
-    ((x) << 8) | ((x) >> 24)
+    x.rotate_left(8)
 }
 
 fn rotl16(x: u32) -> u32 {
-    ((x) << 16) | ((x) >> 16)
+    x.rotate_left(16)
 }
 
 fn rotl24(x: u32) -> u32 {
-    ((x) << 24) | ((x) >> 8)
+    x.rotate_left(24)
 }
 
 fn pack(b: [u8; 4]) -> u32 {

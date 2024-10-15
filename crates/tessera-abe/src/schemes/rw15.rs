@@ -237,7 +237,7 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
     }
 
     let mut coefficients = HashMap::new();
-    coefficients = calc_coefficients::<T>(&policy, T::Field::one(), coefficients, None);
+    calc_coefficients::<T>(&policy, T::Field::one(), &mut coefficients, None);
 
     let h_user = T::hash_to_g2(sk.gid.as_bytes());
     let mut b = T::Gt::one();
