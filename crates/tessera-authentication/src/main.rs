@@ -14,7 +14,7 @@ struct Args {
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
-    /// Sets a port to start a authority server
+    /// Sets a port to start a authn server
     #[arg(short, long, value_name = "FILE")]
     pub port: Option<u16>,
 }
