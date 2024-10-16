@@ -24,17 +24,17 @@ pub fn calc_coefficients<T: PairingCurve>(
             Some(PolicyType::And) => {
                 let mut this_coeff_vec = vec![T::Field::one()];
                 for i in 1..children.len() {
-                    this_coeff_vec.push(this_coeff_vec[i - 1] + T::Field::one());
+                    this_coeff_vec.push(this_coeff_vec[i - 1].clone() + T::Field::one());
                 }
                 let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    calc_coefficients::<T>(child, coeff * this_coeff[i], coeff_list, None);
+                    calc_coefficients::<T>(child, coeff.clone() * &this_coeff[i], coeff_list, None);
                 }
             }
             Some(PolicyType::Or) => {
                 let this_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
                 for child in children.iter() {
-                    calc_coefficients::<T>(child, coeff * this_coeff[0], coeff_list, None);
+                    calc_coefficients::<T>(child, coeff.clone() * &this_coeff[0], coeff_list, None);
                 }
             }
             _ => (),
@@ -48,12 +48,12 @@ pub fn calc_coefficients<T: PairingCurve>(
 // lagrange interpolation
 pub fn recover_coefficients<T: PairingCurve>(list: Vec<T::Field>) -> Vec<T::Field> {
     let mut coeff = vec![];
-    for i in list.clone() {
+    for i in list.iter() {
         let mut result = T::Field::one();
-        for j in list.clone() {
+        for j in list.iter() {
             if i != j {
-                let p = -j;
-                let q = i - j;
+                let p = -j.clone();
+                let q = i.clone() - j;
                 let t = p / q;
                 result = result * t;
             }
@@ -73,7 +73,7 @@ pub fn remove_index(node: &str) -> String {
 
 pub fn gen_shares_policy<T: PairingCurve>(
     rng: &mut T::Rng,
-    secret: T::Field,
+    secret: &T::Field,
     policy_value: &PolicyValue,
     policy_type: Option<PolicyType>,
 ) -> HashMap<String, T::Field> {
@@ -82,7 +82,7 @@ pub fn gen_shares_policy<T: PairingCurve>(
     let n;
     match policy_value {
         PolicyValue::String(node) => {
-            result.insert(node_index(node), secret);
+            result.insert(node_index(node), secret.clone());
             result
         }
         PolicyValue::Object(obj) => match obj.0 {
@@ -103,7 +103,7 @@ pub fn gen_shares_policy<T: PairingCurve>(
             }
             let shares = gen_shares::<T>(rng, secret, k, n);
             for i in 0..n {
-                let items = gen_shares_policy::<T>(rng, shares[i + 1], &children[i], None);
+                let items = gen_shares_policy::<T>(rng, &shares[i + 1], &children[i], None);
                 result.extend(items.into_iter());
             }
             result
@@ -111,12 +111,12 @@ pub fn gen_shares_policy<T: PairingCurve>(
     }
 }
 
-pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: T::Field, k: usize, n: usize) -> Vec<T::Field> {
+pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize, n: usize) -> Vec<T::Field> {
     let mut shares: Vec<T::Field> = Vec::new();
     if k <= n {
         // polynomial coefficients
         let mut a: Vec<T::Field> = Vec::new();
-        a.push(secret);
+        a.push(secret.clone());
         for _ in 1..k {
             a.push(<T::Field as Random>::random(rng));
         }
@@ -204,9 +204,9 @@ pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _polic
 }
 
 pub fn polynomial<T: PairingCurve>(coeff: Vec<T::Field>, x: T::Field) -> T::Field {
-    let mut share = coeff[0];
+    let mut share = coeff[0].clone();
     for (i, c) in coeff.iter().enumerate().skip(1) {
-        let x_pow = x.pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
+        let x_pow = x.clone().pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
         share = share + (x_pow * c);
     }
     share
@@ -227,7 +227,7 @@ mod tests {
     fn test_secret_sharing_or() {
         let mut rng = MiraclRng::new();
         let secret = Bls24479Field::random(&mut rng);
-        let shares = gen_shares::<Bls24479Curve>(&mut rng, secret, 1, 2);
+        let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 1, 2);
 
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
         input.insert("A_38".to_string(), shares[1]);
@@ -248,7 +248,7 @@ mod tests {
         );
         match parse(&policy, PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
-                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, secret, &pol, None);
+                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, &secret, &pol, None);
                 let mut coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
                 let coeff = Bls24479Field::one();
                 calc_coefficients::<Bls24479Curve>(&pol, coeff, &mut coeff_list, None);
@@ -268,7 +268,7 @@ mod tests {
         rng.seed(&seed);
 
         let secret = Bls24479Field::random(&mut rng);
-        let shares = gen_shares::<Bls24479Curve>(&mut rng, secret, 5, 5);
+        let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 5, 5);
         let k = shares[0];
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
         input.insert("A_40".to_string(), shares[1]);
