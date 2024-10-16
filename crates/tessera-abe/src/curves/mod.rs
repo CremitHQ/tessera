@@ -26,7 +26,7 @@ pub trait FieldWithOrder: Field {
 
 pub trait Field:
     Sized
-    + Copy
+    + Clone
     + PartialEq
     + Rem<Output = Self>
     + Neg<Output = Self>
@@ -51,7 +51,7 @@ where
     fn new_ints(x: &[Self::Chunk]) -> Self;
 }
 
-pub trait GroupG1: Copy + Clone + Sized + Neg<Output = Self> + Add<Output = Self> + Serialize
+pub trait GroupG1: Clone + Sized + Neg<Output = Self> + Add<Output = Self> + Serialize
 where
     Self: for<'a> Mul<&'a Self::Field, Output = Self>,
     Self: for<'de> Deserialize<'de>,
@@ -62,7 +62,7 @@ where
     fn generator() -> Self;
 }
 
-pub trait GroupG2: Copy + Clone + Sized + Add<Output = Self> + Serialize
+pub trait GroupG2: Clone + Sized + Add<Output = Self> + Serialize
 where
     Self: for<'a> Mul<&'a Self::Field, Output = Self>,
     Self: for<'de> Deserialize<'de>,
@@ -73,7 +73,7 @@ where
     fn generator() -> Self;
 }
 
-pub trait GroupGt: Sized + Inv<Output = Self> + Clone + Copy + Serialize + Random + Into<Vec<u8>>
+pub trait GroupGt: Sized + Inv<Output = Self> + Clone + Serialize + Random + Into<Vec<u8>>
 where
     for<'a> Self: Mul<&'a Self, Output = Self>,
     for<'a> Self: Pow<&'a Self::Field, Output = Self>,

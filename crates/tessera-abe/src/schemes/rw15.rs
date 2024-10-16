@@ -67,8 +67,8 @@ where
     {
         let alpha = T::Field::random(rng);
         let y = T::Field::random(rng);
-        let e_alpha = gp.e.pow(&alpha);
-        let gy = gp.g1 * &y;
+        let e_alpha = gp.e.clone().pow(&alpha);
+        let gy = gp.g1.clone() * &y;
 
         let pk = AuthorityPublicKey { e_alpha, gy };
         let mk = AuthorityMasterKey { alpha, y };
@@ -100,10 +100,10 @@ where
         attribute: S,
     ) -> Self {
         let t = T::Field::random(rng);
-        let k = gp.g2 * &mk.alpha;
+        let k = gp.g2.clone() * &mk.alpha;
         let k = k + (T::hash_to_g2(gid.as_bytes()) * &mk.y);
         let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()) * &t);
-        let kp = gp.g1 * &t;
+        let kp = gp.g1.clone() * &t;
         Self { k, kp }
     }
 }
@@ -181,13 +181,13 @@ pub fn encrypt<T: PairingCurve>(
     let s = T::Field::random_within_order(rng);
     let w = T::Field::new();
 
-    let s_shares = gen_shares_policy::<T>(rng, s, &policy, None);
-    let w_shares = gen_shares_policy::<T>(rng, w, &policy, None);
+    let s_shares = gen_shares_policy::<T>(rng, &s, &policy, None);
+    let w_shares = gen_shares_policy::<T>(rng, &w, &policy, None);
 
     let c0 = T::Gt::random(rng);
-    let msg: Vec<u8> = c0.into();
+    let msg: Vec<u8> = c0.clone().into();
 
-    let c0 = c0 * &(gp.e.pow(&s));
+    let c0 = c0 * &(gp.e.clone().pow(&s));
     let mut c1 = HashMap::new();
     let mut c2 = HashMap::new();
     let mut c3 = HashMap::new();
@@ -201,15 +201,15 @@ pub fn encrypt<T: PairingCurve>(
 
         let pk_attr = pks.get(authority_name);
         if let Some(authority_pk) = pk_attr {
-            let c1x = gp.e.pow(&s_share);
-            let c1x = c1x * &(authority_pk.e_alpha.pow(&tx));
+            let c1x = gp.e.clone().pow(&s_share);
+            let c1x = c1x * &(authority_pk.e_alpha.clone().pow(&tx));
             c1.insert(attr_name.clone(), c1x);
 
-            let c2x = -(gp.g1 * &tx);
+            let c2x = -(gp.g1.clone() * &tx);
             c2.insert(attr_name.clone(), c2x);
 
             let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
-            let c3x = (authority_pk.gy * &tx) + (gp.g1 * wx);
+            let c3x = (authority_pk.gy.clone() * &tx) + (gp.g1.clone() * wx);
             c3.insert(attr_name.clone(), c3x);
 
             let c4x = T::hash_to_g2(attr.as_bytes()) * &tx;
@@ -271,7 +271,7 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
 
     b = b.inverse();
 
-    let c0 = ct.c0;
+    let c0 = ct.c0.clone();
     let msg = c0 * &b;
     let msg: Vec<u8> = msg.into();
     decrypt_symmetric(msg, &ct.ct)
