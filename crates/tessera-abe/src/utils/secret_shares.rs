@@ -24,7 +24,7 @@ pub fn calc_coefficients<T: PairingCurve>(
             Some(PolicyType::And) => {
                 let mut this_coeff_vec = vec![T::Field::one()];
                 for i in 1..children.len() {
-                    this_coeff_vec.push(this_coeff_vec[i - 1].clone() + T::Field::one());
+                    this_coeff_vec.push(T::Field::one() + &this_coeff_vec[i - 1]);
                 }
                 let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
