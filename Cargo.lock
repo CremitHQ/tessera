@@ -3284,6 +3284,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tessera-authentication"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "config",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "xdg",
+]
+
+[[package]]
 name = "tessera-authority"
 version = "0.0.1"
 dependencies = [
