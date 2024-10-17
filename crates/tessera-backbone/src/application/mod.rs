@@ -10,6 +10,9 @@ use crate::{
 
 use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
+use self::secret::{SecretUseCase, SecretUseCaseImpl};
+
+pub mod secret;
 pub mod workspace;
 
 pub(crate) struct Application {
@@ -20,6 +23,24 @@ pub(crate) struct Application {
 impl Application {
     pub fn workspace(&self) -> impl WorkspaceUseCase {
         WorkspaceUseCaseImpl::new(self.database_connection.clone(), self.workspace_service.clone())
+    }
+
+    pub fn with_workspace(&self, workspace_name: &str) -> ApplicationWithWorkspace {
+        ApplicationWithWorkspace::new(workspace_name.to_owned())
+    }
+}
+
+pub(crate) struct ApplicationWithWorkspace {
+    workspace_name: String,
+}
+
+impl ApplicationWithWorkspace {
+    pub fn new(workspace_name: String) -> Self {
+        Self { workspace_name }
+    }
+
+    pub fn secret(&self) -> impl SecretUseCase {
+        SecretUseCaseImpl::new(self.workspace_name.to_owned())
     }
 }
 
