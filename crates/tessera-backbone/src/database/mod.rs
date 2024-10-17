@@ -21,6 +21,7 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
+pub(crate) mod secret_metadata;
 pub(crate) mod workspace;
 
 pub(crate) enum AuthMethod {

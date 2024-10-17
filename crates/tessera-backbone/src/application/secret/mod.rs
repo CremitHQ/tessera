@@ -8,7 +8,7 @@ use crate::{
     database::OrganizationScopedTransaction,
     domain::{
         self,
-        secret::{Secret, SecretService},
+        secret::{SecretEntry, SecretService},
     },
 };
 
@@ -65,12 +65,14 @@ impl From<sea_orm::DbErr> for Error {
 
 impl From<domain::secret::Error> for Error {
     fn from(value: domain::secret::Error) -> Self {
-        match value {}
+        match value {
+            domain::secret::Error::Anyhow(e) => Self::Anyhow(e),
+        }
     }
 }
 
-impl From<Secret> for SecretData {
-    fn from(value: Secret) -> Self {
+impl From<SecretEntry> for SecretData {
+    fn from(value: SecretEntry) -> Self {
         Self {
             key: value.key,
             path: value.path,
