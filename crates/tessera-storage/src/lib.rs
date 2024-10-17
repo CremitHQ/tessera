@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod shield;
 
 #[trait_variant::make(Storage: Send + Sync)]

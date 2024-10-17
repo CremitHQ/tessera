@@ -23,6 +23,3 @@ serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
-
-[profile.release]
-opt-level = "s"
