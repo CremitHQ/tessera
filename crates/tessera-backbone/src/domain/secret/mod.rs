@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter};
 use ulid::Ulid;
 
-use crate::database::secret_metadata;
+use crate::database::{applied_policy, secret_metadata};
 
 pub(crate) struct SecretEntry {
     pub key: String,
@@ -25,18 +25,30 @@ impl SecretService for PostgresSecretService {
             .filter(secret_metadata::Column::Path.like(format!("{path_prefix}%")))
             .all(transaction)
             .await?;
+        let applied_policies = metadata.load_many(applied_policy::Entity, transaction).await?;
 
-        let entries = metadata
+        Ok(metadata
             .into_iter()
-            .map(|metadata| SecretEntry {
-                key: metadata.key,
-                path: metadata.path,
-                reader_policy_ids: vec![],
-                writer_policy_ids: vec![],
-            })
-            .collect();
+            .zip(applied_policies.into_iter())
+            .map(|(metadata, applied_policies)| {
+                let mut reader_policy_ids: Vec<Ulid> = vec![];
+                let mut writer_policy_ids: Vec<Ulid> = vec![];
 
-        Ok(entries)
+                // TODO: get cipher from storage
+                for applied_policy in applied_policies {
+                    match applied_policy.r#type {
+                        applied_policy::PolicyApplicationType::Read => {
+                            reader_policy_ids.push(applied_policy.id.inner())
+                        }
+                        applied_policy::PolicyApplicationType::Write => {
+                            writer_policy_ids.push(applied_policy.id.inner())
+                        }
+                    }
+                }
+
+                SecretEntry { key: metadata.key, path: metadata.path, reader_policy_ids, writer_policy_ids }
+            })
+            .collect())
     }
 }
 

@@ -20,7 +20,7 @@ use self::response::SecretResponse;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/:workspace_name/secrets", get(handle_get_secrets)).with_state(application)
+    Router::new().route("/workspaces/:workspace_name/secrets", get(handle_get_secrets)).with_state(application)
 }
 
 #[derive(Deserialize)]
