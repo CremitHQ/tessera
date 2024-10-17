@@ -83,3 +83,73 @@ impl From<SecretEntry> for SecretData {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod test {
+    use std::{str::FromStr, sync::Arc};
+
+    use sea_orm::{DatabaseBackend, DbErr, MockDatabase, MockExecResult};
+    use ulid::Ulid;
+
+    use crate::domain::secret::{MockSecretService, SecretEntry};
+
+    use super::{Error, SecretUseCase, SecretUseCaseImpl};
+
+    #[tokio::test]
+    async fn when_getting_secret_data_is_successful_then_secret_usecase_returns_secrets_ok() {
+        let key = "TEST_KEY";
+        let path = "/test/path";
+        let applied_policy_ids = [
+            Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap(),
+            Ulid::from_str("01JACZ1FG1RYABQW2KB6YSEZ84").unwrap(),
+        ];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_list().withf(|_, path| path == "/").times(1).returning(move |_, _| {
+            Ok(vec![SecretEntry {
+                key: key.to_owned(),
+                path: path.to_owned(),
+                reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
+                writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
+            }])
+        });
+
+        let secret_usecase =
+            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = secret_usecase.list("/").await.expect("creating workspace should be successful");
+
+        assert_eq!(result[0].key, key);
+        assert_eq!(result[0].path, path);
+        assert_eq!(result[0].reader_policy_ids[0], applied_policy_ids[0]);
+        assert_eq!(result[0].writer_policy_ids[0], applied_policy_ids[1]);
+    }
+
+    #[tokio::test]
+    async fn when_getting_secret_is_failed_then_secret_usecase_returns_anyhow_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service
+            .expect_list()
+            .withf(|_, path| path == "/")
+            .times(1)
+            .returning(move |_, _| Err(crate::domain::secret::Error::Anyhow(anyhow::anyhow!("some error"))));
+
+        let secret_usecase =
+            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = secret_usecase.list("/").await;
+
+        assert!(matches!(result, Err(Error::Anyhow(_))));
+        assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+}
