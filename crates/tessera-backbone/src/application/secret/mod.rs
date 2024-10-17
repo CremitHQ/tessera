@@ -88,7 +88,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 mod test {
     use std::{str::FromStr, sync::Arc};
 
-    use sea_orm::{DatabaseBackend, DbErr, MockDatabase, MockExecResult};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
     use crate::domain::secret::{MockSecretService, SecretEntry};
