@@ -21,6 +21,8 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
+pub(crate) mod applied_policy;
+pub(crate) mod secret_metadata;
 pub(crate) mod workspace;
 
 pub(crate) enum AuthMethod {
@@ -133,17 +135,17 @@ fn reassign_token_periodically_to_database(
 
 #[async_trait]
 pub trait OrganizationScopedTransaction {
-    async fn begin_with_organization_scope(&self, organization_slug: &str) -> Result<DatabaseTransaction, DbErr>;
+    async fn begin_with_organization_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr>;
 }
 
 #[async_trait]
 impl OrganizationScopedTransaction for DatabaseConnection {
-    async fn begin_with_organization_scope(&self, organization_slug: &str) -> Result<DatabaseTransaction, DbErr> {
+    async fn begin_with_organization_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr> {
         let transaction = self.begin().await?;
         transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
-                format!("SET LOCAL search_path TO \"{organization_slug}\", \"public\";"),
+                format!("SET LOCAL search_path TO \"{workspace_slug}\", \"public\";"),
             ))
             .await?;
 

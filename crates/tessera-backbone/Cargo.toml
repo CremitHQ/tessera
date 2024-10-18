@@ -22,7 +22,7 @@ sea-orm = { workspace = true, features = [ "mock" ] }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
-ulid = { workspace = true }
+ulid = { workspace = true, features = [ "serde" ] }
 url = { workspace = true }
 urlencoding = { workspace = true }
 thiserror = { workspace = true }
