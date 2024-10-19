@@ -22,7 +22,7 @@ use tessera_miracl::{
     hash256::HASH256,
 };
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Bls48556Field {
     inner: BIG,
 }
@@ -85,7 +85,7 @@ impl Add for Bls48556Field {
 
     #[inline]
     fn add(self, other: Self) -> Self {
-        (&self).add(&other)
+        self.ref_add(&other)
     }
 }
 
@@ -93,7 +93,7 @@ impl RefAdd for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn add(&self, other: &Self) -> Self {
+    fn ref_add(&self, other: &Self) -> Self {
         Self { inner: BIG::modadd(&self.inner, &other.inner, &MODULUS_BIG) }
     }
 }
@@ -112,8 +112,8 @@ impl RefDiv for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn div(&self, other: &Self) -> Self {
-        let mut other = other.inner.clone();
+    fn ref_div(&self, other: &Self) -> Self {
+        let mut other = other.inner;
         other.invmodp(&MODULUS_BIG);
         Self { inner: BIG::modmul(&self.inner, &other, &MODULUS_BIG) }
     }
@@ -124,7 +124,7 @@ impl Mul for Bls48556Field {
 
     #[inline]
     fn mul(self, other: Self) -> Self {
-        (&self).mul(&other)
+        self.ref_mul(&other)
     }
 }
 
@@ -132,7 +132,7 @@ impl RefMul for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn mul(&self, other: &Self) -> Self {
+    fn ref_mul(&self, other: &Self) -> Self {
         Self { inner: BIG::modmul(&self.inner, &other.inner, &MODULUS_BIG) }
     }
 }
@@ -142,7 +142,7 @@ impl Sub for Bls48556Field {
 
     #[inline]
     fn sub(self, other: Self) -> Self {
-        (&self).sub(&other)
+        self.ref_sub(&other)
     }
 }
 
@@ -150,7 +150,7 @@ impl RefSub for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn sub(&self, other: &Self) -> Self {
+    fn ref_sub(&self, other: &Self) -> Self {
         let neg_other = BIG::modneg(&other.inner, &MODULUS_BIG);
         Self { inner: BIG::modadd(&self.inner, &neg_other, &MODULUS_BIG) }
     }
@@ -161,7 +161,7 @@ impl Neg for Bls48556Field {
 
     #[inline]
     fn neg(self) -> Self {
-        (&self).neg()
+        self.ref_neg()
     }
 }
 
@@ -169,7 +169,7 @@ impl RefNeg for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn neg(&self) -> Self {
+    fn ref_neg(&self) -> Self {
         Self { inner: BIG::modneg(&self.inner, &MODULUS_BIG) }
     }
 }
@@ -187,8 +187,8 @@ impl RefPow for Bls48556Field {
     type Output = Self;
 
     #[inline]
-    fn pow(&self, e: &Self) -> Self {
-        self.clone().pow(&e)
+    fn ref_pow(&self, e: &Self) -> Self {
+        self.clone().pow(e)
     }
 }
 
@@ -199,7 +199,7 @@ impl PartialEq for Bls48556Field {
     }
 }
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct G1 {
     inner: ECP,
 }
@@ -223,7 +223,7 @@ impl Mul<Bls48556Field> for G1 {
 
     #[inline]
     fn mul(self, rhs: Bls48556Field) -> Self {
-        (&self).mul(&rhs)
+        self.ref_mul(&rhs)
     }
 }
 
@@ -232,7 +232,7 @@ impl Mul<&Bls48556Field> for G1 {
 
     #[inline]
     fn mul(self, rhs: &Bls48556Field) -> Self {
-        (&self).mul(rhs)
+        self.ref_mul(rhs)
     }
 }
 
@@ -240,7 +240,7 @@ impl RefMul<Bls48556Field> for G1 {
     type Output = Self;
 
     #[inline]
-    fn mul(&self, rhs: &Bls48556Field) -> Self {
+    fn ref_mul(&self, rhs: &Bls48556Field) -> Self {
         Self { inner: pair8::g1mul(&self.inner, &rhs.inner) }
     }
 }
@@ -268,7 +268,7 @@ impl RefAdd for G1 {
     type Output = Self;
 
     #[inline]
-    fn add(&self, other: &Self) -> Self {
+    fn ref_add(&self, other: &Self) -> Self {
         self.clone() + other
     }
 }
@@ -283,7 +283,7 @@ impl Neg for G1 {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct G2 {
     inner: ECP8,
 }
@@ -305,7 +305,7 @@ impl Mul<Bls48556Field> for G2 {
 
     #[inline]
     fn mul(self, rhs: Bls48556Field) -> Self {
-        (&self).mul(&rhs)
+        self.ref_mul(&rhs)
     }
 }
 
@@ -314,7 +314,7 @@ impl Mul<&Bls48556Field> for G2 {
 
     #[inline]
     fn mul(self, rhs: &Bls48556Field) -> Self {
-        (&self).mul(rhs)
+        self.ref_mul(rhs)
     }
 }
 
@@ -322,7 +322,7 @@ impl RefMul<Bls48556Field> for G2 {
     type Output = Self;
 
     #[inline]
-    fn mul(&self, rhs: &Bls48556Field) -> Self {
+    fn ref_mul(&self, rhs: &Bls48556Field) -> Self {
         Self { inner: pair8::g2mul(&self.inner, &rhs.inner) }
     }
 }
@@ -350,12 +350,12 @@ impl RefAdd for G2 {
     type Output = Self;
 
     #[inline]
-    fn add(&self, other: &Self) -> Self {
+    fn ref_add(&self, other: &Self) -> Self {
         self.clone() + other
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Gt {
     inner: FP48,
 }
@@ -420,7 +420,7 @@ impl RefMul for Gt {
     type Output = Self;
 
     #[inline]
-    fn mul(&self, rhs: &Self) -> Self {
+    fn ref_mul(&self, rhs: &Self) -> Self {
         self.clone() * rhs
     }
 }
@@ -430,7 +430,7 @@ impl Pow<Bls48556Field> for Gt {
 
     #[inline]
     fn pow(self, rhs: &Bls48556Field) -> Self {
-        (&self).pow(rhs)
+        self.ref_pow(rhs)
     }
 }
 
@@ -438,7 +438,7 @@ impl RefPow<Bls48556Field> for Gt {
     type Output = Self;
 
     #[inline]
-    fn pow(&self, rhs: &Bls48556Field) -> Self {
+    fn ref_pow(&self, rhs: &Bls48556Field) -> Self {
         Self { inner: pair8::gtpow(&self.inner, &rhs.inner) }
     }
 }

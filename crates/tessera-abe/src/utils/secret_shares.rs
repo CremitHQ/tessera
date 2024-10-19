@@ -24,17 +24,17 @@ pub fn calc_coefficients<T: PairingCurve>(
             Some(PolicyType::And) => {
                 let mut this_coeff_vec = vec![T::Field::one()];
                 for i in 1..children.len() {
-                    this_coeff_vec.push(T::Field::one().add(&this_coeff_vec[i - 1]));
+                    this_coeff_vec.push(T::Field::one().ref_add(&this_coeff_vec[i - 1]));
                 }
                 let this_coeff = recover_coefficients::<T>(this_coeff_vec);
                 for (i, child) in children.iter().enumerate() {
-                    calc_coefficients::<T>(child, coeff.mul(&this_coeff[i]), coeff_list, None);
+                    calc_coefficients::<T>(child, coeff.ref_mul(&this_coeff[i]), coeff_list, None);
                 }
             }
             Some(PolicyType::Or) => {
                 let this_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
                 for child in children.iter() {
-                    calc_coefficients::<T>(child, coeff.mul(&this_coeff[0]), coeff_list, None);
+                    calc_coefficients::<T>(child, coeff.ref_mul(&this_coeff[0]), coeff_list, None);
                 }
             }
             _ => (),
@@ -52,8 +52,8 @@ pub fn recover_coefficients<T: PairingCurve>(list: Vec<T::Field>) -> Vec<T::Fiel
         let mut result = T::Field::one();
         for j in list.iter() {
             if i != j {
-                let p = j.neg();
-                let q = i.sub(&j);
+                let p = j.ref_neg();
+                let q = i.ref_sub(j);
                 let t = p / q;
                 result = result * t;
             }
@@ -198,7 +198,7 @@ pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _polic
     let mut secret = T::Field::new();
     for (i, share) in shares {
         let coeff = coeff_list.get(&i).unwrap();
-        secret = secret + share.mul(coeff);
+        secret = secret + share.ref_mul(coeff);
     }
     secret
 }
@@ -206,8 +206,8 @@ pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _polic
 pub fn polynomial<T: PairingCurve>(coeff: Vec<T::Field>, x: T::Field) -> T::Field {
     let mut share = coeff[0].clone();
     for (i, c) in coeff.iter().enumerate().skip(1) {
-        let x_pow = x.pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
-        share = share.add(&x_pow.mul(c));
+        let x_pow = x.ref_pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
+        share = share.ref_add(&x_pow.ref_mul(c));
     }
     share
 }
@@ -230,7 +230,7 @@ mod tests {
         let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 1, 2);
 
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
-        input.insert("A_38".to_string(), shares[1]);
+        input.insert("A_38".to_string(), shares[1].clone());
         // input.insert("B_53".to_string(), shares[2]);
         let reconstruct = recover_secret::<Bls24479Curve>(
             input,
@@ -269,13 +269,13 @@ mod tests {
 
         let secret = Bls24479Field::random(&mut rng);
         let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 5, 5);
-        let k = shares[0];
+        let k = shares[0].clone();
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
-        input.insert("A_40".to_string(), shares[1]);
-        input.insert("B_55".to_string(), shares[2]);
-        input.insert("C_70".to_string(), shares[3]);
-        input.insert("D_85".to_string(), shares[4]);
-        input.insert("E_100".to_string(), shares[5]);
+        input.insert("A_40".to_string(), shares[1].clone());
+        input.insert("B_55".to_string(), shares[2].clone());
+        input.insert("C_70".to_string(), shares[3].clone());
+        input.insert("D_85".to_string(), shares[4].clone());
+        input.insert("E_100".to_string(), shares[5].clone());
 
         let reconstruct = recover_secret::<Bls24479Curve>(
             input,

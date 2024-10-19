@@ -22,37 +22,37 @@ pub trait Inv {
 pub trait RefAdd<Rhs = Self> {
     type Output;
 
-    fn add(&self, x: &Rhs) -> Self::Output;
+    fn ref_add(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait RefMul<Rhs = Self> {
     type Output;
 
-    fn mul(&self, x: &Rhs) -> Self::Output;
+    fn ref_mul(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait RefSub<Rhs = Self> {
     type Output;
 
-    fn sub(&self, x: &Rhs) -> Self::Output;
+    fn ref_sub(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait RefDiv<Rhs = Self> {
     type Output;
 
-    fn div(&self, x: &Rhs) -> Self::Output;
+    fn ref_div(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait RefNeg {
     type Output;
 
-    fn neg(&self) -> Self::Output;
+    fn ref_neg(&self) -> Self::Output;
 }
 
 pub trait RefPow<Rhs = Self> {
     type Output;
 
-    fn pow(&self, x: &Rhs) -> Self::Output;
+    fn ref_pow(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait FieldWithOrder: Field {

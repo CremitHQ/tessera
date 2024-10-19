@@ -67,8 +67,8 @@ where
     {
         let alpha = T::Field::random(rng);
         let y = T::Field::random(rng);
-        let e_alpha = gp.e.pow(&alpha);
-        let gy = gp.g1.mul(&y);
+        let e_alpha = gp.e.ref_pow(&alpha);
+        let gy = gp.g1.ref_mul(&y);
 
         let pk = AuthorityPublicKey { e_alpha, gy };
         let mk = AuthorityMasterKey { alpha, y };
@@ -102,10 +102,10 @@ where
         attribute: S,
     ) -> Self {
         let t = T::Field::random(rng);
-        let k = gp.g2.mul(&mk.alpha);
-        let k = k + (T::hash_to_g2(gid.as_bytes()).mul(&mk.y));
-        let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()).mul(&t));
-        let kp = gp.g1.mul(&t);
+        let k = gp.g2.ref_mul(&mk.alpha);
+        let k = k + (T::hash_to_g2(gid.as_bytes()).ref_mul(&mk.y));
+        let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()).ref_mul(&t));
+        let kp = gp.g1.ref_mul(&t);
         Self { k, kp }
     }
 }
@@ -189,7 +189,7 @@ pub fn encrypt<T: PairingCurve>(
     let c0 = T::Gt::random(rng);
 
     let msg: Vec<u8> = c0.clone().into();
-    let c0 = c0.mul(&(gp.e.pow(&s)));
+    let c0 = c0.ref_mul(&(gp.e.ref_pow(&s)));
     let mut c1 = HashMap::new();
     let mut c2 = HashMap::new();
     let mut c3 = HashMap::new();
@@ -203,18 +203,18 @@ pub fn encrypt<T: PairingCurve>(
 
         let pk_attr = pks.get(authority_name);
         if let Some(authority_pk) = pk_attr {
-            let c1x = gp.e.pow(&s_share);
-            let c1x = c1x.mul(&(authority_pk.e_alpha.pow(&tx)));
+            let c1x = gp.e.ref_pow(&s_share);
+            let c1x = c1x.ref_mul(&(authority_pk.e_alpha.ref_pow(&tx)));
             c1.insert(attr_name.clone(), c1x);
 
-            let c2x = -(gp.g1.mul(&tx));
+            let c2x = -(gp.g1.ref_mul(&tx));
             c2.insert(attr_name.clone(), c2x);
 
             let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
-            let c3x = authority_pk.gy.mul(&tx) + gp.g1.mul(wx);
+            let c3x = authority_pk.gy.ref_mul(&tx) + gp.g1.ref_mul(wx);
             c3.insert(attr_name.clone(), c3x);
 
-            let c4x = T::hash_to_g2(attr.as_bytes()).mul(&tx);
+            let c4x = T::hash_to_g2(attr.as_bytes()).ref_mul(&tx);
             c4.insert(attr_name.clone(), c4x);
         }
     }
@@ -266,19 +266,20 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
         let base = T::pair(c2, k) * c1;
         let base = T::pair(c3, &h_user) * base;
         let base = T::pair(kp, c4) * base;
-        let base = base.pow(coeff);
+        let base = base.ref_pow(coeff);
 
-        b = b.mul(&base);
+        b = b.ref_mul(&base);
     }
 
     b = b.inverse();
 
-    let msg = ct.c0.mul(&b);
+    let msg = ct.c0.ref_mul(&b);
     let msg: Vec<u8> = msg.into();
     decrypt_symmetric(msg, &ct.ct)
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 mod tests {
     use rand::Rng as _;
     use rand_core::OsRng;
@@ -306,21 +307,21 @@ mod tests {
     #[once]
     fn authority_a(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
         let mut rng = rng();
-        AuthorityKeyPair::new(&mut rng, &gp, "A")
+        AuthorityKeyPair::new(&mut rng, gp, "A")
     }
 
     #[fixture]
     #[once]
     fn authority_b(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
         let mut rng = rng();
-        AuthorityKeyPair::new(&mut rng, &gp, "B")
+        AuthorityKeyPair::new(&mut rng, gp, "B")
     }
 
     #[fixture]
     #[once]
     fn authority_c(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
         let mut rng = rng();
-        AuthorityKeyPair::new(&mut rng, &gp, "C")
+        AuthorityKeyPair::new(&mut rng, gp, "C")
     }
 
     #[fixture]
@@ -332,8 +333,8 @@ mod tests {
     ) -> UserSecretKey<Bls24479Curve> {
         let mut rng = rng();
         let mut alice =
-            UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "alice", &["A@ADMIN", "A@INFRA", "A@LEVEL_3"]);
-        alice.add_attributes(&mut rng, &gp, &authority_b.mk, &["B@CTO"]);
+            UserSecretKey::new(&mut rng, gp, &authority_a.mk, "alice", &["A@ADMIN", "A@INFRA", "A@LEVEL_3"]);
+        alice.add_attributes(&mut rng, gp, &authority_b.mk, &["B@CTO"]);
         alice
     }
 
@@ -345,8 +346,8 @@ mod tests {
         authority_c: &AuthorityKeyPair<Bls24479Curve>,
     ) -> UserSecretKey<Bls24479Curve> {
         let mut rng = rng();
-        let mut bob = UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "bob", &["A@USER", "A@LEVEL_2"]);
-        bob.add_attributes(&mut rng, &gp, &authority_c.mk, &["C@CEO"]);
+        let mut bob = UserSecretKey::new(&mut rng, gp, &authority_a.mk, "bob", &["A@USER", "A@LEVEL_2"]);
+        bob.add_attributes(&mut rng, gp, &authority_c.mk, &["C@CEO"]);
         bob
     }
 
@@ -376,11 +377,11 @@ mod tests {
         pks.insert("C".to_string(), &authority_c.pk);
 
         let ciphertext =
-            encrypt(&mut rng, &gp, &pks, (policy.to_string(), PolicyLanguage::HumanPolicy), plaintext.as_bytes())
+            encrypt(&mut rng, gp, &pks, (policy.to_string(), PolicyLanguage::HumanPolicy), plaintext.as_bytes())
                 .unwrap();
 
-        let decrypt_by_alice = decrypt(&alice, &ciphertext);
-        let decrypt_by_bob = decrypt(&bob, &ciphertext);
+        let decrypt_by_alice = decrypt(alice, &ciphertext);
+        let decrypt_by_bob = decrypt(bob, &ciphertext);
         assert_eq!(decrypt_by_alice.is_ok(), expected_alice);
         assert_eq!(decrypt_by_bob.is_ok(), expected_bob);
         if expected_alice {
