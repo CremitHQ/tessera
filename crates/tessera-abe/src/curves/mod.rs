@@ -3,20 +3,56 @@ pub mod bls48556;
 
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::random::Random;
 
 pub trait Pow<Rhs = Self> {
     type Output;
 
-    fn pow(self, x: Rhs) -> Self::Output;
+    fn pow(self, x: &Rhs) -> Self::Output;
 }
 
 pub trait Inv {
     type Output;
 
     fn inverse(self) -> Self::Output;
+}
+
+pub trait RefAdd<Rhs = Self> {
+    type Output;
+
+    fn add(&self, x: &Rhs) -> Self::Output;
+}
+
+pub trait RefMul<Rhs = Self> {
+    type Output;
+
+    fn mul(&self, x: &Rhs) -> Self::Output;
+}
+
+pub trait RefSub<Rhs = Self> {
+    type Output;
+
+    fn sub(&self, x: &Rhs) -> Self::Output;
+}
+
+pub trait RefDiv<Rhs = Self> {
+    type Output;
+
+    fn div(&self, x: &Rhs) -> Self::Output;
+}
+
+pub trait RefNeg {
+    type Output;
+
+    fn neg(&self) -> Self::Output;
+}
+
+pub trait RefPow<Rhs = Self> {
+    type Output;
+
+    fn pow(&self, x: &Rhs) -> Self::Output;
 }
 
 pub trait FieldWithOrder: Field {
@@ -28,19 +64,21 @@ pub trait Field:
     Sized
     + Clone
     + PartialEq
-    + Rem<Output = Self>
+    + RefNeg<Output = Self>
     + Neg<Output = Self>
+    + RefAdd<Output = Self>
     + Add<Output = Self>
+    + RefSub<Output = Self>
     + Sub<Output = Self>
+    + RefMul<Output = Self>
     + Mul<Output = Self>
+    + RefDiv<Output = Self>
     + Div<Output = Self>
+    + Pow<Self, Output = Self>
+    + RefPow<Self, Output = Self>
     + Serialize
     + Random
 where
-    Self: for<'a> Add<&'a Self, Output = Self>,
-    Self: for<'a> Sub<&'a Self, Output = Self>,
-    Self: for<'a> Mul<&'a Self, Output = Self>,
-    Self: for<'a> Pow<&'a Self, Output = Self>,
     Self: for<'de> Deserialize<'de>,
 {
     type Chunk: TryFrom<usize> + Copy + Default;
@@ -51,9 +89,16 @@ where
     fn new_ints(x: &[Self::Chunk]) -> Self;
 }
 
-pub trait GroupG1: Clone + Sized + Neg<Output = Self> + Add<Output = Self> + Serialize
+pub trait GroupG1:
+    Clone
+    + Sized
+    + Neg<Output = Self>
+    + RefAdd<Output = Self>
+    + Add<Output = Self>
+    + RefMul<Self::Field, Output = Self>
+    + Mul<Self::Field, Output = Self>
+    + Serialize
 where
-    Self: for<'a> Mul<&'a Self::Field, Output = Self>,
     Self: for<'de> Deserialize<'de>,
 {
     type Field: Field;
@@ -62,9 +107,15 @@ where
     fn generator() -> Self;
 }
 
-pub trait GroupG2: Clone + Sized + Add<Output = Self> + Serialize
+pub trait GroupG2:
+    Clone
+    + Sized
+    + RefAdd<Output = Self>
+    + Add<Output = Self>
+    + RefMul<Self::Field, Output = Self>
+    + Mul<Self::Field, Output = Self>
+    + Serialize
 where
-    Self: for<'a> Mul<&'a Self::Field, Output = Self>,
     Self: for<'de> Deserialize<'de>,
 {
     type Field: Field;
@@ -73,12 +124,21 @@ where
     fn generator() -> Self;
 }
 
-pub trait GroupGt: Sized + Inv<Output = Self> + Clone + Serialize + Random + Into<Vec<u8>>
+pub trait GroupGt:
+    Sized
+    + Inv<Output = Self>
+    + RefMul<Output = Self>
+    + Mul<Output = Self>
+    + RefPow<Self::Field, Output = Self>
+    + Pow<Self::Field, Output = Self>
+    + Clone
+    + Serialize
+    + Random
+    + Into<Vec<u8>>
 where
-    for<'a> Self: Mul<&'a Self, Output = Self>,
-    for<'a> Self: Pow<&'a Self::Field, Output = Self>,
     Self: for<'de> Deserialize<'de>,
     Self: for<'a> From<&'a [u8]>,
+    Self: for<'a> Mul<&'a Self, Output = Self>,
 {
     type Field: Field;
 

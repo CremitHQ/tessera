@@ -10,7 +10,3 @@ doctest = false
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-
-[features]
-default = ["std"]
-std = []

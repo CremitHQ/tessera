@@ -25,6 +25,7 @@ static ALLOCATOR: LockedAllocator<FreeListAllocator> = LockedAllocator::new(Free
 pub fn bls_24479_encryption(data: &str, gp: JsValue, pks: JsValue, policy: JsValue) -> Result<JsValue, JsValue> {
     let global_params: GlobalParams<Bls24479Curve> = serde_wasm_bindgen::from_value(gp)?;
     let pks: HashMap<String, AuthorityPublicKey<Bls24479Curve>> = serde_wasm_bindgen::from_value(pks)?;
+    let pks = pks.iter().map(|(k, v)| (k.clone(), v)).collect::<HashMap<_, &_>>();
     let policy: (String, PolicyLanguage) = serde_wasm_bindgen::from_value(policy)?;
     let mut rng = MiraclRng::new();
     let mut seed = [0u8; 32];
