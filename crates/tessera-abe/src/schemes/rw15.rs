@@ -280,8 +280,6 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::BorrowMut, time::Instant};
-
     use rand::Rng as _;
     use rand_core::OsRng;
 
