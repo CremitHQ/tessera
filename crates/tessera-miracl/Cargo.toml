@@ -12,5 +12,4 @@ doctest = false
 serde = { workspace = true, features = ["derive"] }
 
 [features]
-default = ["std"]
 std = []

@@ -25,3 +25,4 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 rand = { workspace = true }
+rstest = { workspace = true }

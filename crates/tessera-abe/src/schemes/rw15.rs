@@ -1,5 +1,5 @@
 use crate::{
-    curves::FieldWithOrder,
+    curves::{FieldWithOrder, RefMul as _, RefPow as _},
     error::ABEError,
     random::Random,
     utils::{
@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use crate::curves::{Field, GroupG1, GroupG2, GroupGt, Inv as _, PairingCurve, Pow as _};
+use crate::curves::{Field, GroupG1, GroupG2, GroupGt, Inv as _, PairingCurve};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 use tessera_policy::pest::{parse, PolicyLanguage};
@@ -39,8 +39,8 @@ where
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AuthorityKeyPair<'a, T: PairingCurve> {
-    pub name: Cow<'a, str>,
+pub struct AuthorityKeyPair<T: PairingCurve> {
+    pub name: String,
     pub pk: AuthorityPublicKey<T>,
     pub mk: AuthorityMasterKey<T>,
 }
@@ -57,22 +57,24 @@ pub struct AuthorityMasterKey<T: PairingCurve> {
     pub y: T::Field,
 }
 
-impl<'a, T> AuthorityKeyPair<'a, T>
+impl<T> AuthorityKeyPair<T>
 where
     T: PairingCurve,
 {
-    pub fn new<S>(rng: &mut <T::Field as Random>::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<'a, T>
+    pub fn new<'a, S>(rng: &mut <T::Field as Random>::Rng, gp: &GlobalParams<T>, name: S) -> AuthorityKeyPair<T>
     where
         S: Into<Cow<'a, str>>,
     {
         let alpha = T::Field::random(rng);
         let y = T::Field::random(rng);
-        let e_alpha = gp.e.clone().pow(&alpha);
-        let gy = gp.g1.clone() * &y;
+        let e_alpha = gp.e.ref_pow(&alpha);
+        let gy = gp.g1.ref_mul(&y);
 
         let pk = AuthorityPublicKey { e_alpha, gy };
         let mk = AuthorityMasterKey { alpha, y };
-        Self { name: name.into(), pk, mk }
+        let name: Cow<'a, str> = name.into();
+
+        Self { name: name.into_owned(), pk, mk }
     }
 }
 
@@ -100,10 +102,10 @@ where
         attribute: S,
     ) -> Self {
         let t = T::Field::random(rng);
-        let k = gp.g2.clone() * &mk.alpha;
-        let k = k + (T::hash_to_g2(gid.as_bytes()) * &mk.y);
-        let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()) * &t);
-        let kp = gp.g1.clone() * &t;
+        let k = gp.g2.ref_mul(&mk.alpha);
+        let k = k + (T::hash_to_g2(gid.as_bytes()).ref_mul(&mk.y));
+        let k = k + (T::hash_to_g2(attribute.as_ref().as_bytes()).ref_mul(&t));
+        let kp = gp.g1.ref_mul(&t);
         Self { k, kp }
     }
 }
@@ -172,7 +174,7 @@ pub struct Ciphertext<T: PairingCurve> {
 pub fn encrypt<T: PairingCurve>(
     rng: &mut <T::Field as Random>::Rng,
     gp: &GlobalParams<T>,
-    pks: &HashMap<String, AuthorityPublicKey<T>>,
+    pks: &HashMap<String, &AuthorityPublicKey<T>>,
     policy: (String, PolicyLanguage),
     data: &[u8],
 ) -> Result<Ciphertext<T>, ABEError> {
@@ -185,9 +187,9 @@ pub fn encrypt<T: PairingCurve>(
     let w_shares = gen_shares_policy::<T>(rng, &w, &policy, None);
 
     let c0 = T::Gt::random(rng);
-    let msg: Vec<u8> = c0.clone().into();
 
-    let c0 = c0 * &(gp.e.clone().pow(&s));
+    let msg: Vec<u8> = c0.clone().into();
+    let c0 = c0.ref_mul(&(gp.e.ref_pow(&s)));
     let mut c1 = HashMap::new();
     let mut c2 = HashMap::new();
     let mut c3 = HashMap::new();
@@ -201,18 +203,18 @@ pub fn encrypt<T: PairingCurve>(
 
         let pk_attr = pks.get(authority_name);
         if let Some(authority_pk) = pk_attr {
-            let c1x = gp.e.clone().pow(&s_share);
-            let c1x = c1x * &(authority_pk.e_alpha.clone().pow(&tx));
+            let c1x = gp.e.ref_pow(&s_share);
+            let c1x = c1x.ref_mul(&(authority_pk.e_alpha.ref_pow(&tx)));
             c1.insert(attr_name.clone(), c1x);
 
-            let c2x = -(gp.g1.clone() * &tx);
+            let c2x = -(gp.g1.ref_mul(&tx));
             c2.insert(attr_name.clone(), c2x);
 
             let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
-            let c3x = (authority_pk.gy.clone() * &tx) + (gp.g1.clone() * wx);
+            let c3x = authority_pk.gy.ref_mul(&tx) + gp.g1.ref_mul(wx);
             c3.insert(attr_name.clone(), c3x);
 
-            let c4x = T::hash_to_g2(attr.as_bytes()) * &tx;
+            let c4x = T::hash_to_g2(attr.as_bytes()).ref_mul(&tx);
             c4.insert(attr_name.clone(), c4x);
         }
     }
@@ -262,76 +264,131 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
             .ok_or(ABEError::DecryptionError("Failed to get coefficent".to_string()))?;
 
         let base = T::pair(c2, k) * c1;
-        let base = base * &T::pair(c3, &h_user);
-        let base = base * &T::pair(kp, c4);
-        let base = base.pow(coeff);
+        let base = T::pair(c3, &h_user) * base;
+        let base = T::pair(kp, c4) * base;
+        let base = base.ref_pow(coeff);
 
-        b = b * &base;
+        b = b.ref_mul(&base);
     }
 
     b = b.inverse();
 
-    let c0 = ct.c0.clone();
-    let msg = c0 * &b;
+    let msg = ct.c0.ref_mul(&b);
     let msg: Vec<u8> = msg.into();
     decrypt_symmetric(msg, &ct.ct)
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 mod tests {
-    use std::time::Instant;
-
     use rand::Rng as _;
+    use rand_core::OsRng;
 
     use super::*;
     use crate::{curves::bls24479::Bls24479Curve, random::miracl::MiraclRng};
+    use rstest::*;
 
-    #[test]
-    fn encrypt_and_decrypt() {
+    fn rng() -> MiraclRng {
         let mut rng = MiraclRng::new();
-        let mut thread_rng = rand::thread_rng();
         let mut seed = [0u8; 128];
-        thread_rng.fill(&mut seed);
+        OsRng.fill(&mut seed);
         rng.seed(&seed);
+        rng
+    }
 
-        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+    #[fixture]
+    #[once]
+    fn gp() -> GlobalParams<Bls24479Curve> {
+        let mut rng = rng();
+        GlobalParams::<Bls24479Curve>::new(&mut rng)
+    }
 
-        println!("Global parameters generated.");
-        let authority_a = AuthorityKeyPair::new(&mut rng, &gp, "Aauthority");
-        println!("Authority A generated.");
-        let authority_b = AuthorityKeyPair::new(&mut rng, &gp, "Bauthority");
-        println!("Authority B generated.");
+    #[fixture]
+    #[once]
+    fn authority_a(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+        let mut rng = rng();
+        AuthorityKeyPair::new(&mut rng, gp, "A")
+    }
 
+    #[fixture]
+    #[once]
+    fn authority_b(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+        let mut rng = rng();
+        AuthorityKeyPair::new(&mut rng, gp, "B")
+    }
+
+    #[fixture]
+    #[once]
+    fn authority_c(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+        let mut rng = rng();
+        AuthorityKeyPair::new(&mut rng, gp, "C")
+    }
+
+    #[fixture]
+    #[once]
+    fn alice(
+        gp: &GlobalParams<Bls24479Curve>,
+        authority_a: &AuthorityKeyPair<Bls24479Curve>,
+        authority_b: &AuthorityKeyPair<Bls24479Curve>,
+    ) -> UserSecretKey<Bls24479Curve> {
+        let mut rng = rng();
         let mut alice =
-            UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "alice", &["Aauthority@ADMIN", "Aauthority@GOD"]);
-        println!("Alice generated.");
+            UserSecretKey::new(&mut rng, gp, &authority_a.mk, "alice", &["A@ADMIN", "A@INFRA", "A@LEVEL_3"]);
+        alice.add_attributes(&mut rng, gp, &authority_b.mk, &["B@CTO"]);
+        alice
+    }
 
-        alice.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
-        println!("Alice added attributes.");
+    #[fixture]
+    #[once]
+    fn bob(
+        gp: &GlobalParams<Bls24479Curve>,
+        authority_a: &AuthorityKeyPair<Bls24479Curve>,
+        authority_c: &AuthorityKeyPair<Bls24479Curve>,
+    ) -> UserSecretKey<Bls24479Curve> {
+        let mut rng = rng();
+        let mut bob = UserSecretKey::new(&mut rng, gp, &authority_a.mk, "bob", &["A@USER", "A@LEVEL_2"]);
+        bob.add_attributes(&mut rng, gp, &authority_c.mk, &["C@CEO"]);
+        bob
+    }
 
-        // let alice_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "alice", &["B_authority@CEO"]);
-
-        let mut bob = UserSecretKey::new(&mut rng, &gp, &authority_a.mk, "bob", &["Aauthority@USER"]);
-        println!("Bob generated.");
-        bob.add_attributes(&mut rng, &gp, &authority_b.mk, &["Bauthority@CTO"]);
-        println!("Bob added attributes.");
-        // let bob_by_authority_b = UserSecretKey::new(&mut rng, &gp, &authority_b.mk, "bob", &["B_authority@CTO"]);
-
-        let plaintext = "THIS IS SECRET MESSAGE";
-        let policy = r#""Aauthority@GOD" and "Bauthority@CTO""#;
+    #[rstest]
+    #[case("THIS IS SECRET MESSAGE!", r#""A@ADMIN" and "B@CTO""#, true, false)]
+    #[case("A~l=GG>APhr0/ML3*nFo#v<#y,=xa+", r#""A@ADMIN" or "C@CEO""#, true, true)]
+    #[case("test_message", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
+    #[case("test_message", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
+    #[case("test_message", r#""C@CEO""#, false, true)]
+    fn encrypt_and_decrypt(
+        gp: &GlobalParams<Bls24479Curve>,
+        authority_a: &AuthorityKeyPair<Bls24479Curve>,
+        authority_b: &AuthorityKeyPair<Bls24479Curve>,
+        authority_c: &AuthorityKeyPair<Bls24479Curve>,
+        alice: &UserSecretKey<Bls24479Curve>,
+        bob: &UserSecretKey<Bls24479Curve>,
+        #[case] plaintext: &str,
+        #[case] policy: &str,
+        #[case] expected_alice: bool,
+        #[case] expected_bob: bool,
+    ) {
+        let mut rng = rng();
 
         let mut pks = HashMap::new();
-        pks.insert("Aauthority".to_string(), authority_a.pk);
-        pks.insert("Bauthority".to_string(), authority_b.pk);
-        let t = Instant::now();
-        let ciphertext =
-            encrypt(&mut rng, &gp, &pks, (policy.to_string(), PolicyLanguage::HumanPolicy), plaintext.as_bytes())
-                .unwrap();
-        println!("Time taken to encrypt: {:?}", t.elapsed());
-        println!("Ciphertext generated.");
+        pks.insert("A".to_string(), &authority_a.pk);
+        pks.insert("B".to_string(), &authority_b.pk);
+        pks.insert("C".to_string(), &authority_c.pk);
 
-        let decrypt_text = decrypt(&alice, &ciphertext).unwrap();
-        assert_eq!(plaintext.as_bytes(), decrypt_text.as_slice());
-        println!("Decrypted text: {:?}", String::from_utf8(decrypt_text.clone()).unwrap());
+        let ciphertext =
+            encrypt(&mut rng, gp, &pks, (policy.to_string(), PolicyLanguage::HumanPolicy), plaintext.as_bytes())
+                .unwrap();
+
+        let decrypt_by_alice = decrypt(alice, &ciphertext);
+        let decrypt_by_bob = decrypt(bob, &ciphertext);
+        assert_eq!(decrypt_by_alice.is_ok(), expected_alice);
+        assert_eq!(decrypt_by_bob.is_ok(), expected_bob);
+        if expected_alice {
+            assert_eq!(decrypt_by_alice.unwrap(), plaintext.as_bytes());
+        }
+        if expected_bob {
+            assert_eq!(decrypt_by_bob.unwrap(), plaintext.as_bytes());
+        }
     }
 }
