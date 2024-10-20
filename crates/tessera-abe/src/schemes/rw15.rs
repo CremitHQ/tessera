@@ -164,11 +164,16 @@ where
 pub struct Ciphertext<T: PairingCurve> {
     pub policy: (String, PolicyLanguage),
     pub c0: T::Gt,
-    pub c1: HashMap<String, T::Gt>,
-    pub c2: HashMap<String, T::G1>,
-    pub c3: HashMap<String, T::G1>,
-    pub c4: HashMap<String, T::G2>,
+    pub cx: HashMap<String, Cx<T>>,
     pub ct: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Cx<T: PairingCurve> {
+    pub c1: T::Gt,
+    pub c2: T::G1,
+    pub c3: T::G1,
+    pub c4: T::G2,
 }
 
 pub fn encrypt<T: PairingCurve>(
@@ -190,10 +195,7 @@ pub fn encrypt<T: PairingCurve>(
 
     let msg: Vec<u8> = c0.clone().into();
     let c0 = c0.ref_mul(&(gp.e.ref_pow(&s)));
-    let mut c1 = HashMap::new();
-    let mut c2 = HashMap::new();
-    let mut c3 = HashMap::new();
-    let mut c4 = HashMap::new();
+    let mut cx = HashMap::new();
 
     for (attr_name, s_share) in s_shares.into_iter() {
         let tx = T::Field::random(rng);
@@ -202,25 +204,19 @@ pub fn encrypt<T: PairingCurve>(
         let attr = remove_index(&attr_name);
 
         let pk_attr = pks.get(authority_name);
+        let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
         if let Some(authority_pk) = pk_attr {
             let c1x = gp.e.ref_pow(&s_share);
             let c1x = c1x.ref_mul(&(authority_pk.e_alpha.ref_pow(&tx)));
-            c1.insert(attr_name.clone(), c1x);
-
             let c2x = -(gp.g1.ref_mul(&tx));
-            c2.insert(attr_name.clone(), c2x);
-
-            let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
             let c3x = authority_pk.gy.ref_mul(&tx) + gp.g1.ref_mul(wx);
-            c3.insert(attr_name.clone(), c3x);
-
             let c4x = T::hash_to_g2(attr.as_bytes()).ref_mul(&tx);
-            c4.insert(attr_name.clone(), c4x);
+            cx.insert(attr_name.clone(), Cx { c1: c1x, c2: c2x, c3: c3x, c4: c4x });
         }
     }
 
     let ct = encrypt_symmetric::<T, _>(rng, msg, data)?;
-    Ok(Ciphertext { policy: (policy_name, language), c0, c1, c2, c3, c4, ct })
+    Ok(Ciphertext { policy: (policy_name, language), c0, cx, ct })
 }
 
 pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
@@ -245,10 +241,7 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
     let mut b = T::Gt::one();
 
     for (attr, attr_and_index) in matched_nodes {
-        let c1 = ct.c1.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c1".to_string()))?;
-        let c2 = ct.c2.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c2".to_string()))?;
-        let c3 = ct.c3.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c3".to_string()))?;
-        let c4 = ct.c4.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get c4".to_string()))?;
+        let cx = ct.cx.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get cx".to_string()))?;
         let k = &sk
             .inner
             .get(&attr)
@@ -263,9 +256,9 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
             .get(&attr_and_index)
             .ok_or(ABEError::DecryptionError("Failed to get coefficent".to_string()))?;
 
-        let base = T::pair(c2, k) * c1;
-        let base = T::pair(c3, &h_user) * base;
-        let base = T::pair(kp, c4) * base;
+        let base = T::pair(&cx.c2, k) * &cx.c1;
+        let base = T::pair(&cx.c3, &h_user) * base;
+        let base = T::pair(kp, &cx.c4) * base;
         let base = base.ref_pow(coeff);
 
         b = b.ref_mul(&base);
