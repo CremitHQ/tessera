@@ -169,4 +169,42 @@ mod test {
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "some error");
     }
+
+    #[tokio::test]
+    async fn when_getting_single_secret_data_is_successful_then_secret_usecase_returns_secret_ok() {
+        let identifier = "/test/path/TEST_KEY";
+        let key = "TEST_KEY";
+        let path = "/test/path";
+        let applied_policy_ids = [
+            Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap(),
+            Ulid::from_str("01JACZ1FG1RYABQW2KB6YSEZ84").unwrap(),
+        ];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get().withf(|_, identifier| identifier == identifier).times(1).returning(
+            move |_, _| {
+                Ok(SecretEntry {
+                    key: key.to_owned(),
+                    path: path.to_owned(),
+                    reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
+                    writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
+                })
+            },
+        );
+
+        let secret_usecase =
+            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = secret_usecase.get(identifier).await.expect("creating workspace should be successful");
+
+        assert_eq!(result.key, key);
+        assert_eq!(result.path, path);
+        assert_eq!(result.reader_policy_ids[0], applied_policy_ids[0]);
+        assert_eq!(result.writer_policy_ids[0], applied_policy_ids[1]);
+    }
 }
