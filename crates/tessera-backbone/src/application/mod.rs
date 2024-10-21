@@ -15,8 +15,9 @@ use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
 use self::secret::{SecretUseCase, SecretUseCaseImpl};
 
-pub mod secret;
-pub mod workspace;
+pub(crate) mod parameter;
+pub(crate) mod secret;
+pub(crate) mod workspace;
 
 pub(crate) struct Application {
     database_connection: Arc<DatabaseConnection>,
