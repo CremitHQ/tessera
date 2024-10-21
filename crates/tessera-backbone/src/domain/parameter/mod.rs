@@ -4,7 +4,7 @@ use chrono::Utc;
 use mockall::automock;
 use rand::{rngs::OsRng, Rng};
 use sea_orm::{
-    ActiveModelTrait as _, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait,
+    ActiveModelTrait as _, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait,
     QueryFilter,
 };
 use ulid::Ulid;
