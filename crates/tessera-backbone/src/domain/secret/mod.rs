@@ -48,7 +48,7 @@ fn parse_identifier(full_path: &str) -> Option<(String, String)> {
     let mut capture = IDENTIFIER_PATTERN.captures_iter(full_path);
     let (_, [path, key]) = capture.next().map(|c| c.extract())?;
 
-    return Some((path.to_owned(), key.to_owned()));
+    Some((path.to_owned(), key.to_owned()))
 }
 
 pub(crate) struct PostgresSecretService {}
