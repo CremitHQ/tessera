@@ -53,6 +53,10 @@ pub(crate) struct SecretData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Invalid secret identifier({entered_identifier}) is entered")]
+    InvalidSecretIdentifier { entered_identifier: String },
+    #[error("Secret Not exists")]
+    SecretNotExists,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -67,6 +71,10 @@ impl From<domain::secret::Error> for Error {
     fn from(value: domain::secret::Error) -> Self {
         match value {
             domain::secret::Error::Anyhow(e) => Self::Anyhow(e),
+            domain::secret::Error::InvalidSecretIdentifier { entered_identifier } => {
+                Error::InvalidSecretIdentifier { entered_identifier }
+            }
+            domain::secret::Error::SecretNotExists => Error::SecretNotExists,
         }
     }
 }

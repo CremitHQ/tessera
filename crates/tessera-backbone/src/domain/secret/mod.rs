@@ -1,6 +1,8 @@
 use async_trait::async_trait;
+use lazy_static::lazy_static;
 #[cfg(test)]
 use mockall::automock;
+use regex::Regex;
 use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter};
 use ulid::Ulid;
 
@@ -13,10 +15,40 @@ pub(crate) struct SecretEntry {
     pub writer_policy_ids: Vec<Ulid>,
 }
 
+impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry {
+    fn from((metadata, applied_policies): (secret_metadata::Model, Vec<applied_policy::Model>)) -> Self {
+        let mut reader_policy_ids: Vec<Ulid> = vec![];
+        let mut writer_policy_ids: Vec<Ulid> = vec![];
+
+        for applied_policy in applied_policies {
+            match applied_policy.r#type {
+                applied_policy::PolicyApplicationType::Read => reader_policy_ids.push(applied_policy.id.inner()),
+                applied_policy::PolicyApplicationType::Write => writer_policy_ids.push(applied_policy.id.inner()),
+            }
+        }
+
+        SecretEntry { key: metadata.key, path: metadata.path, reader_policy_ids, writer_policy_ids }
+    }
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait SecretService {
     async fn list(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
+
+    async fn get(&self, transaction: &DatabaseTransaction, full_path: &str) -> Result<SecretEntry>;
+}
+
+lazy_static! {
+    static ref IDENTIFIER_PATTERN: Regex =
+        Regex::new(r"(.*)/([^/]+)").expect("IDENTIFIER_PATTERN should be compiled successfully");
+}
+
+fn parse_identifier(full_path: &str) -> Option<(String, String)> {
+    let mut capture = IDENTIFIER_PATTERN.captures_iter(full_path);
+    let (_, [path, key]) = capture.next().map(|c| c.extract())?;
+
+    return Some((path.to_owned(), key.to_owned()));
 }
 
 pub(crate) struct PostgresSecretService {}
@@ -30,33 +62,34 @@ impl SecretService for PostgresSecretService {
             .await?;
         let applied_policies = metadata.load_many(applied_policy::Entity, transaction).await?;
 
-        Ok(metadata
-            .into_iter()
-            .zip(applied_policies.into_iter())
-            .map(|(metadata, applied_policies)| {
-                let mut reader_policy_ids: Vec<Ulid> = vec![];
-                let mut writer_policy_ids: Vec<Ulid> = vec![];
+        Ok(metadata.into_iter().zip(applied_policies.into_iter()).map(SecretEntry::from).collect())
+    }
 
-                // TODO: get cipher from storage
-                for applied_policy in applied_policies {
-                    match applied_policy.r#type {
-                        applied_policy::PolicyApplicationType::Read => {
-                            reader_policy_ids.push(applied_policy.id.inner())
-                        }
-                        applied_policy::PolicyApplicationType::Write => {
-                            writer_policy_ids.push(applied_policy.id.inner())
-                        }
-                    }
-                }
+    async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry> {
+        let (path, key) = parse_identifier(secret_identifier)
+            .ok_or_else(|| Error::InvalidSecretIdentifier { entered_identifier: secret_identifier.to_owned() })?;
 
-                SecretEntry { key: metadata.key, path: metadata.path, reader_policy_ids, writer_policy_ids }
-            })
-            .collect())
+        let metadata = secret_metadata::Entity::find()
+            .filter(secret_metadata::Column::Path.eq(path))
+            .filter(secret_metadata::Column::Key.eq(key))
+            .one(transaction)
+            .await?
+            .ok_or_else(|| Error::SecretNotExists)?;
+        let applied_policies = applied_policy::Entity::find()
+            .filter(applied_policy::Column::SecretMetadataId.eq(metadata.id.to_owned()))
+            .all(transaction)
+            .await?;
+
+        Ok(SecretEntry::from((metadata, applied_policies)))
     }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Invalid secret identifier({entered_identifier}) is entered")]
+    InvalidSecretIdentifier { entered_identifier: String },
+    #[error("Secret Not exists")]
+    SecretNotExists,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
