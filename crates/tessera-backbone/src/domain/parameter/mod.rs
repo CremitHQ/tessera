@@ -82,3 +82,68 @@ impl From<sea_orm::DbErr> for Error {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+
+    use chrono::Utc;
+    use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
+    use tessera_abe::{
+        curves::{bls24479::Bls24479Curve, PairingCurve},
+        schemes::rw15::GlobalParams,
+    };
+    use ulid::Ulid;
+
+    use super::{ParameterService, PostgresParameterService};
+    
+
+    #[tokio::test]
+    async fn when_insert_is_successful_then_parameter_service_returns_ok() {
+        use crate::database::parameter::Model;
+        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
+        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+        let value = serde_json::to_value(&gp).expect("serializing global params should be successful");
+
+        let now = Utc::now();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
+            .append_query_results([vec![Model {
+                id: Ulid::new().into(),
+                version: 1,
+                value,
+                created_at: now,
+                updated_at: now,
+            }]]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let parameter_service = PostgresParameterService;
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = parameter_service.create(&transaction).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        result.expect("creating workspace should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_insert_is_failed_then_parameter_service_returns_error() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let parameter_service = PostgresParameterService;
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = parameter_service.create(&transaction).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
+    }
+}
