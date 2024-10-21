@@ -96,7 +96,6 @@ mod test {
     use ulid::Ulid;
 
     use super::{ParameterService, PostgresParameterService};
-    
 
     #[tokio::test]
     async fn when_insert_is_successful_then_parameter_service_returns_ok() {
