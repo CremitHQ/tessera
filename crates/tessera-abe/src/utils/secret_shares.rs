@@ -128,11 +128,11 @@ pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize
     shares
 }
 
-pub fn calc_pruned(
+pub fn calc_pruned<'a>(
     attr: &Vec<String>,
     policy_value: &PolicyValue,
     policy_type: Option<PolicyType>,
-) -> Result<(bool, Vec<(String, String)>), ABEError> {
+) -> Result<(bool, Vec<(String, String)>), ABEError<'a>> {
     let mut matched_nodes: Vec<(String, String)> = vec![];
     match policy_value {
         PolicyValue::Object(obj) => match obj.0 {
@@ -154,7 +154,7 @@ pub fn calc_pruned(
                             }
                         }
                     } else {
-                        return Err(ABEError::InvalidPolicy("AND with just a single child.".to_string()));
+                        return Err(ABEError::InvalidPolicy("AND with just a single child.".into()));
                     }
                     if !policy_match {
                         matched_nodes = vec![];
@@ -174,10 +174,10 @@ pub fn calc_pruned(
                         }
                         Ok((policy_match, matched_nodes))
                     } else {
-                        Err(ABEError::InvalidPolicy("OR with just a single child.".to_string()))
+                        Err(ABEError::InvalidPolicy("OR with just a single child.".into()))
                     }
                 }
-                _ => Err(ABEError::InvalidPolicy("unknown array type!".to_string())),
+                _ => Err(ABEError::InvalidPolicy("unknown array type!".into())),
             }
         }
         PolicyValue::String(node) => {

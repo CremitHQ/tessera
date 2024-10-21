@@ -1,8 +1,10 @@
+use std::borrow::Cow;
+
 use tessera_policy::error::PolicyError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ABEError {
+pub enum ABEError<'a> {
     #[error("Policy error: {0}")]
     PolicyError(#[from] PolicyError),
 
@@ -10,16 +12,16 @@ pub enum ABEError {
     PolicyNotSatisfied,
 
     #[error("Invalid Policy: {0}")]
-    InvalidPolicy(String),
+    InvalidPolicy(Cow<'a, str>),
 
     #[error("AES-GCM module error: {0}")]
     AESGCMError(#[from] AESGCMError),
 
     #[error("ABE encryption error: {0}")]
-    EncryptionError(String),
+    EncryptionError(Cow<'a, str>),
 
     #[error("ABE decryption error: {0}")]
-    DecryptionError(String),
+    DecryptionError(Cow<'a, str>),
 }
 
 #[derive(Error, Debug)]
