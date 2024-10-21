@@ -15,6 +15,7 @@ use crate::{
 #[async_trait]
 pub(crate) trait SecretUseCase {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>>;
+    async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -41,6 +42,14 @@ impl SecretUseCase for SecretUseCaseImpl {
         transaction.commit().await?;
 
         Ok(secrets.into_iter().map(SecretData::from).collect())
+    }
+
+    async fn get(&self, secret_identifier: &str) -> Result<SecretData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        transaction.commit().await?;
+
+        Ok(secret.into())
     }
 }
 

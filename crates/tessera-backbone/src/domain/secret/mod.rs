@@ -36,7 +36,7 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry 
 pub(crate) trait SecretService {
     async fn list(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
 
-    async fn get(&self, transaction: &DatabaseTransaction, full_path: &str) -> Result<SecretEntry>;
+    async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
 }
 
 lazy_static! {
