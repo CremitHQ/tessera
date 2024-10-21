@@ -36,6 +36,7 @@ zeroize = "1.8.1"
 tessera-miracl = { path = "crates/tessera-miracl" }
 tessera-policy = { path = "crates/tessera-policy" }
 tessera-abe = { path = "crates/tessera-abe" }
+tessera-storage = { path = "crates/tessera-storage" }
 sea-orm = { version = "1.1", features = [
     "runtime-tokio-native-tls",
     "sqlx-postgres",
