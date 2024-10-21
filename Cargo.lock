@@ -3424,10 +3424,13 @@ dependencies = [
  "clap",
  "config",
  "serde",
+ "tessera-abe",
+ "tessera-storage",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "xdg",
+ "zeroize",
 ]
 
 [[package]]
@@ -3445,9 +3448,11 @@ dependencies = [
  "config",
  "maplit",
  "mockall",
+ "rand",
  "sea-orm",
  "serde",
  "serde_json",
+ "tessera-abe",
  "thiserror",
  "tokio",
  "tracing",
