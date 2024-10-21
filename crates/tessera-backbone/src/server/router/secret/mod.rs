@@ -22,7 +22,7 @@ mod response;
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/workspaces/:workspace_name/secrets", get(handle_get_secrets))
-        .route("/workspaces/:workspace_name/secrets/:secret_identifier", get(handle_get_secret))
+        .route("/workspaces/:workspace_name/secrets/*secret_identifier", get(handle_get_secret))
         .with_state(application)
 }
 
@@ -49,7 +49,7 @@ async fn handle_get_secret(
     Path((workspace_name, secret_identifier)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
-    let secret = application.with_workspace(&workspace_name).secret().get(&secret_identifier).await?;
+    let secret = application.with_workspace(&workspace_name).secret().get(&format!("/{secret_identifier}")).await?;
 
     Ok(Json(SecretResponse::from(secret)))
 }
