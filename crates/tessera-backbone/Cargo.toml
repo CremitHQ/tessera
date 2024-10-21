@@ -29,6 +29,7 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 tessera-abe = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }

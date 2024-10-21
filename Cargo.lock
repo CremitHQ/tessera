@@ -3448,6 +3448,7 @@ dependencies = [
  "config",
  "maplit",
  "mockall",
+ "rand",
  "sea-orm",
  "serde",
  "serde_json",
