@@ -18,18 +18,18 @@ impl<'a> FileStorage<'a> {
 }
 
 #[derive(Error, Debug)]
-pub enum FileStorageError {
+pub enum FileStorageError<'a> {
     #[error("File Storage IO Error: {0}")]
     Io(#[from] std::io::Error),
     #[error("File Storage Path Error: {0}")]
-    Path(String),
+    Path(Cow<'a, str>),
 }
 
-impl Storage for FileStorage<'_> {
+impl<'a> Storage for FileStorage<'a> {
     type Key = str;
     type Value = [u8];
 
-    type StorageError = FileStorageError;
+    type StorageError = FileStorageError<'a>;
 
     async fn get(&self, key: &Self::Key) -> Result<<Self::Value as ToOwned>::Owned, Self::StorageError> {
         let path = self.path.clone().into_owned().join(key);
@@ -39,7 +39,7 @@ impl Storage for FileStorage<'_> {
 
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError> {
         let path = self.path.clone().into_owned().join(key);
-        let parent = path.parent().ok_or(FileStorageError::Path("No parent directory".to_string()))?;
+        let parent = path.parent().ok_or(FileStorageError::Path("No parent directory".into()))?;
         fs::create_dir_all(parent).await?;
         fs::write(path, value).await?;
         Ok(())

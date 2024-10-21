@@ -453,9 +453,9 @@ impl Inv for Gt {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Bls24479Curve;
+pub struct Bls48556Curve;
 
-impl PairingCurve for Bls24479Curve {
+impl PairingCurve for Bls48556Curve {
     type Rng = MiraclRng;
     type Field = Bls48556Field;
     type G1 = G1;

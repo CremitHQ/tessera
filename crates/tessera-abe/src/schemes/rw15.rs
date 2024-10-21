@@ -176,13 +176,13 @@ pub struct Cx<T: PairingCurve> {
     pub c4: T::G2,
 }
 
-pub fn encrypt<T: PairingCurve>(
+pub fn encrypt<'a, T: PairingCurve>(
     rng: &mut <T::Field as Random>::Rng,
     gp: &GlobalParams<T>,
     pks: &HashMap<String, &AuthorityPublicKey<T>>,
     policy: (String, PolicyLanguage),
     data: &[u8],
-) -> Result<Ciphertext<T>, ABEError> {
+) -> Result<Ciphertext<T>, ABEError<'a>> {
     let (policy_name, language) = policy;
     let policy = parse(&policy_name, language)?;
     let s = T::Field::random_within_order(rng);
@@ -200,11 +200,11 @@ pub fn encrypt<T: PairingCurve>(
     for (attr_name, s_share) in s_shares.into_iter() {
         let tx = T::Field::random(rng);
         let authority_name =
-            attr_name.split_once("@").ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?.0;
+            attr_name.split_once("@").ok_or(ABEError::EncryptionError("Invalid attribute name".into()))?.0;
         let attr = remove_index(&attr_name);
 
         let pk_attr = pks.get(authority_name);
-        let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".to_string()))?;
+        let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".into()))?;
         if let Some(authority_pk) = pk_attr {
             let c1x = gp.e.ref_pow(&s_share);
             let c1x = c1x.ref_mul(&(authority_pk.e_alpha.ref_pow(&tx)));
@@ -219,7 +219,7 @@ pub fn encrypt<T: PairingCurve>(
     Ok(Ciphertext { policy: (policy_name, language), c0, cx, ct })
 }
 
-pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
+pub fn decrypt<'a, T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError<'a>> {
     let (policy_name, lang) = ct.policy.clone();
     let policy = parse(&policy_name, lang)?;
 
@@ -241,20 +241,12 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
     let mut b = T::Gt::one();
 
     for (attr, attr_and_index) in matched_nodes {
-        let cx = ct.cx.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get cx".to_string()))?;
-        let k = &sk
-            .inner
-            .get(&attr)
-            .ok_or(ABEError::DecryptionError("Failed to get k from user secret key".to_string()))?
-            .k;
-        let kp = &sk
-            .inner
-            .get(&attr)
-            .ok_or(ABEError::DecryptionError("Failed to get kp from user secret key".to_string()))?
-            .kp;
-        let coeff = coefficients
-            .get(&attr_and_index)
-            .ok_or(ABEError::DecryptionError("Failed to get coefficent".to_string()))?;
+        let cx = ct.cx.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get cx".into()))?;
+        let k = &sk.inner.get(&attr).ok_or(ABEError::DecryptionError("Failed to get k from user secret key".into()))?.k;
+        let kp =
+            &sk.inner.get(&attr).ok_or(ABEError::DecryptionError("Failed to get kp from user secret key".into()))?.kp;
+        let coeff =
+            coefficients.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get coefficent".into()))?;
 
         let base = T::pair(&cx.c2, k) * &cx.c1;
         let base = T::pair(&cx.c3, &h_user) * base;

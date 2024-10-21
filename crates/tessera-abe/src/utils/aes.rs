@@ -7,11 +7,11 @@ use crate::error::{ABEError, AESGCMError};
 use std::convert::TryInto;
 
 /// Key Encapsulation Mechanism (AES-256 Encryption Function)
-pub fn encrypt_symmetric<T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
+pub fn encrypt_symmetric<'a, T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
     rng: &mut T::Rng,
     msg: G,
     data: &[u8],
-) -> Result<Vec<u8>, ABEError> {
+) -> Result<Vec<u8>, ABEError<'a>> {
     // 256bit key hashed/derived from _msg G
     let kdf = kdf(msg);
     let key = Key::<Aes256Gcm>::from_slice(kdf.as_slice());
@@ -28,7 +28,7 @@ pub fn encrypt_symmetric<T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
 }
 
 /// Key Encapsulation Mechanism (AES-256 Decryption Function)
-pub fn decrypt_symmetric<G: std::convert::Into<Vec<u8>>>(msg: G, nonce_ct: &[u8]) -> Result<Vec<u8>, ABEError> {
+pub fn decrypt_symmetric<'a, G: std::convert::Into<Vec<u8>>>(msg: G, nonce_ct: &[u8]) -> Result<Vec<u8>, ABEError<'a>> {
     let ciphertext = nonce_ct.to_vec().split_off(12); // 12*u8 = 96 Bit
     let nonce_vec: [u8; 12] =
         nonce_ct[..12].try_into().map_err(|_| ABEError::AESGCMError(AESGCMError::NonceSizeMismatch))?;
