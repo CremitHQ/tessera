@@ -15,6 +15,7 @@ use crate::{
 #[async_trait]
 pub(crate) trait ParameterUseCase {
     async fn create(&self) -> Result<ParameterData>;
+    async fn get(&self) -> Result<ParameterData>;
 }
 
 pub(crate) struct ParameterUseCaseImpl {
@@ -42,6 +43,14 @@ impl ParameterUseCase for ParameterUseCaseImpl {
 
         Ok(parameter.into())
     }
+
+    async fn get(&self) -> Result<ParameterData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let parameter = self.parameter_service.get(&transaction).await.map_err(Error::GetParameterFailed)?;
+        transaction.commit().await?;
+
+        Ok(parameter.into())
+    }
 }
 
 pub(crate) struct ParameterData {
@@ -53,6 +62,10 @@ pub(crate) struct ParameterData {
 pub(crate) enum Error {
     #[error("Failed to create parameter: {0}")]
     CreateParameterFailed(#[source] domain::parameter::Error),
+
+    #[error("Failed to get parameter: {0}")]
+    GetParameterFailed(#[source] domain::parameter::Error),
+
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -140,6 +153,57 @@ mod test {
         );
 
         let result = parameter_usecase.create().await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn when_getting_parameter_data_is_successful_then_parameter_usecase_returns_parameter_ok() {
+        let workspace_name = "workspace".to_string();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
+        let mut mock_parameter_service = MockParameterService::new();
+        mock_parameter_service
+            .expect_get()
+            .times(1)
+            .returning(move |_| Ok(Parameter { version: 1, value: GlobalParams::<Bls24479Curve>::new(&mut rng) }));
+
+        let parameter_usecase = ParameterUseCaseImpl::new(
+            workspace_name.clone(),
+            mock_connection.clone(),
+            Arc::new(mock_parameter_service),
+        );
+
+        let result = parameter_usecase.get().await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn when_getting_parameter_data_is_failed_then_parameter_usecase_returns_parameter_err() {
+        let workspace_name = "workspace".to_string();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_parameter_service = MockParameterService::new();
+        mock_parameter_service
+            .expect_get()
+            .times(1)
+            .returning(move |_| Err(crate::domain::parameter::Error::Anyhow(anyhow::anyhow!(""))));
+
+        let parameter_usecase = ParameterUseCaseImpl::new(
+            workspace_name.clone(),
+            mock_connection.clone(),
+            Arc::new(mock_parameter_service),
+        );
+
+        let result = parameter_usecase.get().await;
 
         assert!(result.is_err());
     }

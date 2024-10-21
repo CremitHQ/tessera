@@ -4,7 +4,7 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     response::IntoResponse,
-    routing::post,
+    routing::{get, post},
     Json, Router,
 };
 
@@ -19,7 +19,21 @@ use self::response::ParameterResponse;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/workspaces/:workspace_name/parameter", post(handle_create_parameter)).with_state(application)
+    Router::new()
+        .route("/workspaces/:workspace_name/parameter", get(handle_get_parameter))
+        .route("/workspaces/:workspace_name/parameter", post(handle_create_parameter))
+        .with_state(application)
+}
+
+#[debug_handler]
+async fn handle_get_parameter(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, application::parameter::Error> {
+    let parameter = application.with_workspace(&workspace_name).parameter().get().await?;
+    let response: ParameterResponse = parameter.into();
+
+    Ok(Json(response))
 }
 
 #[debug_handler]
