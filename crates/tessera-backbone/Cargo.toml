@@ -8,7 +8,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -18,11 +18,11 @@ xdg = "2.5.2"
 config = "0.14.0"
 serde = { workspace = true }
 serde_json = { workspace = true }
-sea-orm = { workspace = true, features = [ "mock" ] }
+sea-orm = { workspace = true, features = ["mock"] }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
-ulid = { workspace = true, features = [ "serde" ] }
+ulid = { workspace = true, features = ["serde"] }
 url = { workspace = true }
 urlencoding = { workspace = true }
 thiserror = { workspace = true }
@@ -30,6 +30,7 @@ async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 regex = { workspace = true }
 lazy_static = { workspace = true }
+tessera-abe = { workspace = true }
 
 [dev-dependencies]
 mockall = { workspace = true }
