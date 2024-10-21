@@ -23,6 +23,7 @@ pub(crate) struct Parameter {
 #[async_trait]
 pub(crate) trait ParameterService {
     async fn create(&self, transaction: &DatabaseTransaction) -> Result<Parameter>;
+    async fn get(&self, transaction: &DatabaseTransaction) -> Result<Parameter>;
 }
 
 pub(crate) struct PostgresParameterService;
@@ -61,12 +62,26 @@ impl ParameterService for PostgresParameterService {
 
         Ok(Parameter { version: PARAMETER_VERSION, value: gp })
     }
+
+    async fn get(&self, transaction: &DatabaseTransaction) -> Result<Parameter> {
+        let parameter = parameter::Entity::find()
+            .filter(parameter::Column::Version.eq(PARAMETER_VERSION))
+            .one(transaction)
+            .await?
+            .ok_or(Error::ParameterNotFound)?;
+        let value = parameter.value;
+        let gp: GlobalParams<Bls24479Curve> = serde_json::from_value(value)?;
+        Ok(Parameter { version: PARAMETER_VERSION, value: gp })
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("Parameter has already been created with version {0}")]
     ParameterAlreadyCreated(i32),
+
+    #[error("Parameter not found")]
+    ParameterNotFound,
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
@@ -85,7 +100,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{str::FromStr as _, sync::Arc};
 
     use chrono::Utc;
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
@@ -95,10 +110,12 @@ mod test {
     };
     use ulid::Ulid;
 
-    use super::{ParameterService, PostgresParameterService};
+    use crate::database::UlidId;
+
+    use super::{ParameterService, PostgresParameterService, PARAMETER_VERSION};
 
     #[tokio::test]
-    async fn when_insert_is_successful_then_parameter_service_returns_ok() {
+    async fn when_creating_parameter_is_successful_then_parameter_service_returns_ok() {
         use crate::database::parameter::Model;
         let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
         let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
@@ -111,7 +128,7 @@ mod test {
             }]])
             .append_query_results([vec![Model {
                 id: Ulid::new().into(),
-                version: 1,
+                version: PARAMETER_VERSION,
                 value,
                 created_at: now,
                 updated_at: now,
@@ -130,7 +147,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn when_insert_is_failed_then_parameter_service_returns_error() {
+    async fn when_creating_parameter_is_failed_then_parameter_service_returns_error() {
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -140,6 +157,52 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = parameter_service.create(&transaction).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(result.is_err());
+        assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
+    }
+
+    #[tokio::test]
+    async fn when_getting_parameter_is_successful_then_parameter_service_returns_ok() {
+        use crate::database::parameter::Model;
+        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
+        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+        let value = serde_json::to_value(&gp).expect("serializing global params should be successful");
+
+        let now = Utc::now();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
+            id: UlidId::new(Ulid::from_str("01JACYVTYB4F2PEBFRG1BB7BFP").unwrap()),
+            version: PARAMETER_VERSION,
+            value: value.clone(),
+            created_at: now,
+            updated_at: now,
+        }]]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let parameter_service = PostgresParameterService;
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = parameter_service.get(&transaction).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        let result = result.expect("getting workspace should be successful");
+        assert_eq!(result.version, PARAMETER_VERSION);
+        assert_eq!(serde_json::to_value(&result.value).expect("serializing global params should be successful"), value);
+    }
+
+    #[tokio::test]
+    async fn when_getting_parameter_is_failed_then_parameter_service_returns_error() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let parameter_service = PostgresParameterService;
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = parameter_service.get(&transaction).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(result.is_err());
