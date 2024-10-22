@@ -51,9 +51,6 @@ pub(crate) struct ParameterData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
-    #[error("Failed to create parameter: {0}")]
-    CreateParameterFailed(#[source] domain::parameter::Error),
-
     #[error("Failed to get parameter: {0}")]
     GetParameterFailed(#[source] domain::parameter::Error),
 
