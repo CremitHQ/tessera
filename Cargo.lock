@@ -3447,6 +3447,11 @@ dependencies = [
  "maplit",
  "mockall",
 <<<<<<< ours
+<<<<<<< ours
+||||||| ancestor
+=======
+ "rand",
+>>>>>>> theirs
  "regex",
 ||||||| ancestor
 =======

@@ -76,14 +76,6 @@ impl From<sea_orm::DbErr> for Error {
     }
 }
 
-impl From<domain::secret::Error> for Error {
-    fn from(value: domain::secret::Error) -> Self {
-        match value {
-            domain::secret::Error::Anyhow(e) => Self::Anyhow(e),
-        }
-    }
-}
-
 impl From<Parameter> for ParameterData {
     fn from(value: Parameter) -> Self {
         Self { version: value.version, value: value.value }
