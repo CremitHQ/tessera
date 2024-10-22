@@ -15,11 +15,6 @@ impl IntoResponse for application::parameter::Error {
                 (StatusCode::NOT_FOUND, error_payload("GET_PARAMETER_FAILED", "Failed to get parameter"))
                     .into_response()
             }
-            application::parameter::Error::CreateParameterFailed(e) => {
-                error!("Failed to create parameter: {}", e);
-                (StatusCode::CONFLICT, error_payload("CREATE_PARAMETER_FAILED", "Failed to create parameter"))
-                    .into_response()
-            }
             application::parameter::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
         }
     }
