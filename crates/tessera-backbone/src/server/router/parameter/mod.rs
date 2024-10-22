@@ -4,7 +4,7 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     response::IntoResponse,
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 
