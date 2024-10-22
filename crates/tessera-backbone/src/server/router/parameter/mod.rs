@@ -19,10 +19,7 @@ use self::response::ParameterResponse;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
-        .route("/workspaces/:workspace_name/parameter", get(handle_get_parameter))
-        .route("/workspaces/:workspace_name/parameter", post(handle_create_parameter))
-        .with_state(application)
+    Router::new().route("/workspaces/:workspace_name/parameter", get(handle_get_parameter)).with_state(application)
 }
 
 #[debug_handler]

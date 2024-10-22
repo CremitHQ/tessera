@@ -35,14 +35,6 @@ impl ParameterUseCaseImpl {
 
 #[async_trait]
 impl ParameterUseCase for ParameterUseCaseImpl {
-    async fn create(&self) -> Result<ParameterData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        let parameter = self.parameter_service.create(&transaction).await.map_err(Error::CreateParameterFailed)?;
-        transaction.commit().await?;
-
-        Ok(parameter.into())
-    }
-
     async fn get(&self) -> Result<ParameterData> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let parameter = self.parameter_service.get(&transaction).await.map_err(Error::GetParameterFailed)?;
