@@ -41,7 +41,7 @@ pub(crate) trait SecretService {
 
 lazy_static! {
     static ref IDENTIFIER_PATTERN: Regex =
-        Regex::new(r"(.*)/([^/]+)").expect("IDENTIFIER_PATTERN should be compiled successfully");
+        Regex::new(r"^((?:/[^/]+)*)/([^/]+)$").expect("IDENTIFIER_PATTERN should be compiled successfully");
 }
 
 fn parse_identifier(full_path: &str) -> Option<(String, String)> {
@@ -263,6 +263,42 @@ mod test {
     #[tokio::test]
     async fn when_getting_secret_path_without_slash_then_secret_service_returns_invalid_secret_identifier_error() {
         let identifier = "just_key";
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.get(&transaction, identifier).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_getting_secret_path_without_leading_slash_then_secret_service_returns_invalid_secret_identifier_error(
+    ) {
+        let identifier = "some/secret";
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.get(&transaction, identifier).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_getting_secret_path_contains_empty_segment_then_secret_service_returns_invalid_secret_identifier_error(
+    ) {
+        let identifier = "/some//secret";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
