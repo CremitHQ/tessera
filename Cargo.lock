@@ -3446,17 +3446,8 @@ dependencies = [
  "lazy_static",
  "maplit",
  "mockall",
-<<<<<<< ours
-<<<<<<< ours
-||||||| ancestor
-=======
  "rand",
->>>>>>> theirs
  "regex",
-||||||| ancestor
-=======
- "rand",
->>>>>>> theirs
  "sea-orm",
  "serde",
  "serde_json",
