@@ -1,5 +1,7 @@
 use crate::database::policy;
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use sea_orm::{DatabaseTransaction, EntityTrait};
 use ulid::Ulid;
 
@@ -15,6 +17,7 @@ impl From<policy::Model> for Policy {
     }
 }
 
+#[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait PolicyService {
     async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<Policy>>;
@@ -57,7 +60,7 @@ mod test {
     use crate::database::{policy, UlidId};
 
     #[tokio::test]
-    async fn when_getting_policy_data_is_successful_then_secret_service_returns_policies_ok() {
+    async fn when_getting_policy_data_is_successful_then_policy_service_returns_policies_ok() {
         let now = Utc::now();
         let policy_id = UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
         let policy_name = "test policy";
@@ -86,7 +89,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn when_getting_secrets_is_failed_then_secret_service_returns_anyhow_err() {
+    async fn when_getting_policies_is_failed_then_policy_service_returns_anyhow_err() {
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -103,7 +106,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn when_managed_policy_is_empty_then_secret_service_returns_empty_ok() {
+    async fn when_managed_policy_is_empty_then_policy_service_returns_empty_ok() {
         let mock_database =
             MockDatabase::new(DatabaseBackend::Postgres).append_query_results([Vec::<policy::Model>::new()]);
 

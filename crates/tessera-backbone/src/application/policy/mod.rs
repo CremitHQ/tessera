@@ -76,3 +76,67 @@ impl From<domain::policy::Error> for Error {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod test {
+    use std::{str::FromStr, sync::Arc};
+
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use ulid::Ulid;
+
+    use crate::domain::policy::{MockPolicyService, Policy};
+
+    use super::{Error, PolicyUseCase, PolicyUseCaseImpl};
+
+    #[tokio::test]
+    async fn when_getting_policy_data_is_successful_then_policy_usecase_returns_policies_ok() {
+        let policy_id = Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap();
+        let policy_name = "test policy";
+        let expression = "(\"role=FRONTEND\")";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_list().withf(|_| true).times(1).returning(move |_| {
+            Ok(vec![Policy {
+                id: policy_id.to_owned(),
+                name: policy_name.to_owned(),
+                expression: expression.to_owned(),
+            }])
+        });
+
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.get_all().await.expect("creating workspace should be successful");
+
+        assert_eq!(result[0].id, policy_id);
+        assert_eq!(result[0].name, policy_name);
+        assert_eq!(result[0].expression, expression);
+    }
+
+    #[tokio::test]
+    async fn when_getting_secret_is_failed_then_secret_usecase_returns_anyhow_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service
+            .expect_list()
+            .withf(|_| true)
+            .times(1)
+            .returning(move |_| Err(crate::domain::policy::Error::Anyhow(anyhow::anyhow!("some error"))));
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.get_all().await;
+
+        assert!(matches!(result, Err(Error::Anyhow(_))));
+        assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+}
