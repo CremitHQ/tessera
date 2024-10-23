@@ -8,7 +8,7 @@ use tessera_abe::{
 };
 use tessera_storage::{backend::file::FileStorage, Storage as _};
 
-type KeyPair = AuthorityKeyPair<Bls24479Curve>;
+pub type KeyPair = AuthorityKeyPair<Bls24479Curve>;
 
 const KEY_PAIR_PATH: &str = "/authority/keypair/";
 const KEY_PAIR_VERSION_NAME: &str = "version";
@@ -26,9 +26,9 @@ pub trait KeyPairService {
 
     async fn generate_key_pair(&self, gp: &GlobalParams<Bls24479Curve>, authority_name: &str) -> Result<KeyPair>;
     async fn latest_key_pair_version(&self, authority_name: &str) -> Result<Option<u64>>;
-    async fn load_latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>>;
-    async fn load_key_pair(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>>;
-    async fn store_latest_key_pair(&self, key_pair: KeyPair) -> Result<()>;
+    async fn latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>>;
+    async fn key_pair_by_version(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>>;
+    async fn store_latest_key_pair(&self, key_pair: &KeyPair) -> Result<()>;
 }
 
 pub struct FileKeyPairService<'a> {
@@ -65,20 +65,20 @@ impl KeyPairService for FileKeyPairService<'_> {
         }
     }
 
-    async fn load_latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>> {
+    async fn latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>> {
         let version_path = self.version_path(authority_name);
         let version = self.storage.get(&version_path).await?;
 
         match version {
             Some(version) => {
                 let version: u64 = String::from_utf8(version)?.parse()?;
-                self.load_key_pair(authority_name, version).await
+                self.key_pair_by_version(authority_name, version).await
             }
             None => Ok(None),
         }
     }
 
-    async fn load_key_pair(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>> {
+    async fn key_pair_by_version(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>> {
         let key_pair_path = self.key_pair_path(authority_name, version);
         let key_pair = self.storage.get(&key_pair_path).await?;
         match key_pair {
@@ -90,14 +90,14 @@ impl KeyPairService for FileKeyPairService<'_> {
         }
     }
 
-    async fn store_latest_key_pair(&self, key_pair: KeyPair) -> Result<()> {
+    async fn store_latest_key_pair(&self, key_pair: &KeyPair) -> Result<()> {
         let authority_name = &key_pair.name;
         let version_path = self.version_path(authority_name);
         let latest_version = self.latest_key_pair_version(authority_name).await?.unwrap_or(0);
 
         let new_version = latest_version + 1;
         let new_version_path = self.key_pair_path(authority_name, new_version);
-        let key_pair_bytes = bincode::serialize(&key_pair)?;
+        let key_pair_bytes = bincode::serialize(key_pair)?;
         self.storage.set(&new_version_path, &key_pair_bytes).await?;
         self.storage.set(&version_path, new_version.to_string().as_bytes()).await?;
 
