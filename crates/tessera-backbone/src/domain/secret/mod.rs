@@ -22,8 +22,10 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry 
 
         for applied_policy in applied_policies {
             match applied_policy.r#type {
-                applied_policy::PolicyApplicationType::Read => reader_policy_ids.push(applied_policy.id.inner()),
-                applied_policy::PolicyApplicationType::Write => writer_policy_ids.push(applied_policy.id.inner()),
+                applied_policy::PolicyApplicationType::Read => reader_policy_ids.push(applied_policy.policy_id.inner()),
+                applied_policy::PolicyApplicationType::Write => {
+                    writer_policy_ids.push(applied_policy.policy_id.inner())
+                }
             }
         }
 
@@ -165,8 +167,8 @@ mod test {
 
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
-        assert_eq!(result[0].reader_policy_ids[0], Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap());
-        assert_eq!(result[0].writer_policy_ids[0], Ulid::from_str("01JACZ1FG1RYABQW2KB6YSEZ84").unwrap());
+        assert_eq!(result[0].reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
+        assert_eq!(result[0].writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
 
     #[tokio::test]
@@ -238,8 +240,8 @@ mod test {
 
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
-        assert_eq!(result.reader_policy_ids[0], Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap());
-        assert_eq!(result.writer_policy_ids[0], Ulid::from_str("01JACZ1FG1RYABQW2KB6YSEZ84").unwrap());
+        assert_eq!(result.reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
+        assert_eq!(result.writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
 
     #[tokio::test]
