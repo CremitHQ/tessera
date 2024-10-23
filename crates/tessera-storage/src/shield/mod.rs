@@ -4,11 +4,11 @@ pub mod aes;
 
 #[trait_variant::make(Shield: Send)]
 pub trait LocalShield {
-    type ShieldError: std::error::Error;
+    type ShieldError<'error>: std::error::Error;
     type Key: ToOwned + ?Sized;
     type ZeroizingKey: ZeroizeOnDrop;
-    async fn initialize(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError>;
-    async fn armor(&self) -> Result<(), Self::ShieldError>;
-    async fn disarm(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError>;
-    async fn generate_key(&self) -> Result<Self::ZeroizingKey, Self::ShieldError>;
+    async fn initialize<'a>(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError<'a>>;
+    async fn armor<'a>(&self) -> Result<(), Self::ShieldError<'a>>;
+    async fn disarm<'a>(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError<'a>>;
+    async fn generate_key<'a>(&self) -> Result<Self::ZeroizingKey, Self::ShieldError<'a>>;
 }
