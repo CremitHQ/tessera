@@ -8,6 +8,7 @@ use crate::{
     database::{connect_to_database, AuthMethod},
     domain::{
         parameter::{ParameterService, PostgresParameterService},
+        policy::{PolicyService, PostgresPolicyService},
         secret::{PostgresSecretService, SecretService},
         workspace::WorkspaceServiceImpl,
     },
@@ -15,9 +16,13 @@ use crate::{
 
 use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
-use self::secret::{SecretUseCase, SecretUseCaseImpl};
+use self::{
+    policy::{PolicyUseCase, PolicyUseCaseImpl},
+    secret::{SecretUseCase, SecretUseCaseImpl},
+};
 
 pub(crate) mod parameter;
+pub(crate) mod policy;
 pub(crate) mod secret;
 pub(crate) mod workspace;
 
@@ -26,6 +31,7 @@ pub(crate) struct Application {
     workspace_service: Arc<WorkspaceServiceImpl>,
     secret_service: Arc<dyn SecretService + Sync + Send>,
     parameter_service: Arc<dyn ParameterService + Sync + Send>,
+    policy_service: Arc<dyn PolicyService + Sync + Send>,
 }
 
 impl Application {
@@ -39,6 +45,7 @@ impl Application {
             database_connection: self.database_connection.clone(),
             secret_service: self.secret_service.clone(),
             parameter_service: self.parameter_service.clone(),
+            policy_service: self.policy_service.clone(),
         }
     }
 }
@@ -48,6 +55,7 @@ pub(crate) struct ApplicationWithWorkspace {
     database_connection: Arc<DatabaseConnection>,
     secret_service: Arc<dyn SecretService + Sync + Send>,
     parameter_service: Arc<dyn ParameterService + Sync + Send>,
+    policy_service: Arc<dyn PolicyService + Sync + Send>,
 }
 
 impl ApplicationWithWorkspace {
@@ -66,6 +74,10 @@ impl ApplicationWithWorkspace {
             self.parameter_service.clone(),
         )
     }
+
+    pub fn policy(&self) -> impl PolicyUseCase {
+        PolicyUseCaseImpl::new()
+    }
 }
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
@@ -73,8 +85,9 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     let workspace_service = Arc::new(WorkspaceServiceImpl::new());
     let secret_service = Arc::new(PostgresSecretService {});
     let parameter_service = Arc::new(PostgresParameterService);
+    let policy_service = Arc::new(PostgresPolicyService {});
 
-    Ok(Application { database_connection, workspace_service, secret_service, parameter_service })
+    Ok(Application { database_connection, workspace_service, secret_service, parameter_service, policy_service })
 }
 
 async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<Arc<DatabaseConnection>> {

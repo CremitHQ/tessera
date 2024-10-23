@@ -24,7 +24,8 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
         .route("/health", get(|| async { "" }))
         .nest("/workspaces", router::workspace::router(application.clone()))
         .nest("/", router::secret::router(application.clone()))
-        .nest("/", router::parameter::router(application.clone()));
+        .nest("/", router::parameter::router(application.clone()))
+        .nest("/", router::policy::router(application.clone()));
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     debug!("starting backbone server on {}", config.port);
     axum::serve(listener, app).await?;
