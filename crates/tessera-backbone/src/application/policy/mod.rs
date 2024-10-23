@@ -35,7 +35,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     async fn get_all(&self) -> Result<Vec<PolicyData>> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
-        let policies = self.policy_service.get_all(&transaction).await?;
+        let policies = self.policy_service.list(&transaction).await?;
 
         transaction.commit().await?;
 
@@ -69,7 +69,9 @@ impl From<sea_orm::DbErr> for Error {
 
 impl From<domain::policy::Error> for Error {
     fn from(value: domain::policy::Error) -> Self {
-        match value {}
+        match value {
+            domain::policy::Error::Anyhow(e) => Error::Anyhow(e),
+        }
     }
 }
 
