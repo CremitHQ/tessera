@@ -8,12 +8,12 @@ use crate::config::{ApplicationConfig, BackboneConfig, StorageConfig};
 
 use super::{
     backbone::{BackboneService, WorkspaceBackboneClient, WorkspaceBackboneService},
-    key_pair::{FileKeyPairService, KeyPairService},
+    key_pair::{FileKeyPairService, KeyPair, KeyPairService},
 };
 
 pub struct Application {
-    pub key_pair_service: Arc<dyn KeyPairService + Send + Sync>,
-    pub backbone_service: Arc<dyn BackboneService + Send + Sync>,
+    key_pair_service: Arc<dyn KeyPairService + Send + Sync>,
+    backbone_service: Arc<dyn BackboneService + Send + Sync>,
 }
 
 impl Application {
@@ -32,5 +32,19 @@ impl Application {
         };
 
         Ok(Self { key_pair_service, backbone_service })
+    }
+
+    pub async fn key_pair(&self, name: &str) -> Result<KeyPair> {
+        let gp = self.backbone_service.global_params().await?;
+        let key_pair = match self.key_pair_service.latest_key_pair(name).await? {
+            Some(key_pair) => key_pair,
+            None => {
+                let key_pair = self.key_pair_service.generate_key_pair(&gp, name).await?;
+                self.key_pair_service.store_latest_key_pair(&key_pair).await?;
+                key_pair
+            }
+        };
+
+        Ok(key_pair)
     }
 }
