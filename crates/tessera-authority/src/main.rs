@@ -28,6 +28,9 @@ async fn main() -> anyhow::Result<()> {
     let app_config = config::load_config(args.config, args.port)?;
     let application = Application::new(&app_config)?;
 
+    // TODO: Implement the initialization of authority's key-pair
+    let _gp = application.backbone_service.global_params().await?;
+
     server::run((&app_config).into()).await?;
     Ok(())
 }

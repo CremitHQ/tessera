@@ -42,8 +42,7 @@ pub(super) fn load_config(
         if !tessera_config_dir.exists() {
             std::fs::create_dir_all(&tessera_config_dir)?;
         }
-        let config_file = tessera_config_dir.join("authority_config.toml");
-        config_file
+        tessera_config_dir.join("authority_config.toml")
     };
 
     let config: ApplicationConfig = Config::builder()

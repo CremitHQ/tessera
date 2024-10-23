@@ -49,7 +49,7 @@ impl KeyPairService for FileKeyPairService<'_> {
         let mut rng = MiraclRng::new();
         rng.seed(&seed);
 
-        let key_pair = KeyPair::new(&mut rng, &gp, authority_name);
+        let key_pair = KeyPair::new(&mut rng, gp, authority_name);
         Ok(key_pair)
     }
 
