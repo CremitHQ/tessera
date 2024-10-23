@@ -76,7 +76,11 @@ impl ApplicationWithWorkspace {
     }
 
     pub fn policy(&self) -> impl PolicyUseCase {
-        PolicyUseCaseImpl::new()
+        PolicyUseCaseImpl::new(
+            self.workspace_name.to_owned(),
+            self.database_connection.clone(),
+            self.policy_service.clone(),
+        )
     }
 }
 

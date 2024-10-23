@@ -1,4 +1,4 @@
-use crate::application::policy;
+use crate::{application::policy, server::response::handle_internal_server_error};
 use axum::response::IntoResponse;
 use serde::Serialize;
 use ulid::Ulid;
@@ -12,6 +12,8 @@ pub(super) struct PolicyResponse {
 
 impl IntoResponse for policy::Error {
     fn into_response(self) -> axum::response::Response {
-        match self {}
+        match self {
+            policy::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
+        }
     }
 }
