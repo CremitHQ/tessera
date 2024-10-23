@@ -31,10 +31,14 @@ impl<'a> Storage for FileStorage<'a> {
 
     type StorageError = FileStorageError<'static>;
 
-    async fn get(&self, key: &Self::Key) -> Result<<Self::Value as ToOwned>::Owned, Self::StorageError> {
+    async fn get(&self, key: &Self::Key) -> Result<Option<<Self::Value as ToOwned>::Owned>, Self::StorageError> {
         let path = self.path.clone().into_owned().join(key);
-        let data = fs::read(path).await?;
-        Ok(data)
+        let data = fs::read(path).await;
+        match data {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+            Ok(data) => Ok(Some(data)),
+        }
     }
 
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError> {

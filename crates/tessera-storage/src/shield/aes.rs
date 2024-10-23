@@ -61,6 +61,9 @@ pub enum AESShieldError<'a> {
     #[error(transparent)]
     StorageError(AESShieldStorageError<'a>),
 
+    #[error("There is no shield key. Please initialize the shield first.")]
+    NoShieldKey,
+
     #[error("AES GCM error: {0}")]
     AESGCMError(#[from] AESGCMError),
 }
@@ -120,9 +123,9 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
             .map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
             .map_err(AESShieldError::StorageError)?;
 
-        // If shield_key is empty, we return `Ok(())` to maintain idempotency.
+        // If shield_key is already set in the storage, we return `Ok(())` to maintain idempotency.
         // This is intentional—no need to throw an error here.
-        if !shield_key.is_empty() {
+        if shield_key.is_some() {
             return Ok(());
         }
 
@@ -160,7 +163,8 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
             .get(SHIELD_KEY_PATH)
             .await
             .map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
-            .map_err(AESShieldError::StorageError)?;
+            .map_err(AESShieldError::StorageError)?
+            .ok_or(AESShieldError::NoShieldKey)?;
 
         // We manually zeroize `shield_key` to make sure it doesn't linger in memory.
         let shield_key = ZeroizingKey::new(self.decrypt(master_key, &armored_shield_key)?);
@@ -217,7 +221,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
     type Key = <S as Storage>::Key;
     type Value = <S as Storage>::Value;
 
-    async fn get(&self, key: &str) -> Result<Vec<u8>, Self::StorageError> {
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, Self::StorageError> {
         if self.is_armored().await {
             return Err(AESShieldStorageError::ShieldSealed);
         }
@@ -226,9 +230,14 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
         debug_assert!(shield_key.key.len() == AES_BLOCK_SIZE);
         let ciphertext =
             self.inner.get(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))?;
-        let plaintext = self.decrypt(&shield_key.key, &ciphertext)?;
 
-        Ok(plaintext)
+        match ciphertext {
+            Some(ciphertext) => {
+                let plaintext = self.decrypt(&shield_key.key, &ciphertext)?;
+                Ok(Some(plaintext))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<(), Self::StorageError> {
