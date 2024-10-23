@@ -17,6 +17,6 @@ zeroize.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
 rand.workspace = true
-bincode = "1.3.3"
+bincode.workspace = true
 
 [dev-dependencies]

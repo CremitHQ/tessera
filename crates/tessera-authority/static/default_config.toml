@@ -1,1 +1,10 @@
 port = 8090
+
+[backbone]
+type = "workspace"
+host = "http://localhost:8080"
+workspace_name = "default"
+
+[storage]
+type = "file"
+path = "/tessera/authority/"
