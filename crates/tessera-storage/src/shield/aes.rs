@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    borrow::Cow,
+    ops::{Deref, DerefMut},
+};
 
 use super::Shield;
 use crate::Storage;
@@ -48,7 +51,7 @@ impl DerefMut for ZeroizingKey {
 }
 
 #[derive(Error, Debug)]
-pub enum AESShieldError {
+pub enum AESShieldError<'a> {
     #[error("Key generation error: {0}")]
     KeyGenerationError(#[from] KeyGenerationError),
 
@@ -56,19 +59,19 @@ pub enum AESShieldError {
     InitializationError(#[from] InitializationError),
 
     #[error(transparent)]
-    StorageError(#[from] AESShieldStorageError),
+    StorageError(AESShieldStorageError<'a>),
 
     #[error("AES GCM error: {0}")]
     AESGCMError(#[from] AESGCMError),
 }
 
 #[derive(Error, Debug)]
-pub enum AESShieldStorageError {
+pub enum AESShieldStorageError<'a> {
     #[error("Shield has been sealed. Cannot perform operation.")]
     ShieldSealed,
 
-    #[error("Storage error: {}", 0)]
-    StorageError(String),
+    #[error("Storage error: {0}")]
+    StorageError(Cow<'a, str>),
 
     #[error(transparent)]
     AESGCMError(#[from] AESGCMError),
@@ -105,13 +108,17 @@ impl<S: Storage> AESShieldStorage<S> {
 }
 
 impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
-    type ShieldError = AESShieldError;
+    type ShieldError<'e> = AESShieldError<'e>;
     type Key = <S as Storage>::Value;
     type ZeroizingKey = ZeroizingKey;
 
-    async fn initialize(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError> {
-        let shield_key =
-            self.inner.get(SHIELD_KEY_PATH).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))?;
+    async fn initialize<'a>(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError<'a>> {
+        let shield_key = self
+            .inner
+            .get(SHIELD_KEY_PATH)
+            .await
+            .map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
+            .map_err(AESShieldError::StorageError)?;
 
         // If shield_key is empty, we return `Ok(())` to maintain idempotency.
         // This is intentional—no need to throw an error here.
@@ -130,25 +137,30 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
         self.inner
             .set(SHIELD_KEY_PATH, &shield_key)
             .await
-            .map_err(|e| AESShieldStorageError::StorageError(e.to_string()))?;
+            .map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
+            .map_err(AESShieldError::StorageError)?;
 
         Ok(())
     }
 
-    async fn armor(&self) -> Result<(), Self::ShieldError> {
+    async fn armor<'a>(&self) -> Result<(), Self::ShieldError<'a>> {
         let mut shield_key = self.shield_key.write().await;
         let shield_key = shield_key.deref_mut();
         *shield_key = None;
         Ok(())
     }
 
-    async fn disarm(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError> {
+    async fn disarm<'a>(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError<'a>> {
         if !self.is_armored().await {
             return Ok(());
         }
 
-        let armored_shield_key =
-            self.inner.get(SHIELD_KEY_PATH).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))?;
+        let armored_shield_key = self
+            .inner
+            .get(SHIELD_KEY_PATH)
+            .await
+            .map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
+            .map_err(AESShieldError::StorageError)?;
 
         // We manually zeroize `shield_key` to make sure it doesn't linger in memory.
         let shield_key = ZeroizingKey::new(self.decrypt(master_key, &armored_shield_key)?);
@@ -161,7 +173,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
         Ok(())
     }
 
-    async fn generate_key(&self) -> Result<ZeroizingKey, Self::ShieldError> {
+    async fn generate_key<'a>(&self) -> Result<ZeroizingKey, Self::ShieldError<'a>> {
         let mut buf = vec![0; AES_BLOCK_SIZE];
         OsRng.fill(buf.deref_mut());
         Ok(ZeroizingKey::new(buf))
@@ -199,7 +211,9 @@ impl<S: Storage> AESShieldStorage<S> {
 }
 
 impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
-    type StorageError = AESShieldStorageError;
+    // TODO: GATs would be nice here, but we can't use them
+    // because of the known limitation (https://github.com/rust-lang/rust/issues/100013)
+    type StorageError = AESShieldStorageError<'static>;
     type Key = <S as Storage>::Key;
     type Value = <S as Storage>::Value;
 
@@ -210,7 +224,8 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
         let shield_key = self.shield_key.read().await;
         let shield_key = shield_key.as_ref().unwrap(); // Since we've already validated this earlier with is_armored(), it's safe to use unwrap() here.
         debug_assert!(shield_key.key.len() == AES_BLOCK_SIZE);
-        let ciphertext = self.inner.get(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))?;
+        let ciphertext =
+            self.inner.get(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))?;
         let plaintext = self.decrypt(&shield_key.key, &ciphertext)?;
 
         Ok(plaintext)
@@ -224,7 +239,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
         let shield_key = shield_key.as_ref().unwrap(); // Since we've already validated this earlier with is_armored(), it's safe to use unwrap() here.
         debug_assert!(shield_key.key.len() == AES_BLOCK_SIZE);
         let ciphertext = self.encrypt(&shield_key.key, value)?;
-        self.inner.set(key, &ciphertext).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
+        self.inner.set(key, &ciphertext).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
     }
 
     async fn delete(&self, key: &str) -> Result<(), Self::StorageError> {
@@ -232,7 +247,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
             return Err(AESShieldStorageError::ShieldSealed);
         }
 
-        self.inner.delete(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
+        self.inner.delete(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
     }
 
     async fn list(&self, prefix: &str) -> Result<impl IntoIterator<Item = String>, Self::StorageError> {
@@ -240,6 +255,6 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
             return Err(AESShieldStorageError::ShieldSealed);
         }
 
-        self.inner.list(prefix).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string()))
+        self.inner.list(prefix).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
     }
 }

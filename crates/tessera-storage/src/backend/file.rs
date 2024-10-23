@@ -29,7 +29,7 @@ impl<'a> Storage for FileStorage<'a> {
     type Key = str;
     type Value = [u8];
 
-    type StorageError = FileStorageError<'a>;
+    type StorageError = FileStorageError<'static>;
 
     async fn get(&self, key: &Self::Key) -> Result<<Self::Value as ToOwned>::Owned, Self::StorageError> {
         let path = self.path.clone().into_owned().join(key);
