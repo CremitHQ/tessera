@@ -1,11 +1,32 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use config::{Config, File, FileFormat};
+use directories::BaseDirs;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ApplicationConfig {
     pub port: u16,
+    pub storage: StorageConfig,
+    pub backbone: BackboneConfig,
+    pub authority: AuthorityConfig,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub(crate) enum StorageConfig {
+    File { path: String },
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase", tag = "type")]
+pub(crate) enum BackboneConfig {
+    Workspace { host: String, workspace_name: String },
+}
+
+#[derive(Deserialize, Debug)]
+pub(crate) struct AuthorityConfig {
+    pub name: String,
 }
 
 pub(super) fn load_config(
@@ -15,35 +36,22 @@ pub(super) fn load_config(
     let config_file_path = if let Some(path_override) = path_override {
         path_override
     } else {
-        let xdg_dirs = xdg::BaseDirectories::with_prefix("tessera").unwrap();
-
-        let user_config_dir = xdg_dirs.get_config_home();
-        if !user_config_dir.exists() {
-            std::fs::create_dir_all(&user_config_dir)?;
+        let base_dirs = BaseDirs::new().expect("Failed to get base directories");
+        let user_config_dir = base_dirs.config_dir();
+        let tessera_config_dir = user_config_dir.join("tessera");
+        if !tessera_config_dir.exists() {
+            std::fs::create_dir_all(&tessera_config_dir)?;
         }
-
-        let mut config_file_path = user_config_dir.clone();
-        config_file_path.push("backbone_config.toml");
-
-        if !config_file_path.exists() {
-            write_default_config_file(&config_file_path)?;
-        }
-
-        config_file_path
+        let config_file = tessera_config_dir.join("authority_config.toml");
+        config_file
     };
 
     let config: ApplicationConfig = Config::builder()
-        .set_default("port", 8080)?
-        .add_source(File::new(config_file_path.to_str().unwrap(), FileFormat::Toml))
+        .add_source(File::from(config_file_path).format(FileFormat::Toml))
+        .set_default("port", 8090)?
         .set_override_option("port", port_override)?
         .build()?
         .try_deserialize()?;
 
     Ok(config)
-}
-
-fn write_default_config_file(path: &Path) -> anyhow::Result<()> {
-    let default_config_content = include_str!("../static/default_config.toml");
-    std::fs::write(path, default_config_content)?;
-    Ok(())
 }
