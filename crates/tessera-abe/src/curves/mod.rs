@@ -62,6 +62,7 @@ pub trait FieldWithOrder: Field {
 
 pub trait Field:
     Sized
+    + From<u64>
     + Clone
     + PartialEq
     + RefNeg<Output = Self>
@@ -81,7 +82,7 @@ pub trait Field:
 where
     Self: for<'de> Deserialize<'de>,
 {
-    type Chunk: From<u32> + Copy + Default;
+    type Chunk: Copy;
 
     fn new() -> Self;
     fn one() -> Self;
