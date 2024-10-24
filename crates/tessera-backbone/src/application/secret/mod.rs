@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use ulid::Ulid;
 
 use crate::{
     database::OrganizationScopedTransaction,
     domain::{
         self,
+        policy::{Policy, PolicyService},
         secret::{SecretEntry, SecretService},
     },
 };
@@ -23,6 +24,7 @@ pub(crate) struct SecretUseCaseImpl {
     workspace_name: String,
     database_connection: Arc<DatabaseConnection>,
     secret_service: Arc<dyn SecretService + Sync + Send>,
+    policy_service: Arc<dyn PolicyService + Sync + Send>,
 }
 
 impl SecretUseCaseImpl {
@@ -30,8 +32,22 @@ impl SecretUseCaseImpl {
         workspace_name: String,
         database_connection: Arc<DatabaseConnection>,
         secret_service: Arc<dyn SecretService + Sync + Send>,
+        policy_service: Arc<dyn PolicyService + Sync + Send>,
     ) -> Self {
-        Self { workspace_name, database_connection, secret_service }
+        Self { workspace_name, database_connection, secret_service, policy_service }
+    }
+
+    async fn get_policies(&self, transaction: &DatabaseTransaction, ids: Vec<Ulid>) -> Result<Vec<Policy>> {
+        let policies = vec![];
+
+        for id in ids {
+            self.policy_service
+                .get(transaction, &id)
+                .await?
+                .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: id })?;
+        }
+
+        Ok(policies)
     }
 }
 
@@ -54,6 +70,15 @@ impl SecretUseCase for SecretUseCaseImpl {
     }
 
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let _reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
+        let _writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
+
+        // TODO: register secret to secret service
+
+        transaction.commit().await?;
+
         todo!()
     }
 }
@@ -69,8 +94,10 @@ pub(crate) struct SecretData {
 pub(crate) enum Error {
     #[error("Invalid secret identifier({entered_identifier}) is entered")]
     InvalidSecretIdentifier { entered_identifier: String },
-    #[error("Secret Not exists")]
+    #[error("Secret is not exists")]
     SecretNotExists,
+    #[error("Policy({entered_policy_id}) is not exists")]
+    PolicyNotExists { entered_policy_id: Ulid },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -89,6 +116,14 @@ impl From<domain::secret::Error> for Error {
                 Error::InvalidSecretIdentifier { entered_identifier }
             }
             domain::secret::Error::SecretNotExists => Error::SecretNotExists,
+        }
+    }
+}
+
+impl From<domain::policy::Error> for Error {
+    fn from(value: domain::policy::Error) -> Self {
+        match value {
+            domain::policy::Error::Anyhow(e) => Self::Anyhow(e),
         }
     }
 }
@@ -120,7 +155,10 @@ mod test {
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
-    use crate::domain::secret::{MockSecretService, SecretEntry};
+    use crate::domain::{
+        policy::MockPolicyService,
+        secret::{MockSecretService, SecretEntry},
+    };
 
     use super::{Error, SecretUseCase, SecretUseCaseImpl};
 
@@ -147,9 +185,14 @@ mod test {
                 writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
             }])
         });
+        let mock_policy_service = MockPolicyService::new();
 
-        let secret_usecase =
-            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+        let secret_usecase = SecretUseCaseImpl::new(
+            "test_workspace".to_owned(),
+            mock_connection,
+            Arc::new(mock_secret_service),
+            Arc::new(mock_policy_service),
+        );
 
         let result = secret_usecase.list("/").await.expect("creating workspace should be successful");
 
@@ -172,9 +215,14 @@ mod test {
             .withf(|_, path| path == "/")
             .times(1)
             .returning(move |_, _| Err(crate::domain::secret::Error::Anyhow(anyhow::anyhow!("some error"))));
+        let mock_policy_service = MockPolicyService::new();
 
-        let secret_usecase =
-            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+        let secret_usecase = SecretUseCaseImpl::new(
+            "test_workspace".to_owned(),
+            mock_connection,
+            Arc::new(mock_secret_service),
+            Arc::new(mock_policy_service),
+        );
 
         let result = secret_usecase.list("/").await;
 
@@ -208,9 +256,14 @@ mod test {
                 })
             },
         );
+        let mock_policy_service = MockPolicyService::new();
 
-        let secret_usecase =
-            SecretUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+        let secret_usecase = SecretUseCaseImpl::new(
+            "test_workspace".to_owned(),
+            mock_connection,
+            Arc::new(mock_secret_service),
+            Arc::new(mock_policy_service),
+        );
 
         let result = secret_usecase.get(identifier).await.expect("creating workspace should be successful");
 

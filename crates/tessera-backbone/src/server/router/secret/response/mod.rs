@@ -14,6 +14,9 @@ impl IntoResponse for application::secret::Error {
                 InvalidSecretIdentifierErrorResponse { entered_identifier }.into_response()
             }
             application::secret::Error::SecretNotExists => SecretNotExistsErrorRespone {}.into_response(),
+            application::secret::Error::PolicyNotExists { entered_policy_id } => {
+                PolicyNotExistsErrorResponse { entered_policy_id }.into_response()
+            }
         }
     }
 }
@@ -55,4 +58,27 @@ pub(super) struct SecretResponse {
     pub path: String,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
+}
+
+struct PolicyNotExistsErrorResponse {
+    entered_policy_id: Ulid,
+}
+
+impl IntoResponse for PolicyNotExistsErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error_payload_with_data(
+                "ENTERED_POLICY_NOT_EXISTS",
+                "entered policy is not exists",
+                EnteredPolicyIdErrorData { entered_policy_id: self.entered_policy_id },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredPolicyIdErrorData {
+    entered_policy_id: Ulid,
 }
