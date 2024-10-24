@@ -72,10 +72,10 @@ impl SecretUseCase for SecretUseCaseImpl {
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
-        let _reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
-        let _writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
+        let reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
+        let writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
 
-        // TODO: register secret to secret service
+        self.secret_service.register(&transaction, cmd.key, cmd.path, reader_policies, writer_policies).await?;
 
         transaction.commit().await?;
 

@@ -1,12 +1,15 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use lazy_static::lazy_static;
 #[cfg(test)]
 use mockall::automock;
 use regex::Regex;
-use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter, Set};
 use ulid::Ulid;
 
-use crate::database::{applied_policy, path, secret_metadata};
+use crate::database::{applied_policy, path, secret_metadata, UlidId};
+
+use super::policy::Policy;
 
 pub(crate) struct SecretEntry {
     pub key: String,
@@ -51,6 +54,15 @@ pub(crate) trait SecretService {
     async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>>;
+
+    async fn register(
+        &self,
+        transaction: &DatabaseTransaction,
+        path: String,
+        key: String,
+        reader_policies: Vec<Policy>,
+        writer_policies: Vec<Policy>,
+    ) -> Result<()>;
 }
 
 lazy_static! {
@@ -103,6 +115,31 @@ impl SecretService for PostgresSecretService {
         let metadata = path::Entity::find().all(transaction).await?;
 
         Ok(metadata.into_iter().map(Path::from).collect())
+    }
+
+    async fn register(
+        &self,
+        transaction: &DatabaseTransaction,
+        path: String,
+        key: String,
+        reader_policies: Vec<Policy>,
+        writer_policies: Vec<Policy>,
+    ) -> Result<()> {
+        let now = Utc::now();
+        let secret_metadata_id = UlidId::new(Ulid::new());
+        secret_metadata::ActiveModel {
+            id: Set(secret_metadata_id.clone()),
+            key: Set(key),
+            path: Set(path),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
+
+        // TODO: insert applied policies
+
+        Ok(())
     }
 }
 
