@@ -38,13 +38,15 @@ impl SecretUseCaseImpl {
     }
 
     async fn get_policies(&self, transaction: &DatabaseTransaction, ids: Vec<Ulid>) -> Result<Vec<Policy>> {
-        let policies = vec![];
+        let mut policies = vec![];
 
         for id in ids {
-            self.policy_service
-                .get(transaction, &id)
-                .await?
-                .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: id })?;
+            policies.push(
+                self.policy_service
+                    .get(transaction, &id)
+                    .await?
+                    .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: id })?,
+            );
         }
 
         Ok(policies)
@@ -75,11 +77,11 @@ impl SecretUseCase for SecretUseCaseImpl {
         let reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
         let writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
 
-        self.secret_service.register(&transaction, cmd.key, cmd.path, reader_policies, writer_policies).await?;
+        self.secret_service.register(&transaction, cmd.path, cmd.key, reader_policies, writer_policies).await?;
 
         transaction.commit().await?;
 
-        todo!()
+        Ok(())
     }
 }
 
