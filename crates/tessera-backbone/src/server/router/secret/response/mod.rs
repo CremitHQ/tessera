@@ -20,6 +20,7 @@ impl IntoResponse for application::secret::Error {
             application::secret::Error::PathNotExists { entered_path } => {
                 PathNotExistsErrorResponse { entered_path }.into_response()
             }
+            application::secret::Error::IdentifierConflicted { entered_identifier } => todo!(),
         }
     }
 }
@@ -107,4 +108,27 @@ impl IntoResponse for PathNotExistsErrorResponse {
 #[derive(Serialize, Debug)]
 struct EnteredPathErrorData {
     entered_path: String,
+}
+
+struct SecretIdentifierConlictedErrorResponse {
+    entered_secret_identifier: String,
+}
+
+impl IntoResponse for SecretIdentifierConlictedErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::CONFLICT,
+            error_payload_with_data(
+                "ENTERED_SECRET_IDENTIFIER_CONFLICTED",
+                "entered secret identifier is already used by existing secret",
+                EnteredSecretIdentifierErrorData { entered_secret_identifier: self.entered_secret_identifier },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredSecretIdentifierErrorData {
+    entered_secret_identifier: String,
 }

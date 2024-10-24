@@ -94,6 +94,8 @@ pub(crate) struct SecretData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered identifier conflicted with existing secret")]
+    IdentifierConflicted { entered_identifier: String },
     #[error("Invalid secret identifier({entered_identifier}) is entered")]
     InvalidSecretIdentifier { entered_identifier: String },
     #[error("Secret is not exists")]
@@ -121,6 +123,9 @@ impl From<domain::secret::Error> for Error {
             }
             domain::secret::Error::SecretNotExists => Error::SecretNotExists,
             domain::secret::Error::PathNotExists { entered_path } => Error::PathNotExists { entered_path },
+            domain::secret::Error::IdentifierConflicted { entered_identifier } => {
+                Error::IdentifierConflicted { entered_identifier }
+            }
         }
     }
 }

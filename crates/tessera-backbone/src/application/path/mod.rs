@@ -63,6 +63,7 @@ impl From<secret::Error> for Error {
             secret::Error::SecretNotExists => Self::Anyhow(value.into()),
             secret::Error::Anyhow(e) => Self::Anyhow(e),
             secret::Error::PathNotExists { .. } => Self::Anyhow(value.into()),
+            secret::Error::IdentifierConflicted { .. } => Self::Anyhow(value.into()),
         }
     }
 }

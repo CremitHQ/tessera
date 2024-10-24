@@ -84,6 +84,14 @@ fn parse_identifier(full_path: &str) -> Option<(String, String)> {
     Some((path.to_owned(), key.to_owned()))
 }
 
+fn create_identifier(path: &str, key: &str) -> String {
+    if path == "/" || path.is_empty() {
+        format!("/{key}")
+    } else {
+        format!("{path}/{key}")
+    }
+}
+
 pub(crate) struct PostgresSecretService {}
 
 #[async_trait]
@@ -134,6 +142,16 @@ impl SecretService for PostgresSecretService {
             return Err(Error::PathNotExists { entered_path: path });
         }
 
+        if secret_metadata::Entity::find()
+            .filter(secret_metadata::Column::Path.eq(&path))
+            .filter(secret_metadata::Column::Key.eq(&key))
+            .count(transaction)
+            .await?
+            > 0
+        {
+            return Err(Error::IdentifierConflicted { entered_identifier: create_identifier(&path, &key) });
+        }
+
         let now = Utc::now();
 
         let secret_metadata_id = UlidId::new(Ulid::new());
@@ -174,6 +192,8 @@ impl SecretService for PostgresSecretService {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered identifier conflicted with existing secret")]
+    IdentifierConflicted { entered_identifier: String },
     #[error("Invalid secret identifier({entered_identifier}) is entered")]
     InvalidSecretIdentifier { entered_identifier: String },
     #[error("Secret Not exists")]
@@ -201,7 +221,10 @@ mod test {
     use ulid::Ulid;
 
     use super::{Error, PostgresSecretService, SecretService};
-    use crate::database::{applied_policy, path, secret_metadata, UlidId};
+    use crate::{
+        database::{applied_policy, path, secret_metadata, UlidId},
+        domain::policy::Policy,
+    };
 
     #[tokio::test]
     async fn when_getting_secret_data_is_successful_then_secret_service_returns_secrets_ok() {
@@ -458,5 +481,140 @@ mod test {
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
+    }
+
+    #[tokio::test]
+    async fn when_registering_secret_is_successful_then_secret_service_returns_unit_ok() {
+        let now = Utc::now();
+        let path = "/test/path";
+        let key = "TEST_KEY";
+        let reader_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+        let writer_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }]])
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
+            .append_query_results([[secret_metadata::Model {
+                id: UlidId::new(Ulid::new()),
+                key: key.to_owned(),
+                path: path.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([vec![
+                applied_policy::Model {
+                    id: UlidId::new(Ulid::new()),
+                    secret_metadata_id: UlidId::new(Ulid::new()),
+                    r#type: applied_policy::PolicyApplicationType::Read,
+                    policy_id: UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap()),
+                    created_at: now,
+                    updated_at: now,
+                },
+                applied_policy::Model {
+                    id: UlidId::new(Ulid::new()),
+                    secret_metadata_id: UlidId::new(Ulid::new()),
+                    r#type: applied_policy::PolicyApplicationType::Write,
+                    policy_id: UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap()),
+                    created_at: now,
+                    updated_at: now,
+                },
+            ]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service
+            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .await
+            .expect("creating workspace should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert_eq!(result, ());
+    }
+
+    #[tokio::test]
+    async fn when_registering_secret_with_not_existing_path_then_secret_service_returns_path_not_exists_err() {
+        let path = "/test/path";
+        let key = "TEST_KEY";
+        let reader_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+        let writer_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(0))
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service
+            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::PathNotExists { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_registering_secret_with_already_used_key_then_secret_service_returns_identifier_conflicted_err() {
+        let now = Utc::now();
+        let path = "/test/path";
+        let key = "TEST_KEY";
+        let reader_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+        let writer_policies = vec![Policy {
+            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            name: "test policy".to_owned(),
+            expression: "(\"role=FRONTEND\")".to_owned(),
+        }];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }]])
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service
+            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::IdentifierConflicted { .. })));
     }
 }
