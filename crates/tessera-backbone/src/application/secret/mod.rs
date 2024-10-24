@@ -16,6 +16,7 @@ use crate::{
 pub(crate) trait SecretUseCase {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>>;
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
+    async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -50,6 +51,10 @@ impl SecretUseCase for SecretUseCaseImpl {
         transaction.commit().await?;
 
         Ok(secret.into())
+    }
+
+    async fn register(&self, cmd: SecretRegisterCommand) -> Result<()> {
+        todo!()
     }
 }
 
@@ -100,6 +105,13 @@ impl From<SecretEntry> for SecretData {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
+
+pub(crate) struct SecretRegisterCommand {
+    pub path: String,
+    pub key: String,
+    pub reader_policy_ids: Vec<Ulid>,
+    pub writer_policy_ids: Vec<Ulid>,
+}
 
 #[cfg(test)]
 mod test {
