@@ -165,9 +165,12 @@ mod test {
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
-    use crate::domain::{
-        policy::MockPolicyService,
-        secret::{MockSecretService, SecretEntry},
+    use crate::{
+        application::secret::SecretRegisterCommand,
+        domain::{
+            policy::{MockPolicyService, Policy},
+            secret::{MockSecretService, SecretEntry},
+        },
     };
 
     use super::{Error, SecretUseCase, SecretUseCaseImpl};
@@ -281,5 +284,83 @@ mod test {
         assert_eq!(result.path, path);
         assert_eq!(result.reader_policy_ids[0], applied_policy_ids[0]);
         assert_eq!(result.writer_policy_ids[0], applied_policy_ids[1]);
+    }
+
+    #[tokio::test]
+    async fn when_registering_secret_is_successful_then_secret_usecase_returns_unit_ok() {
+        let key = "TEST_KEY";
+        let path = "/test/path";
+        let reader_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let writer_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_register().times(1).returning(move |_, _, _, _, _| Ok(()));
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_get().times(2).returning(move |_, _| {
+            Ok(Some(Policy {
+                id: Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap(),
+                name: "test policy".to_owned(),
+                expression: "(\"role=FRONTEND\")".to_owned(),
+            }))
+        });
+
+        let secret_usecase = SecretUseCaseImpl::new(
+            "test_workspace".to_owned(),
+            mock_connection,
+            Arc::new(mock_secret_service),
+            Arc::new(mock_policy_service),
+        );
+
+        let result = secret_usecase
+            .register(SecretRegisterCommand {
+                path: path.to_owned(),
+                key: key.to_owned(),
+                reader_policy_ids,
+                writer_policy_ids,
+            })
+            .await
+            .expect("creating workspace should be successful");
+
+        assert_eq!(result, ())
+    }
+
+    #[tokio::test]
+    async fn when_registering_secret_with_not_existing_policy_then_secret_usecase_returns_policy_not_exists_err() {
+        let key = "TEST_KEY";
+        let path = "/test/path";
+        let reader_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let writer_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mock_secret_service = MockSecretService::new();
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_get().times(1).returning(move |_, _| Ok(None));
+
+        let secret_usecase = SecretUseCaseImpl::new(
+            "test_workspace".to_owned(),
+            mock_connection,
+            Arc::new(mock_secret_service),
+            Arc::new(mock_policy_service),
+        );
+
+        let result = secret_usecase
+            .register(SecretRegisterCommand {
+                path: path.to_owned(),
+                key: key.to_owned(),
+                reader_policy_ids,
+                writer_policy_ids,
+            })
+            .await;
+
+        assert!(matches!(result, Err(Error::PolicyNotExists { .. })))
     }
 }
