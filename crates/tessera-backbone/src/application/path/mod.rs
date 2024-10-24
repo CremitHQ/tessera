@@ -76,10 +76,9 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, sync::Arc};
+    use std::sync::Arc;
 
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
-    use ulid::Ulid;
 
     use crate::domain::secret::{MockSecretService, Path};
 
@@ -87,7 +86,6 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_paths_is_successful_then_policy_usecase_returns_paths_ok() {
-        let path_id = Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap();
         let path = "/frontend";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)

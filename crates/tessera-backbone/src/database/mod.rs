@@ -23,6 +23,7 @@ use url::Url;
 
 pub(crate) mod applied_policy;
 pub(crate) mod parameter;
+pub(crate) mod path;
 pub(crate) mod policy;
 pub(crate) mod secret_metadata;
 pub(crate) mod workspace;

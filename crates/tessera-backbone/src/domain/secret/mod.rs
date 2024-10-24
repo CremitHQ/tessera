@@ -6,7 +6,7 @@ use regex::Regex;
 use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter};
 use ulid::Ulid;
 
-use crate::database::{applied_policy, secret_metadata};
+use crate::database::{applied_policy, path, secret_metadata};
 
 pub(crate) struct SecretEntry {
     pub key: String,
@@ -35,6 +35,12 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry 
 
 pub(crate) struct Path {
     pub path: String,
+}
+
+impl From<path::Model> for Path {
+    fn from(value: path::Model) -> Self {
+        Self { path: value.path }
+    }
 }
 
 #[cfg_attr(test, automock)]
@@ -94,7 +100,9 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>> {
-        todo!()
+        let metadata = path::Entity::find().all(transaction).await?;
+
+        Ok(metadata.into_iter().map(Path::from).collect())
     }
 }
 
@@ -125,7 +133,7 @@ mod test {
     use ulid::Ulid;
 
     use super::{Error, PostgresSecretService, SecretService};
-    use crate::database::{applied_policy, secret_metadata, UlidId};
+    use crate::database::{applied_policy, path, secret_metadata, UlidId};
 
     #[tokio::test]
     async fn when_getting_secret_data_is_successful_then_secret_service_returns_secrets_ok() {
@@ -340,5 +348,47 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::SecretNotExists { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_getting_paths_from_database_is_successful_then_secret_service_returns_paths_ok() {
+        let now = Utc::now();
+        let path_id = UlidId::new(Ulid::from_str("01JACYVTYB4F2PEBFRG1BB7BKP").unwrap());
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![path::Model {
+            id: path_id.to_owned(),
+            path: path.to_owned(),
+            created_at: now,
+            updated_at: now,
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.get_paths(&transaction).await.expect("creating workspace should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert_eq!(result[0].path, path);
+    }
+
+    #[tokio::test]
+    async fn when_getting_paths_from_database_is_failed_then_secret_service_returns_anyhow_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.get_paths(&transaction).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::Anyhow(_))));
+        assert_eq!(result.err().unwrap().to_string(), "Custom Error: some error");
     }
 }
