@@ -4,7 +4,7 @@ use crate::curves::{Field, PairingCurve, RefAdd as _, RefMul as _, RefNeg as _, 
 use crate::error::ABEError;
 use crate::random::Random;
 use crate::utils::tools::{contains, get_value};
-use tessera_policy::pest::{parse, PolicyLanguage, PolicyType, PolicyValue};
+use tessera_policy::pest::{PolicyType, PolicyValue};
 
 pub fn calc_coefficients<T: PairingCurve>(
     policy_value: &PolicyValue,
@@ -67,8 +67,11 @@ pub fn node_index(node: &(&str, usize)) -> String {
     format!("{}_{}", node.0, node.1)
 }
 pub fn remove_index(node: &str) -> String {
-    let parts: Vec<_> = node.split('_').collect();
-    parts[0].to_string()
+    let mut parts: Vec<_> = node.split('_').collect();
+    if parts.len() > 1 {
+        parts.pop();
+    }
+    parts.join("_")
 }
 
 pub fn gen_shares_policy<T: PairingCurve>(
@@ -101,7 +104,7 @@ pub fn gen_shares_policy<T: PairingCurve>(
                 }
                 _ => panic!("this should not happen =( Array is always AND or OR."),
             }
-            let shares = gen_shares::<T>(rng, secret, k, n);
+            let shares = gen_shares::<T>(rng, secret, k as u32, n as u32);
             for i in 0..n {
                 let items = gen_shares_policy::<T>(rng, &shares[i + 1], &children[i], None);
                 result.extend(items.into_iter());
@@ -111,7 +114,7 @@ pub fn gen_shares_policy<T: PairingCurve>(
     }
 }
 
-pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize, n: usize) -> Vec<T::Field> {
+pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: u32, n: u32) -> Vec<T::Field> {
     let mut shares: Vec<T::Field> = Vec::new();
     if k <= n {
         // polynomial coefficients
@@ -121,7 +124,7 @@ pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize
             a.push(<T::Field as Random>::random(rng));
         }
         for i in 0..(n + 1) {
-            let polynom = polynomial::<T>(a.clone(), T::Field::new_int(i.try_into().unwrap_or_default()));
+            let polynom = polynomial::<T>(a.clone(), T::Field::new_int(i.into()));
             shares.push(polynom);
         }
     }
@@ -190,23 +193,10 @@ pub fn calc_pruned<'a>(
     }
 }
 
-#[allow(dead_code)]
-pub fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &str) -> T::Field {
-    let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
-    let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
-    calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list, None);
-    let mut secret = T::Field::new();
-    for (i, share) in shares {
-        let coeff = coeff_list.get(&i).unwrap();
-        secret = secret + share.ref_mul(coeff);
-    }
-    secret
-}
-
 pub fn polynomial<T: PairingCurve>(coeff: Vec<T::Field>, x: T::Field) -> T::Field {
     let mut share = coeff[0].clone();
     for (i, c) in coeff.iter().enumerate().skip(1) {
-        let x_pow = x.ref_pow(&T::Field::new_int(i.try_into().unwrap_or_default()));
+        let x_pow = x.ref_pow(&T::Field::new_int((i as u32).into()));
         share = share.ref_add(&x_pow.ref_mul(c));
     }
     share
@@ -222,6 +212,19 @@ mod tests {
 
     use super::*;
     use rand::Rng;
+    use tessera_policy::pest::{parse, PolicyLanguage};
+
+    fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &str) -> T::Field {
+        let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
+        let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
+        calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list, None);
+        let mut secret = T::Field::new();
+        for (i, share) in shares {
+            let coeff = coeff_list.get(&i).unwrap();
+            secret = secret + share.ref_mul(coeff);
+        }
+        secret
+    }
 
     #[test]
     fn test_secret_sharing_or() {

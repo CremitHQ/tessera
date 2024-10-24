@@ -340,8 +340,9 @@ mod tests {
     #[case("THIS IS SECRET MESSAGE!", r#""A@ADMIN" and "B@CTO""#, true, false)]
     #[case("A~l=GG>APhr0/ML3*nFo#v<#y,=xa+", r#""A@ADMIN" or "C@CEO""#, true, true)]
     #[case("test_message", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
-    #[case("test_message", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
     #[case("test_message", r#""C@CEO""#, false, true)]
+    #[case("test_message", r#""A@INFRA" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
+    #[case("test_message", r#""A@INFRA" and "A@ADMIN" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
     fn encrypt_and_decrypt(
         gp: &GlobalParams<Bls24479Curve>,
         authority_a: &AuthorityKeyPair<Bls24479Curve>,
