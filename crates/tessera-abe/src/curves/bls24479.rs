@@ -58,6 +58,13 @@ impl Field for Bls24479Field {
     }
 }
 
+impl From<u64> for Bls24479Field {
+    #[inline]
+    fn from(x: u64) -> Self {
+        Self { inner: BIG::new_int(x as isize) }
+    }
+}
+
 impl Random for Bls24479Field {
     type Rng = MiraclRng;
 
