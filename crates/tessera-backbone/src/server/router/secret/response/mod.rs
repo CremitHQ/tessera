@@ -20,7 +20,9 @@ impl IntoResponse for application::secret::Error {
             application::secret::Error::PathNotExists { entered_path } => {
                 PathNotExistsErrorResponse { entered_path }.into_response()
             }
-            application::secret::Error::IdentifierConflicted { entered_identifier } => todo!(),
+            application::secret::Error::IdentifierConflicted { entered_identifier } => {
+                SecretIdentifierConlictedErrorResponse { entered_secret_identifier: entered_identifier }.into_response()
+            }
         }
     }
 }

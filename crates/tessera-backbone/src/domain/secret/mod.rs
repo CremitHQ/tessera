@@ -538,13 +538,11 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service
+        secret_service
             .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
-
-        assert_eq!(result, ());
     }
 
     #[tokio::test]
@@ -582,7 +580,6 @@ mod test {
 
     #[tokio::test]
     async fn when_registering_secret_with_already_used_key_then_secret_service_returns_identifier_conflicted_err() {
-        let now = Utc::now();
         let path = "/test/path";
         let key = "TEST_KEY";
         let reader_policies = vec![Policy {

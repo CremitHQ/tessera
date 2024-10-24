@@ -316,7 +316,7 @@ mod test {
             Arc::new(mock_policy_service),
         );
 
-        let result = secret_usecase
+        secret_usecase
             .register(SecretRegisterCommand {
                 path: path.to_owned(),
                 key: key.to_owned(),
@@ -325,8 +325,6 @@ mod test {
             })
             .await
             .expect("creating workspace should be successful");
-
-        assert_eq!(result, ())
     }
 
     #[tokio::test]
