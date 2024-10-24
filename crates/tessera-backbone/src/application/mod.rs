@@ -86,7 +86,11 @@ impl ApplicationWithWorkspace {
     }
 
     pub fn path(&self) -> impl PathUseCase {
-        PathUseCaseImpl::new()
+        PathUseCaseImpl::new(
+            self.workspace_name.to_owned(),
+            self.database_connection.clone(),
+            self.secret_service.clone(),
+        )
     }
 }
 

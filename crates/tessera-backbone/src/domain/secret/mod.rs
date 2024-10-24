@@ -33,12 +33,18 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry 
     }
 }
 
+pub(crate) struct Path {
+    pub path: String,
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait SecretService {
     async fn list(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
 
     async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
+
+    async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>>;
 }
 
 lazy_static! {
@@ -85,6 +91,10 @@ impl SecretService for PostgresSecretService {
             .await?;
 
         Ok(SecretEntry::from((metadata, applied_policies)))
+    }
+
+    async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>> {
+        todo!()
     }
 }
 
