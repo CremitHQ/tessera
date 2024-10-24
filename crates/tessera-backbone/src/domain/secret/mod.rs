@@ -7,7 +7,10 @@ use regex::Regex;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter, Set};
 use ulid::Ulid;
 
-use crate::database::{applied_policy, path, secret_metadata, UlidId};
+use crate::database::{
+    applied_policy::{self, PolicyApplicationType},
+    path, secret_metadata, UlidId,
+};
 
 use super::policy::Policy;
 
@@ -137,7 +140,26 @@ impl SecretService for PostgresSecretService {
         .insert(transaction)
         .await?;
 
-        // TODO: insert applied policies
+        let applied_reader_policies = reader_policies.into_iter().map(|reader_policy| applied_policy::ActiveModel {
+            id: Set(UlidId::new(Ulid::new())),
+            secret_metadata_id: Set(secret_metadata_id.clone()),
+            r#type: Set(PolicyApplicationType::Read),
+            policy_id: Set(UlidId::new(reader_policy.id)),
+            created_at: Set(now),
+            updated_at: Set(now),
+        });
+        let applied_writer_policies = writer_policies.into_iter().map(|writer_policy| applied_policy::ActiveModel {
+            id: Set(UlidId::new(Ulid::new())),
+            secret_metadata_id: Set(secret_metadata_id.clone()),
+            r#type: Set(PolicyApplicationType::Write),
+            policy_id: Set(UlidId::new(writer_policy.id)),
+            created_at: Set(now),
+            updated_at: Set(now),
+        });
+
+        applied_policy::Entity::insert_many(applied_reader_policies.chain(applied_writer_policies))
+            .exec(transaction)
+            .await?;
 
         Ok(())
     }
