@@ -14,6 +14,15 @@ impl IntoResponse for application::secret::Error {
                 InvalidSecretIdentifierErrorResponse { entered_identifier }.into_response()
             }
             application::secret::Error::SecretNotExists => SecretNotExistsErrorRespone {}.into_response(),
+            application::secret::Error::PolicyNotExists { entered_policy_id } => {
+                PolicyNotExistsErrorResponse { entered_policy_id }.into_response()
+            }
+            application::secret::Error::PathNotExists { entered_path } => {
+                PathNotExistsErrorResponse { entered_path }.into_response()
+            }
+            application::secret::Error::IdentifierConflicted { entered_identifier } => {
+                SecretIdentifierConlictedErrorResponse { entered_secret_identifier: entered_identifier }.into_response()
+            }
         }
     }
 }
@@ -55,4 +64,73 @@ pub(super) struct SecretResponse {
     pub path: String,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
+}
+
+struct PolicyNotExistsErrorResponse {
+    entered_policy_id: Ulid,
+}
+
+impl IntoResponse for PolicyNotExistsErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error_payload_with_data(
+                "ENTERED_POLICY_NOT_EXISTS",
+                "entered policy is not exists",
+                EnteredPolicyIdErrorData { entered_policy_id: self.entered_policy_id },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredPolicyIdErrorData {
+    entered_policy_id: Ulid,
+}
+
+struct PathNotExistsErrorResponse {
+    entered_path: String,
+}
+
+impl IntoResponse for PathNotExistsErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error_payload_with_data(
+                "ENTERED_PATH_NOT_EXISTS",
+                "entered path is not exists",
+                EnteredPathErrorData { entered_path: self.entered_path },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredPathErrorData {
+    entered_path: String,
+}
+
+struct SecretIdentifierConlictedErrorResponse {
+    entered_secret_identifier: String,
+}
+
+impl IntoResponse for SecretIdentifierConlictedErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::CONFLICT,
+            error_payload_with_data(
+                "ENTERED_SECRET_IDENTIFIER_CONFLICTED",
+                "entered secret identifier is already used by existing secret",
+                EnteredSecretIdentifierErrorData { entered_secret_identifier: self.entered_secret_identifier },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredSecretIdentifierErrorData {
+    entered_secret_identifier: String,
 }

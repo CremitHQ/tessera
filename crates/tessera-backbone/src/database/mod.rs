@@ -175,6 +175,12 @@ impl From<Ulid> for UlidId {
     }
 }
 
+impl From<&Ulid> for UlidId {
+    fn from(value: &Ulid) -> Self {
+        Self::new(value.to_owned())
+    }
+}
+
 impl AsRef<Ulid> for UlidId {
     fn as_ref(&self) -> &Ulid {
         &self.0

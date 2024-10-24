@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{
     debug_handler,
     extract::{Path, Query, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -11,17 +12,18 @@ use serde::Deserialize;
 
 use crate::application::{
     self,
-    secret::{SecretData, SecretUseCase},
+    secret::{SecretData, SecretRegisterCommand, SecretUseCase},
     Application,
 };
 
-use self::response::SecretResponse;
+use self::{request::PostSecretRequest, response::SecretResponse};
 
+mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
-        .route("/workspaces/:workspace_name/secrets", get(handle_get_secrets))
+        .route("/workspaces/:workspace_name/secrets", get(handle_get_secrets).post(handle_post_secret))
         .route("/workspaces/:workspace_name/secrets/*secret_identifier", get(handle_get_secret))
         .with_state(application)
 }
@@ -42,6 +44,26 @@ async fn handle_get_secrets(
     let response: Vec<SecretResponse> = secrets.into_iter().map(SecretResponse::from).collect();
 
     Ok(Json(response))
+}
+
+#[debug_handler]
+async fn handle_post_secret(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PostSecretRequest>,
+) -> Result<impl IntoResponse, application::secret::Error> {
+    application
+        .with_workspace(&workspace_name)
+        .secret()
+        .register(SecretRegisterCommand {
+            path: payload.path,
+            key: payload.key,
+            reader_policy_ids: payload.reader_policy_ids,
+            writer_policy_ids: payload.writer_policy_ids,
+        })
+        .await?;
+
+    Ok(StatusCode::CREATED)
 }
 
 #[debug_handler]

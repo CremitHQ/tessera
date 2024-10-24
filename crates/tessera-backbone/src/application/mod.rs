@@ -66,6 +66,7 @@ impl ApplicationWithWorkspace {
             self.workspace_name.to_owned(),
             self.database_connection.clone(),
             self.secret_service.clone(),
+            self.policy_service.clone(),
         )
     }
 
