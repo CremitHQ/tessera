@@ -4,7 +4,9 @@ use lazy_static::lazy_static;
 #[cfg(test)]
 use mockall::automock;
 use regex::Regex;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait, QueryFilter, Set,
+};
 use ulid::Ulid;
 
 use crate::database::{
@@ -128,7 +130,12 @@ impl SecretService for PostgresSecretService {
         reader_policies: Vec<Policy>,
         writer_policies: Vec<Policy>,
     ) -> Result<()> {
+        if path::Entity::find().filter(path::Column::Path.eq(&path)).count(transaction).await? == 0 {
+            return Err(Error::PathNotExists { entered_path: path });
+        }
+
         let now = Utc::now();
+
         let secret_metadata_id = UlidId::new(Ulid::new());
         secret_metadata::ActiveModel {
             id: Set(secret_metadata_id.clone()),
@@ -171,6 +178,8 @@ pub(crate) enum Error {
     InvalidSecretIdentifier { entered_identifier: String },
     #[error("Secret Not exists")]
     SecretNotExists,
+    #[error("Path({entered_path}) is not registered")]
+    PathNotExists { entered_path: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }

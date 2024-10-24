@@ -17,6 +17,9 @@ impl IntoResponse for application::secret::Error {
             application::secret::Error::PolicyNotExists { entered_policy_id } => {
                 PolicyNotExistsErrorResponse { entered_policy_id }.into_response()
             }
+            application::secret::Error::PathNotExists { entered_path } => {
+                PathNotExistsErrorResponse { entered_path }.into_response()
+            }
         }
     }
 }
@@ -81,4 +84,27 @@ impl IntoResponse for PolicyNotExistsErrorResponse {
 #[derive(Serialize, Debug)]
 struct EnteredPolicyIdErrorData {
     entered_policy_id: Ulid,
+}
+
+struct PathNotExistsErrorResponse {
+    entered_path: String,
+}
+
+impl IntoResponse for PathNotExistsErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error_payload_with_data(
+                "ENTERED_PATH_NOT_EXISTS",
+                "entered path is not exists",
+                EnteredPathErrorData { entered_path: self.entered_path },
+            ),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize, Debug)]
+struct EnteredPathErrorData {
+    entered_path: String,
 }

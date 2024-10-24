@@ -100,6 +100,8 @@ pub(crate) enum Error {
     SecretNotExists,
     #[error("Policy({entered_policy_id}) is not exists")]
     PolicyNotExists { entered_policy_id: Ulid },
+    #[error("Path({entered_path}) is not registered")]
+    PathNotExists { entered_path: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -118,6 +120,7 @@ impl From<domain::secret::Error> for Error {
                 Error::InvalidSecretIdentifier { entered_identifier }
             }
             domain::secret::Error::SecretNotExists => Error::SecretNotExists,
+            domain::secret::Error::PathNotExists { entered_path } => Error::PathNotExists { entered_path },
         }
     }
 }
