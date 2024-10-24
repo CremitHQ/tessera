@@ -81,7 +81,7 @@ pub trait Field:
 where
     Self: for<'de> Deserialize<'de>,
 {
-    type Chunk: TryFrom<usize> + Copy + Default;
+    type Chunk: From<u32> + Copy + Default;
 
     fn new() -> Self;
     fn one() -> Self;
