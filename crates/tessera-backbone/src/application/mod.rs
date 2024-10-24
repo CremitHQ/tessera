@@ -17,11 +17,13 @@ use crate::{
 use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
 use self::{
+    path::{PathUseCase, PathUseCaseImpl},
     policy::{PolicyUseCase, PolicyUseCaseImpl},
     secret::{SecretUseCase, SecretUseCaseImpl},
 };
 
 pub(crate) mod parameter;
+pub(crate) mod path;
 pub(crate) mod policy;
 pub(crate) mod secret;
 pub(crate) mod workspace;
@@ -81,6 +83,10 @@ impl ApplicationWithWorkspace {
             self.database_connection.clone(),
             self.policy_service.clone(),
         )
+    }
+
+    pub fn path(&self) -> impl PathUseCase {
+        PathUseCaseImpl::new()
     }
 }
 
