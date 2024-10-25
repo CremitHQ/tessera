@@ -146,7 +146,7 @@ where
     fn one() -> Self;
 }
 
-pub trait PairingCurve {
+pub trait PairingCurve: Sized + Clone {
     type Rng: CryptoRng + RngCore;
     type Field: FieldWithOrder<Rng = Self::Rng>;
     type G1: GroupG1<Field = Self::Field>;
