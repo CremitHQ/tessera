@@ -70,8 +70,8 @@ pub enum AESShieldError<'a> {
 
 #[derive(Error, Debug)]
 pub enum AESShieldStorageError<'a> {
-    #[error("Shield has been sealed. Cannot perform operation.")]
-    ShieldSealed,
+    #[error("Shield has been armored. Cannot perform operation.")]
+    ShieldArmored,
 
     #[error("Storage error: {0}")]
     StorageError(Cow<'a, str>),
@@ -223,7 +223,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, Self::StorageError> {
         if self.is_armored().await {
-            return Err(AESShieldStorageError::ShieldSealed);
+            return Err(AESShieldStorageError::ShieldArmored);
         }
         let shield_key = self.shield_key.read().await;
         let shield_key = shield_key.as_ref().unwrap(); // Since we've already validated this earlier with is_armored(), it's safe to use unwrap() here.
@@ -242,7 +242,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<(), Self::StorageError> {
         if self.is_armored().await {
-            return Err(AESShieldStorageError::ShieldSealed);
+            return Err(AESShieldStorageError::ShieldArmored);
         }
         let shield_key = self.shield_key.read().await;
         let shield_key = shield_key.as_ref().unwrap(); // Since we've already validated this earlier with is_armored(), it's safe to use unwrap() here.
@@ -253,7 +253,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
 
     async fn delete(&self, key: &str) -> Result<(), Self::StorageError> {
         if self.is_armored().await {
-            return Err(AESShieldStorageError::ShieldSealed);
+            return Err(AESShieldStorageError::ShieldArmored);
         }
 
         self.inner.delete(key).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
@@ -261,7 +261,7 @@ impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
 
     async fn list(&self, prefix: &str) -> Result<impl IntoIterator<Item = String>, Self::StorageError> {
         if self.is_armored().await {
-            return Err(AESShieldStorageError::ShieldSealed);
+            return Err(AESShieldStorageError::ShieldArmored);
         }
 
         self.inner.list(prefix).await.map_err(|e| AESShieldStorageError::StorageError(e.to_string().into()))
