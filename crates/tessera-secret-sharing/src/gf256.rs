@@ -1,7 +1,10 @@
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-#[derive(Default, Copy, Clone, Eq, PartialEq, Hash, Debug)]
+use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
+
+#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Zeroize, Serialize, Deserialize)]
 pub struct GF256(pub u8);
 
 impl GF256 {
