@@ -3721,6 +3721,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tessera-secret-sharing"
+version = "0.0.1"
+dependencies = [
+ "rand",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zeroize",
+]
+
+[[package]]
 name = "tessera-storage"
 version = "0.0.1"
 dependencies = [
