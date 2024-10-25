@@ -53,14 +53,14 @@ impl Authority {
     }
 
     pub async fn init_key_pair_storage(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
-        Ok(self.key_pair_service.shield_initialize(share, threshold).await?)
+        self.key_pair_service.shield_initialize(share, threshold).await
     }
 
     pub async fn armor_key_pair_storage(&self) -> Result<()> {
-        Ok(self.key_pair_service.storage_armor().await?)
+        self.key_pair_service.storage_armor().await
     }
 
     pub async fn disarm_key_pair_storage(&self, shares: &[Share]) -> Result<()> {
-        Ok(self.key_pair_service.storage_disarm(shares).await?)
+        self.key_pair_service.storage_disarm(shares).await
     }
 }
