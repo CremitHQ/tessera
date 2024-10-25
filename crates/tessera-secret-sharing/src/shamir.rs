@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
+
 use crate::gf256::GF256;
 
 pub struct Polynomial {
@@ -21,7 +24,7 @@ impl Polynomial {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Zeroize, Serialize, Deserialize)]
 pub struct Share {
     pub x: GF256,
     pub points: Vec<GF256>,
