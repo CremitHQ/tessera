@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
 use tessera_policy::pest::{parse, PolicyLanguage};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct GlobalParams<T>
 where
     T: PairingCurve,
@@ -38,20 +38,20 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AuthorityKeyPair<T: PairingCurve> {
     pub name: String,
     pub pk: AuthorityPublicKey<T>,
     pub mk: AuthorityMasterKey<T>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AuthorityPublicKey<T: PairingCurve> {
     pub e_alpha: T::Gt,
     pub gy: T::G1,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AuthorityMasterKey<T: PairingCurve> {
     pub alpha: T::Field,
     pub y: T::Field,
@@ -78,13 +78,13 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct UserAttributeKey<T: PairingCurve> {
     pub k: T::G2,
     pub kp: T::G1,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct UserSecretKey<T: PairingCurve> {
     pub gid: String,
     pub inner: HashMap<String, UserAttributeKey<T>>,
@@ -160,7 +160,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Ciphertext<T: PairingCurve> {
     pub policy: (String, PolicyLanguage),
     pub c0: T::Gt,
@@ -168,7 +168,7 @@ pub struct Ciphertext<T: PairingCurve> {
     pub ct: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Cx<T: PairingCurve> {
     pub c1: T::Gt,
     pub c2: T::G1,
@@ -179,7 +179,7 @@ pub struct Cx<T: PairingCurve> {
 pub fn encrypt<'a, T: PairingCurve>(
     rng: &mut <T::Field as Random>::Rng,
     gp: &GlobalParams<T>,
-    pks: &HashMap<String, &AuthorityPublicKey<T>>,
+    pks: &HashMap<String, AuthorityPublicKey<T>>,
     policy: (String, PolicyLanguage),
     data: &[u8],
 ) -> Result<Ciphertext<T>, ABEError<'a>> {
@@ -358,9 +358,9 @@ mod tests {
         let mut rng = rng();
 
         let mut pks = HashMap::new();
-        pks.insert("A".to_string(), &authority_a.pk);
-        pks.insert("B".to_string(), &authority_b.pk);
-        pks.insert("C".to_string(), &authority_c.pk);
+        pks.insert("A".to_string(), authority_a.pk.clone());
+        pks.insert("B".to_string(), authority_b.pk.clone());
+        pks.insert("C".to_string(), authority_c.pk.clone());
 
         let ciphertext =
             encrypt(&mut rng, gp, &pks, (policy.to_string(), PolicyLanguage::HumanPolicy), plaintext.as_bytes())

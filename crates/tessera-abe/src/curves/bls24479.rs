@@ -459,7 +459,7 @@ impl Inv for Gt {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Bls24479Curve;
 
 impl PairingCurve for Bls24479Curve {
