@@ -65,7 +65,7 @@ pub fn split(secret: &[u8], threshold: usize, shares: usize) -> Vec<Share> {
 }
 
 pub fn combine(shares: &[Share]) -> Vec<u8> {
-    debug_assert!(shares.len() > 0);
+    debug_assert!(!shares.is_empty());
     debug_assert!(shares.iter().all(|share| share.points.len() == shares[0].points.len()));
     let secret_size = shares[0].points.len();
 
@@ -98,7 +98,7 @@ pub fn interpolate(points: &[(GF256, GF256)]) -> GF256 {
 }
 
 pub fn refresh(shares: &mut [Share]) {
-    debug_assert!(shares.len() > 0);
+    debug_assert!(!shares.is_empty());
     debug_assert!(shares.iter().all(|share| share.points.len() == shares[0].points.len()));
 
     let threshold = shares.len();

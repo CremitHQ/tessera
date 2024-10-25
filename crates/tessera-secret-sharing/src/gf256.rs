@@ -82,6 +82,7 @@ impl Add for GF256 {
     type Output = GF256;
 
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn add(self, other: Self) -> Self::Output {
         Self(self.0 ^ other.0)
     }
@@ -97,6 +98,7 @@ impl AddAssign for GF256 {
 impl Sub for GF256 {
     type Output = Self;
     #[inline]
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn sub(self, other: Self) -> Self::Output {
         Self(self.0 ^ other.0)
     }
