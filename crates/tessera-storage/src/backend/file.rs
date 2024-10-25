@@ -32,7 +32,7 @@ impl<'a> Storage for FileStorage<'a> {
     type StorageError = FileStorageError<'static>;
 
     async fn get(&self, key: &Self::Key) -> Result<Option<<Self::Value as ToOwned>::Owned>, Self::StorageError> {
-        let path = self.path.clone().into_owned().join(key);
+        let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
         let data = fs::read(path).await;
         match data {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -42,7 +42,7 @@ impl<'a> Storage for FileStorage<'a> {
     }
 
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError> {
-        let path = self.path.clone().into_owned().join(key);
+        let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
         let parent = path.parent().ok_or(FileStorageError::Path("No parent directory".into()))?;
         fs::create_dir_all(parent).await?;
         fs::write(path, value).await?;
@@ -50,7 +50,7 @@ impl<'a> Storage for FileStorage<'a> {
     }
 
     async fn delete(&self, key: &Self::Key) -> Result<(), Self::StorageError> {
-        let path = self.path.clone().into_owned().join(key);
+        let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
         fs::remove_file(path).await?;
         Ok(())
     }
@@ -59,8 +59,7 @@ impl<'a> Storage for FileStorage<'a> {
         &self,
         prefix: &Self::Key,
     ) -> Result<impl IntoIterator<Item = <Self::Key as ToOwned>::Owned>, Self::StorageError> {
-        let mut path = self.path.clone().into_owned();
-        path.push(prefix);
+        let path = self.path.clone().into_owned().join(prefix.trim_start_matches('/'));
 
         let mut entries = fs::read_dir(path).await?;
         let mut list = vec![];
