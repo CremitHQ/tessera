@@ -65,6 +65,7 @@ pub(crate) trait SecretService {
         transaction: &DatabaseTransaction,
         path: String,
         key: String,
+        cipher: Vec<u8>,
         reader_policies: Vec<Policy>,
         writer_policies: Vec<Policy>,
     ) -> Result<()>;
@@ -135,6 +136,7 @@ impl SecretService for PostgresSecretService {
         transaction: &DatabaseTransaction,
         path: String,
         key: String,
+        cipher: Vec<u8>,
         reader_policies: Vec<Policy>,
         writer_policies: Vec<Policy>,
     ) -> Result<()> {
@@ -539,7 +541,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
@@ -571,7 +573,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -608,7 +610,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 

@@ -77,7 +77,9 @@ impl SecretUseCase for SecretUseCaseImpl {
         let reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
         let writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
 
-        self.secret_service.register(&transaction, cmd.path, cmd.key, reader_policies, writer_policies).await?;
+        self.secret_service
+            .register(&transaction, cmd.path, cmd.key, cmd.cipher, reader_policies, writer_policies)
+            .await?;
 
         transaction.commit().await?;
 
@@ -300,7 +302,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_register().times(1).returning(move |_, _, _, _, _| Ok(()));
+        mock_secret_service.expect_register().times(1).returning(move |_, _, _, _, _, _| Ok(()));
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(2).returning(move |_, _| {
             Ok(Some(Policy {
@@ -321,6 +323,7 @@ mod test {
             .register(SecretRegisterCommand {
                 path: path.to_owned(),
                 key: key.to_owned(),
+                cipher: vec![],
                 reader_policy_ids,
                 writer_policy_ids,
             })
@@ -355,6 +358,7 @@ mod test {
             .register(SecretRegisterCommand {
                 path: path.to_owned(),
                 key: key.to_owned(),
+                cipher: vec![],
                 reader_policy_ids,
                 writer_policy_ids,
             })
