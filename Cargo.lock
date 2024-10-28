@@ -3718,6 +3718,7 @@ dependencies = [
  "mockall",
  "rand",
  "regex",
+ "rmp-serde",
  "sea-orm",
  "serde",
  "serde_json",

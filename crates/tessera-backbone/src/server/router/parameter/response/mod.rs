@@ -4,7 +4,6 @@ use crate::{
 };
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::Serialize;
-use tessera_abe::{curves::bls24479::Bls24479Curve, schemes::rw15::GlobalParams};
 use tracing::error;
 
 impl IntoResponse for application::parameter::Error {
@@ -13,6 +12,14 @@ impl IntoResponse for application::parameter::Error {
             application::parameter::Error::GetParameterFailed(error) => {
                 error!("Failed to get parameter: {}", error);
                 (StatusCode::NOT_FOUND, error_payload("GET_PARAMETER_FAILED", "Failed to get parameter"))
+                    .into_response()
+            }
+            application::parameter::Error::SerializeParameterFailed(error) => {
+                error!("Failed to serialize parameter: {}", error);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_payload("SERIALIZE_PARAMETER_FAILED", "Failed to serialize parameter"),
+                )
                     .into_response()
             }
             application::parameter::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
@@ -24,5 +31,5 @@ impl IntoResponse for application::parameter::Error {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ParameterResponse {
     pub version: i32,
-    pub parameter: GlobalParams<Bls24479Curve>,
+    pub parameter: String,
 }
