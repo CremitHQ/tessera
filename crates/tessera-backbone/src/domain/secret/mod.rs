@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use lazy_static::lazy_static;
@@ -19,12 +21,15 @@ use super::policy::Policy;
 pub(crate) struct SecretEntry {
     pub key: String,
     pub path: String,
+    pub cipher: Vec<u8>,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
 }
 
-impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry {
-    fn from((metadata, applied_policies): (secret_metadata::Model, Vec<applied_policy::Model>)) -> Self {
+impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for SecretEntry {
+    fn from(
+        (metadata, applied_policies, cipher): (secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>),
+    ) -> Self {
         let mut reader_policy_ids: Vec<Ulid> = vec![];
         let mut writer_policy_ids: Vec<Ulid> = vec![];
 
@@ -37,7 +42,7 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>)> for SecretEntry 
             }
         }
 
-        SecretEntry { key: metadata.key, path: metadata.path, reader_policy_ids, writer_policy_ids }
+        SecretEntry { key: metadata.key, cipher, path: metadata.path, reader_policy_ids, writer_policy_ids }
     }
 }
 
@@ -103,8 +108,26 @@ impl SecretService for PostgresSecretService {
             .all(transaction)
             .await?;
         let applied_policies = metadata.load_many(applied_policy::Entity, transaction).await?;
+        let mut ciphers: HashMap<String, Vec<u8>> = secret_value::Entity::find()
+            .filter(
+                secret_value::Column::Identifier
+                    .is_in(metadata.iter().map(|metadata| create_identifier(&metadata.path, &metadata.key))),
+            )
+            .all(transaction)
+            .await?
+            .into_iter()
+            .map(|secret_value| (secret_value.identifier, secret_value.cipher))
+            .collect();
 
-        Ok(metadata.into_iter().zip(applied_policies.into_iter()).map(SecretEntry::from).collect())
+        Ok(metadata
+            .into_iter()
+            .zip(applied_policies.into_iter())
+            .map(|(metadata, applied_policies)| {
+                let cipher = ciphers.remove(&create_identifier(&metadata.path, &metadata.key)).unwrap_or_default();
+
+                SecretEntry::from((metadata, applied_policies, cipher))
+            })
+            .collect())
     }
 
     async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry> {
@@ -121,8 +144,14 @@ impl SecretService for PostgresSecretService {
             .filter(applied_policy::Column::SecretMetadataId.eq(metadata.id.to_owned()))
             .all(transaction)
             .await?;
+        let cipher = secret_value::Entity::find()
+            .filter(secret_value::Column::Identifier.eq(create_identifier(&metadata.path, &metadata.key)))
+            .one(transaction)
+            .await?
+            .map(|secret_value| secret_value.cipher)
+            .unwrap_or_default();
 
-        Ok(SecretEntry::from((metadata, applied_policies)))
+        Ok(SecretEntry::from((metadata, applied_policies, cipher)))
     }
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>> {
@@ -277,7 +306,14 @@ mod test {
                     created_at: now,
                     updated_at: now,
                 },
-            ]]);
+            ]])
+            .append_query_results([vec![secret_value::Model {
+                id: UlidId::new(Ulid::new()),
+                identifier: "/test/path/TEST_KEY".to_owned(),
+                cipher: vec![1, 2, 3],
+                created_at: now,
+                updated_at: now,
+            }]]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -290,6 +326,7 @@ mod test {
 
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
+        assert_eq!(result[0].cipher, vec![1, 2, 3]);
         assert_eq!(result[0].reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
         assert_eq!(result[0].writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
@@ -349,7 +386,14 @@ mod test {
                     created_at: now,
                     updated_at: now,
                 },
-            ]]);
+            ]])
+            .append_query_results([vec![secret_value::Model {
+                id: UlidId::new(Ulid::new()),
+                identifier: "/test/path/TEST_KEY".to_owned(),
+                cipher: vec![1, 2, 3],
+                created_at: now,
+                updated_at: now,
+            }]]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -363,6 +407,7 @@ mod test {
 
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
+        assert_eq!(result.cipher, vec![1, 2, 3]);
         assert_eq!(result.reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
         assert_eq!(result.writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
@@ -548,7 +593,7 @@ mod test {
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
-                cipher: vec![],
+                cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
             }]]);
@@ -560,7 +605,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![1, 2, 3], reader_policies, writer_policies)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");

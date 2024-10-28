@@ -90,6 +90,7 @@ impl SecretUseCase for SecretUseCaseImpl {
 pub(crate) struct SecretData {
     pub key: String,
     pub path: String,
+    pub cipher: Vec<u8>,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
 }
@@ -145,6 +146,7 @@ impl From<SecretEntry> for SecretData {
         Self {
             key: value.key,
             path: value.path,
+            cipher: value.cipher,
             reader_policy_ids: value.reader_policy_ids,
             writer_policy_ids: value.writer_policy_ids,
         }
@@ -197,6 +199,7 @@ mod test {
             Ok(vec![SecretEntry {
                 key: key.to_owned(),
                 path: path.to_owned(),
+                cipher: vec![4, 5, 6],
                 reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
                 writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
             }])
@@ -214,6 +217,7 @@ mod test {
 
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
+        assert_eq!(result[0].cipher, vec![4, 5, 6]);
         assert_eq!(result[0].reader_policy_ids[0], applied_policy_ids[0]);
         assert_eq!(result[0].writer_policy_ids[0], applied_policy_ids[1]);
     }
@@ -267,6 +271,7 @@ mod test {
                 Ok(SecretEntry {
                     key: key.to_owned(),
                     path: path.to_owned(),
+                    cipher: vec![4, 5, 6],
                     reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
                     writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
                 })
@@ -285,6 +290,7 @@ mod test {
 
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
+        assert_eq!(result.cipher, vec![4, 5, 6]);
         assert_eq!(result.reader_policy_ids[0], applied_policy_ids[0]);
         assert_eq!(result.writer_policy_ids[0], applied_policy_ids[1]);
     }
@@ -323,7 +329,7 @@ mod test {
             .register(SecretRegisterCommand {
                 path: path.to_owned(),
                 key: key.to_owned(),
-                cipher: vec![],
+                cipher: vec![4, 5, 6],
                 reader_policy_ids,
                 writer_policy_ids,
             })

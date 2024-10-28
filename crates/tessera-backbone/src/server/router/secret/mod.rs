@@ -93,6 +93,7 @@ impl From<SecretData> for SecretResponse {
         Self {
             key: value.key,
             path: value.path,
+            cipher: BASE64_STANDARD.encode(value.cipher),
             reader_policy_ids: value.reader_policy_ids,
             writer_policy_ids: value.writer_policy_ids,
         }
