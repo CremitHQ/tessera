@@ -197,6 +197,7 @@ mod test {
             Ok(vec![SecretEntry {
                 key: key.to_owned(),
                 path: path.to_owned(),
+                cipher: vec![],
                 reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
                 writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
             }])
@@ -267,6 +268,7 @@ mod test {
                 Ok(SecretEntry {
                     key: key.to_owned(),
                     path: path.to_owned(),
+                    cipher: vec![],
                     reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
                     writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
                 })
