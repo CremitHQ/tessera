@@ -139,3 +139,12 @@ impl IntoResponse for SecretIdentifierConlictedErrorResponse {
 struct EnteredSecretIdentifierErrorData {
     entered_secret_identifier: String,
 }
+
+pub struct InvalidSecretCipherResponse {}
+
+impl IntoResponse for InvalidSecretCipherResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::BAD_REQUEST, error_payload("INVALID_SECRET_CIPHER", "cipher text must be valid base64 text"))
+            .into_response()
+    }
+}

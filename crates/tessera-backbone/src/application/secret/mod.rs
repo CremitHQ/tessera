@@ -154,6 +154,7 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 pub(crate) struct SecretRegisterCommand {
     pub path: String,
     pub key: String,
+    pub cipher: Vec<u8>,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
 }
