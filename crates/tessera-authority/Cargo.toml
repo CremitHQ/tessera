@@ -23,7 +23,7 @@ tessera-secret-sharing = { workspace = true }
 zeroize = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
-bincode = { workspace = true }
+rmp-serde = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 thiserror = { workspace = true }
 axum_thiserror = "0.1"
