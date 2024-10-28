@@ -54,6 +54,9 @@ pub(crate) enum Error {
     #[error("Failed to get parameter: {0}")]
     GetParameterFailed(#[source] domain::parameter::Error),
 
+    #[error("Failed to serialize parameter: {0}")]
+    SerializeParameterFailed(#[from] rmp_serde::encode::Error),
+
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }

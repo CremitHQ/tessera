@@ -7,6 +7,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 use crate::application::{
     self,
@@ -28,13 +29,17 @@ async fn handle_get_parameter(
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::parameter::Error> {
     let parameter = application.with_workspace(&workspace_name).parameter().get().await?;
-    let response: ParameterResponse = parameter.into();
+    let response: ParameterResponse = parameter.try_into()?;
 
     Ok(Json(response))
 }
 
-impl From<ParameterData> for ParameterResponse {
-    fn from(value: ParameterData) -> Self {
-        Self { version: value.version, parameter: value.value }
+impl TryFrom<ParameterData> for ParameterResponse {
+    type Error = application::parameter::Error;
+
+    fn try_from(value: ParameterData) -> Result<Self, Self::Error> {
+        let parameter = rmp_serde::to_vec(&value.value)?;
+        let parameter = STANDARD.encode(&parameter);
+        Ok(Self { version: value.version, parameter })
     }
 }
