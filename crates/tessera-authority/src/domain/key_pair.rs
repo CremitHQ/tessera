@@ -96,7 +96,7 @@ impl KeyPairService for FileKeyPairService<'_> {
         let key_pair = self.storage.get(&key_pair_path).await?;
         match key_pair {
             Some(key_pair) => {
-                let key_pair: KeyPair = bincode::deserialize(&key_pair)?;
+                let key_pair: KeyPair = rmp_serde::from_slice(&key_pair)?;
                 Ok(Some(key_pair))
             }
             None => Ok(None),
@@ -110,7 +110,7 @@ impl KeyPairService for FileKeyPairService<'_> {
 
         let new_version = latest_version + 1;
         let new_version_path = self.key_pair_path(authority_name, new_version);
-        let key_pair_bytes = bincode::serialize(key_pair)?;
+        let key_pair_bytes = rmp_serde::to_vec(key_pair)?;
         self.storage.set(&new_version_path, &key_pair_bytes).await?;
         self.storage.set(&version_path, new_version.to_string().as_bytes()).await?;
 

@@ -24,7 +24,7 @@ async fn handle_initializing_authority(
         .map_err(|_| InitAuthorityError::InitializationError)?;
     let shares = shares
         .iter()
-        .map(|share| bincode::serialize(&share))
+        .map(|share| rmp_serde::to_vec(&share))
         .collect::<Result<Vec<_>, _>>()
         .map_err(InitAuthorityError::SerializationError)?;
     let shares = shares.iter().map(|share| STANDARD.encode(share)).collect::<Vec<_>>();
@@ -45,5 +45,5 @@ pub enum InitAuthorityError {
 
     #[error("Unable to serialize the shares")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    SerializationError(#[from] bincode::Error),
+    SerializationError(#[from] rmp_serde::encode::Error),
 }
