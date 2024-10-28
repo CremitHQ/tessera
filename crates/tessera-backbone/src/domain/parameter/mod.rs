@@ -48,7 +48,7 @@ impl ParameterService for PostgresParameterService {
         rng.seed(&seed);
 
         let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
-        let value = serde_json::to_value(&gp)?;
+        let value = rmp_serde::to_vec(&gp)?;
         let now = Utc::now();
         parameter::ActiveModel {
             id: ActiveValue::Set(Ulid::new().into()),
@@ -70,7 +70,7 @@ impl ParameterService for PostgresParameterService {
             .await?
             .ok_or(Error::ParameterNotFound)?;
         let value = parameter.value;
-        let gp: GlobalParams<Bls24479Curve> = serde_json::from_value(value)?;
+        let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&value)?;
         Ok(Parameter { version: PARAMETER_VERSION, value: gp })
     }
 }
@@ -84,7 +84,10 @@ pub(crate) enum Error {
     ParameterNotFound,
 
     #[error(transparent)]
-    SerdeJson(#[from] serde_json::Error),
+    Serialization(#[from] rmp_serde::encode::Error),
+
+    #[error(transparent)]
+    Deserialization(#[from] rmp_serde::decode::Error),
 
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
@@ -119,7 +122,7 @@ mod test {
         use crate::database::parameter::Model;
         let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
         let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
-        let value = serde_json::to_value(&gp).expect("serializing global params should be successful");
+        let value = rmp_serde::to_vec(&gp).expect("serializing global params should be successful");
 
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
@@ -168,7 +171,7 @@ mod test {
         use crate::database::parameter::Model;
         let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
         let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
-        let value = serde_json::to_value(&gp).expect("serializing global params should be successful");
+        let value = rmp_serde::to_vec(&gp).expect("serializing global params should be successful");
 
         let now = Utc::now();
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![Model {
@@ -189,7 +192,10 @@ mod test {
 
         let result = result.expect("getting workspace should be successful");
         assert_eq!(result.version, PARAMETER_VERSION);
-        assert_eq!(serde_json::to_value(&result.value).expect("serializing global params should be successful"), value);
+        assert_eq!(
+            rmp_serde::to_vec(&result.value).expect("serializing global params should be successful"),
+            rmp_serde::to_vec(&gp).expect("serializing global params should be successful")
+        );
     }
 
     #[tokio::test]
