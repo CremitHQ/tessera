@@ -310,7 +310,7 @@ mod test {
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
-                cipher: vec![],
+                cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
             }]]);
@@ -326,6 +326,7 @@ mod test {
 
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
+        assert_eq!(result[0].cipher, vec![1, 2, 3]);
         assert_eq!(result[0].reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
         assert_eq!(result[0].writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
@@ -389,7 +390,7 @@ mod test {
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
-                cipher: vec![],
+                cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
             }]]);
@@ -406,6 +407,7 @@ mod test {
 
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
+        assert_eq!(result.cipher, vec![1, 2, 3]);
         assert_eq!(result.reader_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
         assert_eq!(result.writer_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
@@ -591,7 +593,7 @@ mod test {
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
-                cipher: vec![],
+                cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
             }]]);
@@ -603,7 +605,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![1, 2, 3], reader_policies, writer_policies)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
