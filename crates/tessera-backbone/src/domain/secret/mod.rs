@@ -11,7 +11,7 @@ use ulid::Ulid;
 
 use crate::database::{
     applied_policy::{self, PolicyApplicationType},
-    path, secret_metadata, UlidId,
+    path, secret_metadata, secret_value, UlidId,
 };
 
 use super::policy::Policy;
@@ -144,6 +144,8 @@ impl SecretService for PostgresSecretService {
             return Err(Error::PathNotExists { entered_path: path });
         }
 
+        let identifier = create_identifier(&path, &key);
+
         if secret_metadata::Entity::find()
             .filter(secret_metadata::Column::Path.eq(&path))
             .filter(secret_metadata::Column::Key.eq(&key))
@@ -151,7 +153,7 @@ impl SecretService for PostgresSecretService {
             .await?
             > 0
         {
-            return Err(Error::IdentifierConflicted { entered_identifier: create_identifier(&path, &key) });
+            return Err(Error::IdentifierConflicted { entered_identifier: identifier });
         }
 
         let now = Utc::now();
@@ -187,6 +189,16 @@ impl SecretService for PostgresSecretService {
         applied_policy::Entity::insert_many(applied_reader_policies.chain(applied_writer_policies))
             .exec(transaction)
             .await?;
+
+        secret_value::ActiveModel {
+            id: Set(UlidId::new(Ulid::new())),
+            identifier: Set(identifier),
+            cipher: Set(cipher),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
 
         Ok(())
     }
@@ -224,7 +236,7 @@ mod test {
 
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
-        database::{applied_policy, path, secret_metadata, UlidId},
+        database::{applied_policy, path, secret_metadata, secret_value, UlidId},
         domain::policy::Policy,
     };
 
@@ -532,7 +544,14 @@ mod test {
                     created_at: now,
                     updated_at: now,
                 },
-            ]]);
+            ]])
+            .append_query_results([vec![secret_value::Model {
+                id: UlidId::new(Ulid::new()),
+                identifier: "/test/path/TEST_KEY".to_owned(),
+                cipher: vec![],
+                created_at: now,
+                updated_at: now,
+            }]]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
