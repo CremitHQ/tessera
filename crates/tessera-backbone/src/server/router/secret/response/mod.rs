@@ -54,11 +54,13 @@ impl IntoResponse for InvalidSecretIdentifierErrorResponse {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct EnteredIdentifierErrorData {
     entered_identifier: String,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct SecretResponse {
     pub key: String,
     pub path: String,
@@ -85,6 +87,7 @@ impl IntoResponse for PolicyNotExistsErrorResponse {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct EnteredPolicyIdErrorData {
     entered_policy_id: Ulid,
 }
@@ -108,6 +111,7 @@ impl IntoResponse for PathNotExistsErrorResponse {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct EnteredPathErrorData {
     entered_path: String,
 }
@@ -131,6 +135,7 @@ impl IntoResponse for SecretIdentifierConlictedErrorResponse {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 struct EnteredSecretIdentifierErrorData {
     entered_secret_identifier: String,
 }

@@ -21,6 +21,7 @@ impl IntoResponse for application::parameter::Error {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ParameterResponse {
     pub version: i32,
     pub parameter: GlobalParams<Bls24479Curve>,

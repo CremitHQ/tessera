@@ -8,6 +8,7 @@ pub(crate) fn handle_internal_server_error<E: std::error::Error>(e: E) -> impl I
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ErrorPayload<'a, D: Serialize> {
     code: &'a str,
     message: &'a str,
@@ -15,6 +16,7 @@ pub(crate) struct ErrorPayload<'a, D: Serialize> {
 }
 
 #[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct EmptyData {}
 
 pub fn error_payload<'a>(code: &'a str, message: &'a str) -> Json<ErrorPayload<'a, EmptyData>> {
