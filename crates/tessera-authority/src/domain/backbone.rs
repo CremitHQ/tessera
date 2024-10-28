@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
 use tessera_abe::{curves::bls24479::Bls24479Curve, schemes::rw15::GlobalParams};
 
@@ -43,7 +44,7 @@ impl WorkspaceBackboneClient {
 #[derive(Deserialize)]
 struct ParameterResponse {
     version: i32,
-    parameter: GlobalParams<Bls24479Curve>,
+    parameter: String,
 }
 
 #[async_trait]
@@ -52,8 +53,10 @@ impl BackboneClient for WorkspaceBackboneClient {
         let url = format!("{}/workspaces/{}/parameter", self.host, self.workspace_name);
         let response = self.client.get(&url).send().await?;
         let parameter: ParameterResponse = response.json().await?;
+        let parameter = STANDARD.decode(parameter.parameter)?;
+        let parameter = rmp_serde::from_slice(&parameter)?;
 
-        Ok(parameter.parameter)
+        Ok(parameter)
     }
 }
 
