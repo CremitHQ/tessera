@@ -13,6 +13,7 @@ impl IntoResponse for WorkspaceNameConflictedErrorResponse {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct GetWorkspacesResponse {
     pub name: String,
 }

@@ -29,6 +29,7 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct GetSecretsApiQueryParam {
     path: Option<String>,
 }

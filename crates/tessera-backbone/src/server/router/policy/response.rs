@@ -4,6 +4,7 @@ use serde::Serialize;
 use ulid::Ulid;
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct PolicyResponse {
     pub id: Ulid,
     pub name: String,
