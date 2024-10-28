@@ -52,6 +52,18 @@ impl Authority {
         Ok(key_pair)
     }
 
+    pub async fn key_pair_by_version(&self, version: u64) -> Result<KeyPair> {
+        let name = &self.name;
+        let key_pair = match self.key_pair_service.key_pair_by_version(name, version).await? {
+            Some(key_pair) => key_pair,
+            None => {
+                return Err(anyhow::anyhow!("Key pair with version {} not found", version));
+            }
+        };
+
+        Ok(key_pair)
+    }
+
     pub async fn init_key_pair_storage(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
         self.key_pair_service.shield_initialize(share, threshold).await
     }
