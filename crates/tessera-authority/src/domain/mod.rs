@@ -1,3 +1,3 @@
-pub mod application;
+pub mod authority;
 pub mod backbone;
 pub mod key_pair;

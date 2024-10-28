@@ -6,7 +6,13 @@ use tessera_abe::{
     random::miracl::MiraclRng,
     schemes::rw15::{AuthorityKeyPair, GlobalParams},
 };
-use tessera_storage::{backend::file::FileStorage, Storage as _};
+use tessera_secret_sharing::shamir::{combine, split, Share};
+use tessera_storage::{
+    backend::file::FileStorage,
+    shield::{aes::AESShieldStorage, Shield},
+    Storage as _,
+};
+use zeroize::Zeroizing;
 
 pub type KeyPair = AuthorityKeyPair<Bls24479Curve>;
 
@@ -31,13 +37,20 @@ pub trait KeyPairService {
     async fn store_latest_key_pair(&self, key_pair: &KeyPair) -> Result<()>;
 }
 
+#[async_trait]
+pub trait ShieldedKeyPairService: KeyPairService {
+    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>>;
+    async fn storage_armor(&self) -> Result<()>;
+    async fn storage_disarm(&self, shares: &[Share]) -> Result<()>;
+}
+
 pub struct FileKeyPairService<'a> {
-    storage: FileStorage<'a>,
+    storage: AESShieldStorage<FileStorage<'a>>,
 }
 
 impl<'a> FileKeyPairService<'a> {
     pub fn new(storage: FileStorage<'a>) -> Self {
-        Self { storage }
+        Self { storage: AESShieldStorage::new(storage) }
     }
 }
 
@@ -102,5 +115,24 @@ impl KeyPairService for FileKeyPairService<'_> {
         self.storage.set(&version_path, new_version.to_string().as_bytes()).await?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ShieldedKeyPairService for FileKeyPairService<'_> {
+    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
+        let master_key = self.storage.generate_key().await?;
+        let shares = Zeroizing::new(split(&master_key, share, threshold));
+        self.storage.initialize(&master_key).await?;
+        Ok(shares)
+    }
+
+    async fn storage_armor(&self) -> Result<()> {
+        Ok(self.storage.armor().await?)
+    }
+
+    async fn storage_disarm(&self, shares: &[Share]) -> Result<()> {
+        let master_key = Zeroizing::new(combine(shares));
+        Ok(self.storage.disarm(&master_key).await?)
     }
 }

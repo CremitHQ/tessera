@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
+use application::Application;
 use clap::Parser;
-use domain::application::Application;
+use domain::authority::Authority;
 
 use crate::logger::LoggerConfig;
 
+mod application;
 mod config;
 mod domain;
 mod logger;
@@ -26,9 +28,9 @@ async fn main() -> anyhow::Result<()> {
     logger::init_logger(LoggerConfig::default());
     let args = Args::parse();
     let app_config = config::load_config(args.config, args.port)?;
-    let application = Application::new(&app_config)?;
-    let _key_pair = application.key_pair(&app_config.authority.name).await?;
+    let authority = Authority::new(&app_config)?;
+    let application = Application::new(authority);
 
-    server::run((&app_config).into()).await?;
+    server::run(application, app_config.into()).await?;
     Ok(())
 }

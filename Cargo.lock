@@ -591,6 +591,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum_thiserror"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0868fb225cf8849a294385dc6f09b68ffe72c9e854e486d1a7cca2b93700bd73"
+dependencies = [
+ "axum",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.82",
+ "thiserror",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.74"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3654,6 +3667,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "axum_thiserror",
+ "base64 0.22.1",
  "bincode",
  "clap",
  "config",
@@ -3662,6 +3677,7 @@ dependencies = [
  "reqwest",
  "serde",
  "tessera-abe",
+ "tessera-secret-sharing",
  "tessera-storage",
  "thiserror",
  "tokio",

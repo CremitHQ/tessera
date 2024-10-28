@@ -8,3 +8,6 @@ workspace_name = "default"
 [storage]
 type = "file"
 path = "/tessera/authority/"
+
+[authority]
+name = "test"

@@ -19,9 +19,12 @@ directories = "5.0"
 serde = { workspace = true }
 tessera-abe = { workspace = true }
 tessera-storage = { workspace = true }
+tessera-secret-sharing = { workspace = true }
 zeroize = { workspace = true }
 async-trait = { workspace = true }
 rand = { workspace = true }
 bincode = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 thiserror = { workspace = true }
+axum_thiserror = "0.1"
+base64 = { workspace = true }
