@@ -19,7 +19,10 @@ impl From<ApplicationConfig> for ServerConfig {
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
     let application = Arc::new(application);
-    let app = Router::new().route("/health", get(|| async { "OK" })).nest("/v1", router::init::router(application));
+    let app = Router::new()
+        .route("/health", get(|| async { "OK" }))
+        .nest("/v1", router::init::router(application.clone()))
+        .nest("/v1", router::pubkey::router(application.clone()));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     debug!("starting authority server on {}", config.port);
