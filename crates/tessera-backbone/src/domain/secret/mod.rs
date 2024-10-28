@@ -123,7 +123,7 @@ impl SecretService for PostgresSecretService {
             .into_iter()
             .zip(applied_policies.into_iter())
             .map(|(metadata, applied_policies)| {
-                let cipher = ciphers.remove(&create_identifier(&metadata.path, &metadata.key)).unwrap_or_else(Vec::new);
+                let cipher = ciphers.remove(&create_identifier(&metadata.path, &metadata.key)).unwrap_or_default();
 
                 SecretEntry::from((metadata, applied_policies, cipher))
             })
@@ -149,7 +149,7 @@ impl SecretService for PostgresSecretService {
             .one(transaction)
             .await?
             .map(|secret_value| secret_value.cipher)
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         Ok(SecretEntry::from((metadata, applied_policies, cipher)))
     }
