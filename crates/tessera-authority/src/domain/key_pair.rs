@@ -124,6 +124,8 @@ impl ShieldedKeyPairService for FileKeyPairService<'_> {
         let master_key = self.storage.generate_key().await?;
         let shares = Zeroizing::new(split(&master_key, share, threshold));
         self.storage.initialize(&master_key).await?;
+
+        self.storage.disarm(&master_key).await?; // Disarm the storage immediately after initialization
         Ok(shares)
     }
 
