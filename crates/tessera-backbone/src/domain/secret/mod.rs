@@ -11,7 +11,7 @@ use ulid::Ulid;
 
 use crate::database::{
     applied_policy::{self, PolicyApplicationType},
-    path, secret_metadata, UlidId,
+    path, secret_metadata, secret_value, UlidId,
 };
 
 use super::policy::Policy;
@@ -65,6 +65,7 @@ pub(crate) trait SecretService {
         transaction: &DatabaseTransaction,
         path: String,
         key: String,
+        cipher: Vec<u8>,
         reader_policies: Vec<Policy>,
         writer_policies: Vec<Policy>,
     ) -> Result<()>;
@@ -135,12 +136,15 @@ impl SecretService for PostgresSecretService {
         transaction: &DatabaseTransaction,
         path: String,
         key: String,
+        cipher: Vec<u8>,
         reader_policies: Vec<Policy>,
         writer_policies: Vec<Policy>,
     ) -> Result<()> {
         if path::Entity::find().filter(path::Column::Path.eq(&path)).count(transaction).await? == 0 {
             return Err(Error::PathNotExists { entered_path: path });
         }
+
+        let identifier = create_identifier(&path, &key);
 
         if secret_metadata::Entity::find()
             .filter(secret_metadata::Column::Path.eq(&path))
@@ -149,7 +153,7 @@ impl SecretService for PostgresSecretService {
             .await?
             > 0
         {
-            return Err(Error::IdentifierConflicted { entered_identifier: create_identifier(&path, &key) });
+            return Err(Error::IdentifierConflicted { entered_identifier: identifier });
         }
 
         let now = Utc::now();
@@ -185,6 +189,16 @@ impl SecretService for PostgresSecretService {
         applied_policy::Entity::insert_many(applied_reader_policies.chain(applied_writer_policies))
             .exec(transaction)
             .await?;
+
+        secret_value::ActiveModel {
+            id: Set(UlidId::new(Ulid::new())),
+            identifier: Set(identifier),
+            cipher: Set(cipher),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
 
         Ok(())
     }
@@ -222,7 +236,7 @@ mod test {
 
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
-        database::{applied_policy, path, secret_metadata, UlidId},
+        database::{applied_policy, path, secret_metadata, secret_value, UlidId},
         domain::policy::Policy,
     };
 
@@ -530,7 +544,14 @@ mod test {
                     created_at: now,
                     updated_at: now,
                 },
-            ]]);
+            ]])
+            .append_query_results([vec![secret_value::Model {
+                id: UlidId::new(Ulid::new()),
+                identifier: "/test/path/TEST_KEY".to_owned(),
+                cipher: vec![],
+                created_at: now,
+                updated_at: now,
+            }]]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -539,7 +560,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
@@ -571,7 +592,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -608,7 +629,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), reader_policies, writer_policies)
+            .register(&transaction, path.to_owned(), key.to_owned(), vec![], reader_policies, writer_policies)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 

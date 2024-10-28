@@ -8,6 +8,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::Deserialize;
 
 use crate::application::{
@@ -16,7 +17,10 @@ use crate::application::{
     Application,
 };
 
-use self::{request::PostSecretRequest, response::SecretResponse};
+use self::{
+    request::PostSecretRequest,
+    response::{InvalidSecretCipherResponse, SecretResponse},
+};
 
 mod request;
 mod response;
@@ -53,18 +57,25 @@ async fn handle_post_secret(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PostSecretRequest>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
+    let cipher = if let Ok(cipher) = BASE64_STANDARD.decode(payload.cipher) {
+        cipher
+    } else {
+        return Ok(InvalidSecretCipherResponse {}.into_response());
+    };
+
     application
         .with_workspace(&workspace_name)
         .secret()
         .register(SecretRegisterCommand {
             path: payload.path,
             key: payload.key,
+            cipher,
             reader_policy_ids: payload.reader_policy_ids,
             writer_policy_ids: payload.writer_policy_ids,
         })
         .await?;
 
-    Ok(StatusCode::CREATED)
+    Ok(StatusCode::CREATED.into_response())
 }
 
 #[debug_handler]
