@@ -20,18 +20,18 @@ async fn handle_initializing_authority(
         .authority
         .init_key_pair_storage(share as usize, threshold as usize)
         .await
-        .inspect_err(|e| eprintln!("Error initializing authority key pair: {}", e))
-        .map_err(|_| InitAuthorityError::InitializationError)?;
+        .map_err(|_| InitAuthorityError::KeyPairInitialization)?;
     let shares = shares
         .iter()
         .map(|share| rmp_serde::to_vec(&share))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(InitAuthorityError::SerializationError)?;
+        .map_err(InitAuthorityError::Serialization)?;
     let shares = shares.iter().map(|share| STANDARD.encode(share)).collect::<Vec<_>>();
     Ok(Json(shares))
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InitRequest {
     secret_shares: u8,
     secret_threshold: u8,
@@ -41,9 +41,9 @@ pub struct InitRequest {
 pub enum InitAuthorityError {
     #[error("Unable to initialize the authority key pair")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    InitializationError,
+    KeyPairInitialization,
 
     #[error("Unable to serialize the shares")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    SerializationError(#[from] rmp_serde::encode::Error),
+    Serialization(#[from] rmp_serde::encode::Error),
 }
