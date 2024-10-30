@@ -18,20 +18,25 @@ impl<'a> FileStorage<'a> {
 }
 
 #[derive(Error, Debug)]
-pub enum FileStorageError<'a> {
-    #[error("File Storage IO Error: {0}")]
+pub enum FileStorageError {
+    #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("File Storage Path Error: {0}")]
-    Path(Cow<'a, str>),
+
+    #[error("no parent directory")]
+    NoParentDirectory,
+
+    #[error("key shouldn't contain `..`")]
+    NotAllowedDotDot,
 }
 
 impl<'a> Storage for FileStorage<'a> {
     type Key = str;
     type Value = [u8];
 
-    type StorageError = FileStorageError<'static>;
+    type StorageError = FileStorageError;
 
     async fn get(&self, key: &Self::Key) -> Result<Option<<Self::Value as ToOwned>::Owned>, Self::StorageError> {
+        validate_key(key)?;
         let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
         let data = fs::read(path).await;
         match data {
@@ -42,14 +47,16 @@ impl<'a> Storage for FileStorage<'a> {
     }
 
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError> {
+        validate_key(key)?;
         let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
-        let parent = path.parent().ok_or(FileStorageError::Path("No parent directory".into()))?;
+        let parent = path.parent().ok_or(FileStorageError::NoParentDirectory)?;
         fs::create_dir_all(parent).await?;
         fs::write(path, value).await?;
         Ok(())
     }
 
     async fn delete(&self, key: &Self::Key) -> Result<(), Self::StorageError> {
+        validate_key(key)?;
         let path = self.path.clone().into_owned().join(key.trim_start_matches('/'));
         fs::remove_file(path).await?;
         Ok(())
@@ -59,6 +66,7 @@ impl<'a> Storage for FileStorage<'a> {
         &self,
         prefix: &Self::Key,
     ) -> Result<impl IntoIterator<Item = <Self::Key as ToOwned>::Owned>, Self::StorageError> {
+        validate_key(prefix)?;
         let path = self.path.clone().into_owned().join(prefix.trim_start_matches('/'));
 
         let mut entries = fs::read_dir(path).await?;
@@ -77,4 +85,11 @@ impl<'a> Storage for FileStorage<'a> {
 
         Ok(list)
     }
+}
+
+fn validate_key(key: &str) -> Result<(), FileStorageError> {
+    if key.contains("..") {
+        return Err(FileStorageError::NotAllowedDotDot);
+    }
+    Ok(())
 }

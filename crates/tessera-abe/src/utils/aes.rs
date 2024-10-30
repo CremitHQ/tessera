@@ -3,15 +3,14 @@ use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce};
 use rand_core::RngCore as _;
 
 use crate::curves::PairingCurve;
-use crate::error::{ABEError, AESGCMError};
-use std::convert::TryInto;
+use crate::error::{ABEError, AESGCMErrorKind};
 
 /// Key Encapsulation Mechanism (AES-256 Encryption Function)
-pub fn encrypt_symmetric<'a, T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
+pub fn encrypt_symmetric<T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
     rng: &mut T::Rng,
     msg: G,
     data: &[u8],
-) -> Result<Vec<u8>, ABEError<'a>> {
+) -> Result<Vec<u8>, ABEError> {
     // 256bit key hashed/derived from _msg G
     let kdf = kdf(msg);
     let key = Key::<Aes256Gcm>::from_slice(kdf.as_slice());
@@ -22,22 +21,23 @@ pub fn encrypt_symmetric<'a, T: PairingCurve, G: std::convert::Into<Vec<u8>>>(
     rng.fill_bytes(&mut nonce_vec);
 
     let nonce = Nonce::from_slice(nonce_vec.as_ref());
-    let mut ct = cipher.encrypt(nonce, data.as_ref()).map_err(AESGCMError::EncryptionError)?;
+    let mut ct = cipher.encrypt(nonce, data.as_ref()).map_err(AESGCMErrorKind::Encryption)?;
     ct.splice(0..0, nonce.iter().cloned()); // first 12 bytes are nonce i.e. [nonce|ciphertext]
     Ok(ct)
 }
 
 /// Key Encapsulation Mechanism (AES-256 Decryption Function)
-pub fn decrypt_symmetric<'a, G: std::convert::Into<Vec<u8>>>(msg: G, nonce_ct: &[u8]) -> Result<Vec<u8>, ABEError<'a>> {
-    let ciphertext = nonce_ct.to_vec().split_off(12); // 12*u8 = 96 Bit
-    let nonce_vec: [u8; 12] =
-        nonce_ct[..12].try_into().map_err(|_| ABEError::AESGCMError(AESGCMError::NonceSizeMismatch))?;
+pub fn decrypt_symmetric<G: std::convert::Into<Vec<u8>>>(msg: G, nonce_ct: &[u8]) -> Result<Vec<u8>, ABEError> {
+    let (nonce, ciphertext) = nonce_ct
+        .split_at_checked(12)
+        .ok_or(ABEError::AESGCMError(AESGCMErrorKind::NonceSizeMismatch { expected: 12, actual: nonce_ct.len() }))?;
+
     // 256bit key hashed/derived from _msg G
     let kdf = kdf(msg);
     let key = Key::<Aes256Gcm>::from_slice(kdf.as_slice());
     let cipher = Aes256Gcm::new(key);
-    let nonce = Nonce::from_slice(nonce_vec.as_ref());
-    let result = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(AESGCMError::DecryptionError)?;
+    let nonce = Nonce::from_slice(nonce);
+    let result = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(AESGCMErrorKind::Decryption)?;
     Ok(result)
 }
 

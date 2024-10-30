@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::curves::{Field, PairingCurve, RefAdd as _, RefMul as _, RefNeg as _, RefPow as _, RefSub as _};
-use crate::error::ABEError;
+use crate::error::{ABEError, InvalidPolicyErrorKind};
 use crate::random::Random;
 use crate::utils::tools::{contains, get_value};
 use tessera_policy::pest::{PolicyType, PolicyValue};
@@ -131,11 +131,11 @@ pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize
     shares
 }
 
-pub fn calc_pruned<'a>(
+pub fn calc_pruned(
     attr: &Vec<String>,
     policy_value: &PolicyValue,
     policy_type: Option<PolicyType>,
-) -> Result<(bool, Vec<(String, String)>), ABEError<'a>> {
+) -> Result<(bool, Vec<(String, String)>), ABEError> {
     let mut matched_nodes: Vec<(String, String)> = vec![];
     match policy_value {
         PolicyValue::Object(obj) => match obj.0 {
@@ -157,7 +157,7 @@ pub fn calc_pruned<'a>(
                             }
                         }
                     } else {
-                        return Err(ABEError::InvalidPolicy("AND with just a single child.".into()));
+                        return Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::ANDWithSingleChild));
                     }
                     if !policy_match {
                         matched_nodes = vec![];
@@ -177,10 +177,10 @@ pub fn calc_pruned<'a>(
                         }
                         Ok((policy_match, matched_nodes))
                     } else {
-                        Err(ABEError::InvalidPolicy("OR with just a single child.".into()))
+                        Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::ORWithSingleChild))
                     }
                 }
-                _ => Err(ABEError::InvalidPolicy("unknown array type!".into())),
+                _ => Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::UnexpectedArrayType)),
             }
         }
         PolicyValue::String(node) => {

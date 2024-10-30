@@ -1,5 +1,5 @@
 use crate::{
-    error::PolicyError,
+    error::PolicyParserError,
     pest::{PolicyType, PolicyValue},
 };
 use pest::iterators::Pair;
@@ -8,7 +8,7 @@ use pest::iterators::Pair;
 #[grammar = "human.policy.pest"]
 pub(crate) struct HumanPolicyParser;
 
-pub(crate) fn parse(pair: Pair<Rule>) -> Result<PolicyValue, PolicyError> {
+pub(crate) fn parse(pair: Pair<Rule>) -> Result<PolicyValue, PolicyParserError> {
     match pair.as_rule() {
         Rule::string | Rule::number => {
             let p = pair.into_inner().next().unwrap();
@@ -43,6 +43,6 @@ pub(crate) fn parse(pair: Pair<Rule>) -> Result<PolicyValue, PolicyError> {
         | Rule::BRACEOPEN
         | Rule::BRACECLOSE
         | Rule::QUOTE
-        | Rule::WHITESPACE => Err(PolicyError::InvalidPolicyType),
+        | Rule::WHITESPACE => Err(PolicyParserError::InvalidPolicyType),
     }
 }

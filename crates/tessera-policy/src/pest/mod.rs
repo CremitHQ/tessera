@@ -1,6 +1,6 @@
 use self::human::HumanPolicyParser;
 use self::json::JSONPolicyParser;
-use crate::error::PolicyError;
+use crate::error::PolicyParserError;
 use pest::Parser;
 use serde::{Deserialize, Serialize};
 use std::string::String;
@@ -32,18 +32,18 @@ pub enum PolicyValue<'a> {
 }
 
 /// Parses a &str in a give [PolicyLanguage] to a PolicyValue tree
-pub fn parse(policy: &str, language: PolicyLanguage) -> Result<PolicyValue, PolicyError> {
+pub fn parse(policy: &str, language: PolicyLanguage) -> Result<PolicyValue, PolicyParserError> {
     match language {
         PolicyLanguage::JsonPolicy => {
             use crate::pest::json::Rule;
             let mut result = JSONPolicyParser::parse(Rule::content, policy)?;
-            let result = result.next().ok_or(PolicyError::Empty)?;
+            let result = result.next().ok_or(PolicyParserError::Empty)?;
             json::parse(result)
         }
         PolicyLanguage::HumanPolicy => {
             use crate::pest::human::Rule;
             let mut result = HumanPolicyParser::parse(Rule::content, policy)?;
-            let result = result.next().ok_or(PolicyError::Empty)?;
+            let result = result.next().ok_or(PolicyParserError::Empty)?;
             human::parse(result)
         }
     }
