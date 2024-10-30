@@ -1,37 +1,50 @@
-use std::borrow::Cow;
-
-use tessera_policy::error::PolicyError;
+use tessera_policy::error::PolicyParserError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ABEError<'a> {
-    #[error("Policy error: {0}")]
-    PolicyError(#[from] PolicyError),
+pub enum ABEError {
+    #[error("invalid policy: {0}")]
+    InvalidPolicy(#[from] InvalidPolicyErrorKind),
 
-    #[error("Does not satisfy the policy")]
-    PolicyNotSatisfied,
+    #[error("invalid attribute: {0}")]
+    InvalidAttribute(#[from] InvalidAttributeKind),
 
-    #[error("Invalid Policy: {0}")]
-    InvalidPolicy(Cow<'a, str>),
-
-    #[error("AES-GCM module error: {0}")]
-    AESGCMError(#[from] AESGCMError),
-
-    #[error("ABE encryption error: {0}")]
-    EncryptionError(Cow<'a, str>),
-
-    #[error("ABE decryption error: {0}")]
-    DecryptionError(Cow<'a, str>),
+    #[error("aes-gcm error: {0}")]
+    AESGCMError(#[from] AESGCMErrorKind),
 }
 
 #[derive(Error, Debug)]
-pub enum AESGCMError {
-    #[error("AES-GCM encryption error: {0}")]
-    EncryptionError(aes_gcm::Error),
+pub enum InvalidPolicyErrorKind {
+    #[error("does not satisfy the policy")]
+    PolicyNotSatisfied,
 
-    #[error("AES-GCM decryption error: {0}")]
-    DecryptionError(aes_gcm::Error),
+    #[error(transparent)]
+    ParsePolicy(#[from] PolicyParserError),
 
-    #[error("AES-GCM nonce size mismatch")]
-    NonceSizeMismatch,
+    #[error("`AND` with just a single child")]
+    ANDWithSingleChild,
+
+    #[error("`OR` with just a single child.")]
+    ORWithSingleChild,
+
+    #[error("array type should be `AND` or `OR`")]
+    UnexpectedArrayType,
+}
+
+#[derive(Error, Debug)]
+pub enum InvalidAttributeKind {
+    #[error("attribute `{0}` not found")]
+    AttributeNotFound(String),
+}
+
+#[derive(Error, Debug)]
+pub enum AESGCMErrorKind {
+    #[error("failed to encrypt data ({0})")]
+    Encryption(aes_gcm::Error),
+
+    #[error("failed to decrypt data ({0})")]
+    Decryption(aes_gcm::Error),
+
+    #[error("invalid nonce size (expected {expected} bytes, got {actual} bytes)")]
+    NonceSizeMismatch { expected: usize, actual: usize },
 }

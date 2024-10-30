@@ -1,6 +1,6 @@
 use crate::{
     curves::{FieldWithOrder, RefMul as _, RefPow as _},
-    error::ABEError,
+    error::{ABEError, InvalidAttributeKind, InvalidPolicyErrorKind},
     random::Random,
     utils::{
         aes::{decrypt_symmetric, encrypt_symmetric},
@@ -176,15 +176,15 @@ pub struct Cx<T: PairingCurve> {
     pub c4: T::G2,
 }
 
-pub fn encrypt<'a, T: PairingCurve>(
+pub fn encrypt<T: PairingCurve>(
     rng: &mut <T::Field as Random>::Rng,
     gp: &GlobalParams<T>,
     pks: &HashMap<String, AuthorityPublicKey<T>>,
     policy: (String, PolicyLanguage),
     data: &[u8],
-) -> Result<Ciphertext<T>, ABEError<'a>> {
+) -> Result<Ciphertext<T>, ABEError> {
     let (policy_name, language) = policy;
-    let policy = parse(&policy_name, language)?;
+    let policy = parse(&policy_name, language).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
     let s = T::Field::random_within_order(rng);
     let w = T::Field::new();
 
@@ -200,11 +200,11 @@ pub fn encrypt<'a, T: PairingCurve>(
     for (attr_name, s_share) in s_shares.into_iter() {
         let tx = T::Field::random(rng);
         let authority_name =
-            attr_name.split_once("@").ok_or(ABEError::EncryptionError("Invalid attribute name".into()))?.0;
+            attr_name.split_once("@").ok_or(InvalidAttributeKind::AttributeNotFound(attr_name.clone()))?.0;
         let attr = remove_index(&attr_name);
 
         let pk_attr = pks.get(authority_name);
-        let wx = w_shares.get(&attr_name).ok_or(ABEError::EncryptionError("Invalid attribute name".into()))?;
+        let wx = w_shares.get(&attr_name).ok_or(InvalidAttributeKind::AttributeNotFound(attr_name.clone()))?;
         if let Some(authority_pk) = pk_attr {
             let c1x = gp.e.ref_pow(&s_share);
             let c1x = c1x.ref_mul(&(authority_pk.e_alpha.ref_pow(&tx)));
@@ -219,19 +219,19 @@ pub fn encrypt<'a, T: PairingCurve>(
     Ok(Ciphertext { policy: (policy_name, language), c0, cx, ct })
 }
 
-pub fn decrypt<'a, T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError<'a>> {
+pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
     let (policy_name, lang) = ct.policy.clone();
-    let policy = parse(&policy_name, lang)?;
+    let policy = parse(&policy_name, lang).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
 
     let attributes = sk.inner.keys().map(|k| k.to_string()).collect::<Vec<_>>();
     let is_satisfied_policy = traverse_policy(&attributes, &policy, tessera_policy::pest::PolicyType::Leaf);
     if !is_satisfied_policy {
-        return Err(ABEError::PolicyNotSatisfied);
+        return Err(InvalidPolicyErrorKind::PolicyNotSatisfied.into());
     }
 
     let (is_matched, matched_nodes) = calc_pruned(&attributes, &policy, None)?;
     if !is_matched {
-        return Err(ABEError::PolicyNotSatisfied);
+        return Err(InvalidPolicyErrorKind::PolicyNotSatisfied.into());
     }
 
     let mut coefficients = HashMap::new();
@@ -241,12 +241,12 @@ pub fn decrypt<'a, T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -
     let mut b = T::Gt::one();
 
     for (attr, attr_and_index) in matched_nodes {
-        let cx = ct.cx.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get cx".into()))?;
-        let k = &sk.inner.get(&attr).ok_or(ABEError::DecryptionError("Failed to get k from user secret key".into()))?.k;
-        let kp =
-            &sk.inner.get(&attr).ok_or(ABEError::DecryptionError("Failed to get kp from user secret key".into()))?.kp;
+        let cx = ct.cx.get(&attr_and_index).ok_or(InvalidAttributeKind::AttributeNotFound(attr_and_index.clone()))?;
+        let k = &sk.inner.get(&attr).ok_or(InvalidAttributeKind::AttributeNotFound(attr.clone()))?.k;
+
+        let kp = &sk.inner.get(&attr).ok_or(InvalidAttributeKind::AttributeNotFound(attr_and_index.clone()))?.kp;
         let coeff =
-            coefficients.get(&attr_and_index).ok_or(ABEError::DecryptionError("Failed to get coefficent".into()))?;
+            coefficients.get(&attr_and_index).ok_or(InvalidAttributeKind::AttributeNotFound(attr_and_index.clone()))?;
 
         let base = T::pair(&cx.c2, k) * &cx.c1;
         let base = T::pair(&cx.c3, &h_user) * base;
