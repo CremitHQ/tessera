@@ -10,6 +10,12 @@ pub struct MonotoneSpanProgram {
     pub column_size: usize,
 }
 
+impl Default for MonotoneSpanProgram {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MonotoneSpanProgram {
     pub fn new() -> Self {
         MonotoneSpanProgram { matrix: HashMap::new(), column_size: 1 }
@@ -51,7 +57,7 @@ impl<'a> From<&'a PolicyNode<'a>> for MonotoneSpanProgram {
         let mut v: Vec<i8> = Vec::new();
         let mut msp = MonotoneSpanProgram::new();
         v.push(PLUS);
-        msp.construct(&value, &v);
+        msp.construct(value, &v);
         for val in msp.matrix.values_mut() {
             val.resize(msp.column_size, ZERO);
         }
