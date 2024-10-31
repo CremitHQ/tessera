@@ -23,21 +23,21 @@ pub enum PolicyNode<'a> {
 }
 
 /// Parses a &str in a give [PolicyLanguage] to a PolicyValue tree
-pub fn parse(policy: &str, language: PolicyLanguage) -> Result<PolicyNode, PolicyParserError> {
+pub fn parse(policy: &str, language: PolicyLanguage) -> Result<(PolicyNode, HashMap<&str, usize>), PolicyParserError> {
     match language {
         PolicyLanguage::JsonPolicy => {
             use crate::pest::json::Rule;
             let mut result = JSONPolicyParser::parse(Rule::content, policy)?;
             let result = result.next().ok_or(PolicyParserError::Empty)?;
-            let mut attributes: HashMap<&str, usize> = HashMap::new();
-            json::parse(result, &mut attributes)
+            let mut attribute_index: HashMap<&str, usize> = HashMap::new();
+            Ok((json::parse(result, &mut attribute_index)?, attribute_index))
         }
         PolicyLanguage::HumanPolicy => {
             use crate::pest::human::Rule;
             let mut result = HumanPolicyParser::parse(Rule::content, policy)?;
             let result = result.next().ok_or(PolicyParserError::Empty)?;
             let mut attribute_index: HashMap<&str, usize> = HashMap::new();
-            human::parse(result, &mut attribute_index)
+            Ok((human::parse(result, &mut attribute_index)?, attribute_index))
         }
     }
 }
@@ -52,15 +52,15 @@ mod tests {
                 PolicyNode::And((left, right)) => {
                     format!(
                         "{{\"name\": \"and\", \"children\": [{}, {}]}}",
-                        serialize_policy(right, language),
                         serialize_policy(left, language),
+                        serialize_policy(right, language),
                     )
                 }
                 PolicyNode::Or((left, right)) => {
                     format!(
                         "{{\"name\": \"or\", \"children\": [{}, {}]}}",
-                        serialize_policy(right, language),
                         serialize_policy(left, language),
+                        serialize_policy(right, language),
                     )
                 }
                 PolicyNode::Leaf((name, _)) => {
@@ -69,10 +69,10 @@ mod tests {
             },
             PolicyLanguage::HumanPolicy => match val {
                 PolicyNode::And((left, right)) => {
-                    format!("({} and {})", serialize_policy(right, language), serialize_policy(left, language))
+                    format!("({} and {})", serialize_policy(left, language), serialize_policy(right, language))
                 }
                 PolicyNode::Or((left, right)) => {
-                    format!("({} or {})", serialize_policy(right, language), serialize_policy(left, language))
+                    format!("({} or {})", serialize_policy(left, language), serialize_policy(right, language))
                 }
                 PolicyNode::Leaf((name, _)) => name.to_string(),
             },
@@ -83,7 +83,7 @@ mod tests {
     fn test_single_parsing() {
         let pol = String::from(r#"{"name": "A"}"#);
         let human = String::from("A");
-        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse");
+        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse").0;
         let serialized_json = serialize_policy(&json, PolicyLanguage::JsonPolicy);
         let serialized_human = serialize_policy(&json, PolicyLanguage::HumanPolicy);
         assert_eq!(serialized_json, pol);
@@ -94,7 +94,7 @@ mod tests {
     fn test_children_parsing() {
         let pol = String::from(r#"{"name": "and", "children": [{"name": "B"}, {"name": "C"}]}"#);
         let human = String::from("(B and C)");
-        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse");
+        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse").0;
         let serialized_json = serialize_policy(&json, PolicyLanguage::JsonPolicy);
         let serialized_human = serialize_policy(&json, PolicyLanguage::HumanPolicy);
         assert_eq!(serialized_json, pol);
@@ -107,7 +107,7 @@ mod tests {
             r#"{"name": "or", "children": [{"name": "A"}, {"name": "and", "children": [{"name": "B"}, {"name": "C"}]}]}"#,
         );
         let human = String::from(r#"(A or (B and C))"#);
-        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse");
+        let json = parse(&pol, PolicyLanguage::JsonPolicy).expect("unsuccessful parse").0;
         let serialized_json = serialize_policy(&json, PolicyLanguage::JsonPolicy);
         let serialized_human = serialize_policy(&json, PolicyLanguage::HumanPolicy);
 
