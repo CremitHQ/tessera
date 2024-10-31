@@ -116,7 +116,7 @@ impl<S: Storage> AESShieldStorage<S> {
     }
 }
 
-impl<S: Storage<Key = str, Value = [u8]>> Shield for AESShieldStorage<S> {
+impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> {
     type ShieldError = AESShieldError;
     type Key = <S as Storage>::Value;
     type ZeroizingKey = ZeroizingKey;
@@ -216,7 +216,7 @@ impl<S: Storage> AESShieldStorage<S> {
     }
 }
 
-impl<S: Storage<Key = str, Value = [u8]>> Storage for AESShieldStorage<S> {
+impl<S: Storage<Key = str, Value = [u8]> + Sync> Storage for AESShieldStorage<S> {
     type StorageError = AESShieldStorageError;
     type Key = <S as Storage>::Key;
     type Value = <S as Storage>::Value;
