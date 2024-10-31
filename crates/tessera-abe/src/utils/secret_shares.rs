@@ -1,45 +1,29 @@
 use std::collections::HashMap;
 
 use crate::curves::{Field, PairingCurve, RefAdd as _, RefMul as _, RefNeg as _, RefPow as _, RefSub as _};
-use crate::error::{ABEError, InvalidPolicyErrorKind};
 use crate::random::Random;
-use crate::utils::tools::{contains, get_value};
-use tessera_policy::pest::{PolicyType, PolicyValue};
+use crate::utils::tools::contains;
+use tessera_policy::pest::PolicyNode;
 
 pub fn calc_coefficients<T: PairingCurve>(
-    policy_value: &PolicyValue,
+    policy_value: &PolicyNode,
     coeff: T::Field,
     coeff_list: &mut HashMap<String, T::Field>,
-    policy_type: Option<PolicyType>,
 ) {
     match policy_value {
-        PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => calc_coefficients::<T>(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::And)),
-            PolicyType::Or => calc_coefficients::<T>(obj.1.as_ref(), coeff, coeff_list, Some(PolicyType::Or)),
-            _ => {
-                coeff_list.insert(get_value(&obj.1), coeff);
-            }
-        },
-        PolicyValue::Array(children) => match policy_type {
-            Some(PolicyType::And) => {
-                let mut this_coeff_vec = vec![T::Field::one()];
-                for i in 1..children.len() {
-                    this_coeff_vec.push(T::Field::one().ref_add(&this_coeff_vec[i - 1]));
-                }
-                let this_coeff = recover_coefficients::<T>(this_coeff_vec);
-                for (i, child) in children.iter().enumerate() {
-                    calc_coefficients::<T>(child, coeff.ref_mul(&this_coeff[i]), coeff_list, None);
-                }
-            }
-            Some(PolicyType::Or) => {
-                let this_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
-                for child in children.iter() {
-                    calc_coefficients::<T>(child, coeff.ref_mul(&this_coeff[0]), coeff_list, None);
-                }
-            }
-            _ => (),
-        },
-        PolicyValue::String(node) => {
+        PolicyNode::And((left, right)) => {
+            let mut new_coeff = vec![T::Field::one()];
+            new_coeff.push(T::Field::one().ref_add(&new_coeff[0]));
+            let new_coeff = recover_coefficients::<T>(new_coeff);
+            calc_coefficients::<T>(left, coeff.ref_mul(&new_coeff[0]), coeff_list);
+            calc_coefficients::<T>(right, coeff.ref_mul(&new_coeff[1]), coeff_list);
+        }
+        PolicyNode::Or((left, right)) => {
+            let new_coeff = recover_coefficients::<T>(vec![T::Field::one()]);
+            calc_coefficients::<T>(left, coeff.ref_mul(&new_coeff[0]), coeff_list);
+            calc_coefficients::<T>(right, coeff.ref_mul(&new_coeff[0]), coeff_list);
+        }
+        PolicyNode::Leaf(node) => {
             coeff_list.insert(node_index(node), coeff);
         }
     }
@@ -77,38 +61,24 @@ pub fn remove_index(node: &str) -> String {
 pub fn gen_shares_policy<T: PairingCurve>(
     rng: &mut T::Rng,
     secret: &T::Field,
-    policy_value: &PolicyValue,
-    policy_type: Option<PolicyType>,
+    policy_value: &PolicyNode,
 ) -> HashMap<String, T::Field> {
     let mut result: HashMap<String, T::Field> = HashMap::new();
-    let k;
-    let n;
     match policy_value {
-        PolicyValue::String(node) => {
+        PolicyNode::Leaf(node) => {
             result.insert(node_index(node), secret.clone());
             result
         }
-        PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => gen_shares_policy::<T>(rng, secret, obj.1.as_ref(), Some(PolicyType::And)),
-            PolicyType::Or => gen_shares_policy::<T>(rng, secret, obj.1.as_ref(), Some(PolicyType::Or)),
-            _ => gen_shares_policy::<T>(rng, secret, obj.1.as_ref(), Some(PolicyType::Leaf)),
-        },
-        PolicyValue::Array(children) => {
-            n = children.len();
-            match policy_type {
-                Some(PolicyType::And) => {
-                    k = n;
-                }
-                Some(PolicyType::Or) => {
-                    k = 1;
-                }
-                _ => panic!("this should not happen =( Array is always AND or OR."),
-            }
-            let shares = gen_shares::<T>(rng, secret, k, n);
-            for i in 0..n {
-                let items = gen_shares_policy::<T>(rng, &shares[i + 1], &children[i], None);
-                result.extend(items.into_iter());
-            }
+        PolicyNode::And((left, right)) => {
+            let shares = gen_shares::<T>(rng, secret, 2, 2);
+            result.extend(gen_shares_policy::<T>(rng, &shares[1], left));
+            result.extend(gen_shares_policy::<T>(rng, &shares[2], right));
+            result
+        }
+        PolicyNode::Or((left, right)) => {
+            let shares = gen_shares::<T>(rng, secret, 1, 2);
+            result.extend(gen_shares_policy::<T>(rng, &shares[1], left));
+            result.extend(gen_shares_policy::<T>(rng, &shares[2], right));
             result
         }
     }
@@ -131,64 +101,39 @@ pub fn gen_shares<T: PairingCurve>(rng: &mut T::Rng, secret: &T::Field, k: usize
     shares
 }
 
-pub fn calc_pruned(
-    attr: &Vec<String>,
-    policy_value: &PolicyValue,
-    policy_type: Option<PolicyType>,
-) -> Result<(bool, Vec<(String, String)>), ABEError> {
+pub fn calc_pruned(attr: &[String], policy_value: &PolicyNode) -> (bool, Vec<(String, String)>) {
     let mut matched_nodes: Vec<(String, String)> = vec![];
     match policy_value {
-        PolicyValue::Object(obj) => match obj.0 {
-            PolicyType::And => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::And)),
-            PolicyType::Or => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::Or)),
-            _ => calc_pruned(attr, obj.1.as_ref(), Some(PolicyType::Leaf)),
-        },
-        PolicyValue::Array(children) => {
-            let len = children.len();
-            match policy_type {
-                Some(PolicyType::And) => {
-                    let mut policy_match: bool = true;
-                    if len >= 2 {
-                        for child in children.iter().take(len) {
-                            let (found, list) = calc_pruned(attr, child, None)?;
-                            policy_match = policy_match && found;
-                            if policy_match {
-                                matched_nodes.extend(list);
-                            }
-                        }
-                    } else {
-                        return Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::ANDWithSingleChild));
-                    }
-                    if !policy_match {
-                        matched_nodes = vec![];
-                    }
-                    Ok((policy_match, matched_nodes))
-                }
-                Some(PolicyType::Or) => {
-                    let mut policy_match: bool = false;
-                    if len >= 2 {
-                        for child in children.iter().take(len) {
-                            let (found, list) = calc_pruned(attr, child, None).unwrap();
-                            policy_match = policy_match || found;
-                            if policy_match {
-                                matched_nodes.extend(list);
-                                break;
-                            }
-                        }
-                        Ok((policy_match, matched_nodes))
-                    } else {
-                        Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::ORWithSingleChild))
-                    }
-                }
-                _ => Err(ABEError::InvalidPolicy(InvalidPolicyErrorKind::UnexpectedArrayType)),
+        PolicyNode::Leaf(node) => {
+            if contains(attr, node.0) {
+                (true, vec![(node.0.to_string(), node_index(node))])
+            } else {
+                (false, matched_nodes)
             }
         }
-        PolicyValue::String(node) => {
-            if contains(attr, node.0) {
-                Ok((true, vec![(node.0.to_string(), node_index(node))]))
+        PolicyNode::And((left, right)) => {
+            let (left_match, left_list) = calc_pruned(attr, left);
+            let (right_match, right_list) = calc_pruned(attr, right);
+            if left_match && right_match {
+                matched_nodes.extend(left_list);
+                matched_nodes.extend(right_list);
+                (true, matched_nodes)
             } else {
-                Ok((false, matched_nodes))
+                (false, matched_nodes)
             }
+        }
+        PolicyNode::Or((left, right)) => {
+            let (left_match, left_list) = calc_pruned(attr, left);
+            let (right_match, right_list) = calc_pruned(attr, right);
+            if left_match {
+                matched_nodes.extend(left_list);
+                return (true, matched_nodes);
+            }
+            if right_match {
+                matched_nodes.extend(right_list);
+                return (true, matched_nodes);
+            }
+            (false, matched_nodes)
         }
     }
 }
@@ -206,7 +151,10 @@ pub fn polynomial<T: PairingCurve>(coeff: Vec<T::Field>, x: T::Field) -> T::Fiel
 mod tests {
 
     use crate::{
-        curves::bls24479::{Bls24479Curve, Bls24479Field},
+        curves::{
+            bls24479::{Bls24479Curve, Bls24479Field},
+            FieldWithOrder,
+        },
         random::miracl::MiraclRng,
     };
 
@@ -214,10 +162,11 @@ mod tests {
     use rand::Rng;
     use tessera_policy::pest::{parse, PolicyLanguage};
 
-    fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, _policy: &str) -> T::Field {
-        let policy = parse(_policy, PolicyLanguage::JsonPolicy).unwrap();
+    fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, policy: &str) -> T::Field {
+        let policy = parse(policy, PolicyLanguage::JsonPolicy).unwrap();
         let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
-        calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list, None);
+        calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list);
+
         let mut secret = T::Field::new();
         for (i, share) in shares {
             let coeff = coeff_list.get(&i).unwrap();
@@ -229,32 +178,40 @@ mod tests {
     #[test]
     fn test_secret_sharing_or() {
         let mut rng = MiraclRng::new();
-        let secret = Bls24479Field::random(&mut rng);
+        let mut thread_rng = rand::thread_rng();
+        let mut seed = [0u8; 128];
+        thread_rng.fill(&mut seed);
+        rng.seed(&seed);
+        let secret = Bls24479Field::random_within_order(&mut rng);
         let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 1, 2);
 
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
-        input.insert("A_38".to_string(), shares[1].clone());
-        // input.insert("B_53".to_string(), shares[2]);
+        input.insert("B_0".to_string(), shares[1].clone());
         let reconstruct = recover_secret::<Bls24479Curve>(
             input,
             &String::from(r#"{"name":"or", "children": [{"name": "A"}, {"name": "B"}]}"#),
         );
+
         assert!(secret == reconstruct);
     }
 
     #[test]
     fn test_gen_shares_json() {
         let mut rng = MiraclRng::new();
+        let mut thread_rng = rand::thread_rng();
+        let mut seed = [0u8; 128];
+        thread_rng.fill(&mut seed);
+        rng.seed(&seed);
         let secret = Bls24479Field::random(&mut rng);
         let policy = String::from(
             r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]}"#,
         );
         match parse(&policy, PolicyLanguage::JsonPolicy) {
             Ok(pol) => {
-                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, &secret, &pol, None);
+                let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, &secret, &pol);
                 let mut coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
                 let coeff = Bls24479Field::one();
-                calc_coefficients::<Bls24479Curve>(&pol, coeff, &mut coeff_list, None);
+                calc_coefficients::<Bls24479Curve>(&pol, coeff, &mut coeff_list);
                 assert_eq!(coeff_list.len(), shares.len());
             }
             Err(e) => println!("test_gen_shares_json: could not parse policy {:?}", e),
@@ -271,20 +228,16 @@ mod tests {
         rng.seed(&seed);
 
         let secret = Bls24479Field::random(&mut rng);
-        let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 5, 5);
+        let shares = gen_shares::<Bls24479Curve>(&mut rng, &secret, 2, 2);
+
         let k = shares[0].clone();
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
-        input.insert("A_40".to_string(), shares[1].clone());
-        input.insert("B_55".to_string(), shares[2].clone());
-        input.insert("C_70".to_string(), shares[3].clone());
-        input.insert("D_85".to_string(), shares[4].clone());
-        input.insert("E_100".to_string(), shares[5].clone());
+        input.insert("B_0".to_string(), shares[1].clone());
+        input.insert("A_0".to_string(), shares[2].clone());
 
         let reconstruct = recover_secret::<Bls24479Curve>(
             input,
-            &String::from(
-                r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}, {"name": "E"}]}"#,
-            ),
+            &String::from(r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}]}"#),
         );
 
         assert!(k == reconstruct);
@@ -305,20 +258,23 @@ mod tests {
             r#"{"name": "or", "children": [{"name": "and", "children": [{"name": "A"}, {"name": "C"}]}, {"name": "and", "children": [{"name": "C"}, {"name": "A"}]}]}"#,
         );
 
-        let _result1 = calc_pruned(&_attributes, &parse(pol1.as_ref(), PolicyLanguage::JsonPolicy).unwrap(), None);
-        let _result2 = calc_pruned(&_attributes, &parse(pol2.as_ref(), PolicyLanguage::JsonPolicy).unwrap(), None);
-        let _result3 = calc_pruned(&_attributes, &parse(pol3.as_ref(), PolicyLanguage::JsonPolicy).unwrap(), None);
+        let _result1 = calc_pruned(&_attributes, &parse(pol1.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
+        let _result2 = calc_pruned(&_attributes, &parse(pol2.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
+        let _result3 = calc_pruned(&_attributes, &parse(pol3.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
 
-        let (_match1, _list1) = _result1.unwrap();
+        let (_match1, mut _list1) = _result1;
         assert!(_match1);
-        assert!(_list1 == vec![("A".to_string(), "A_68".to_string()), ("B".to_string(), "B_83".to_string())]);
+        _list1.sort();
+        assert!(_list1 == vec![("A".to_string(), "A_0".to_string()), ("B".to_string(), "B_0".to_string())]);
 
-        let (_match2, _list2) = _result2.unwrap();
+        let (_match2, mut _list2) = _result2;
         assert!(_match2);
-        assert!(_list2 == vec![("C".to_string(), "C_39".to_string())]);
+        _list2.sort();
+        assert!(_list2 == vec![("C".to_string(), "C_0".to_string())]);
 
-        let (_match3, _list3) = _result3.unwrap();
+        let (_match3, mut _list3) = _result3;
         assert!(_match3);
-        assert!(_list3 == vec![("A".to_string(), "A_68".to_string()), ("C".to_string(), "C_83".to_string())]);
+        _list3.sort();
+        assert!(_list3 == vec![("A".to_string(), "A_1".to_string()), ("C".to_string(), "C_1".to_string())]);
     }
 }

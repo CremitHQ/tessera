@@ -20,15 +20,6 @@ pub enum InvalidPolicyErrorKind {
 
     #[error(transparent)]
     ParsePolicy(#[from] PolicyParserError),
-
-    #[error("`AND` with just a single child")]
-    ANDWithSingleChild,
-
-    #[error("`OR` with just a single child.")]
-    ORWithSingleChild,
-
-    #[error("array type should be `AND` or `OR`")]
-    UnexpectedArrayType,
 }
 
 #[derive(Error, Debug)]

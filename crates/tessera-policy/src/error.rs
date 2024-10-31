@@ -14,7 +14,12 @@ pub enum PolicyParserError {
     Empty,
     #[error("invalid policy type")]
     InvalidPolicyType,
+    #[error(transparent)]
+    MonotoneSpanProgram(#[from] MonotoneSpanProgramError),
 }
+
+#[derive(Debug, Error)]
+pub enum MonotoneSpanProgramError {}
 
 impl From<PestError<JsonRule>> for PolicyParserError {
     fn from(error: PestError<JsonRule>) -> Self {
