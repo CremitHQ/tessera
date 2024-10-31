@@ -22,10 +22,9 @@ pub(crate) fn parse<'a>(
             for child in pair.into_inner() {
                 vec.push(parse(child, attribute_index)?);
             }
-
             debug_assert!(vec.len() > 1);
-            let first = vec.split_off(1);
-            Ok(vec.into_iter().fold(first[0].clone(), |acc, x| PolicyNode::And((Box::new(acc), Box::new(x)))))
+            let rest = vec.split_off(1);
+            Ok(rest.into_iter().fold(vec[0].clone(), |acc, x| PolicyNode::And((Box::new(acc), Box::new(x)))))
         }
         Rule::or => {
             let mut vec = Vec::new();
@@ -33,8 +32,8 @@ pub(crate) fn parse<'a>(
                 vec.push(parse(child, attribute_index)?);
             }
             debug_assert!(vec.len() > 1);
-            let first = vec.split_off(1);
-            Ok(vec.into_iter().fold(first[0].clone(), |acc, x| PolicyNode::Or((Box::new(acc), Box::new(x)))))
+            let rest = vec.split_off(1);
+            Ok(rest.into_iter().fold(vec[0].clone(), |acc, x| PolicyNode::Or((Box::new(acc), Box::new(x)))))
         }
         _ => Err(PolicyParserError::InvalidPolicyType),
     }
