@@ -9,7 +9,6 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
-permutation = "0.4.1"
 pest = "2.7.10"
 pest_derive = "2.7.10"
 serde = { workspace = true, features = ["derive"] }
