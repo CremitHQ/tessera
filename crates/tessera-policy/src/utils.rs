@@ -1,10 +1,15 @@
-use crate::utils::secret_shares::node_index;
+use crate::pest::PolicyNode;
 use std::collections::HashSet;
-use tessera_policy::pest::PolicyNode;
 
-pub fn is_negative(attr: &str) -> bool {
-    let first_char = &attr[..1];
-    first_char == '!'.to_string()
+pub fn node_index(node: &(&str, usize)) -> String {
+    format!("{}_{}", node.0, node.1)
+}
+pub fn remove_index(node: &str) -> String {
+    let mut parts: Vec<_> = node.split('_').collect();
+    if parts.len() > 1 {
+        parts.pop();
+    }
+    parts.join("_")
 }
 
 #[inline]

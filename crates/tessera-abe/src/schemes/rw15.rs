@@ -4,14 +4,17 @@ use crate::{
     random::Random,
     utils::{
         aes::{decrypt_symmetric, encrypt_symmetric},
-        secret_shares::{calc_coefficients, calc_pruned, gen_shares_policy, remove_index},
+        secret_shares::{calc_coefficients, calc_pruned, gen_shares_policy},
     },
 };
 
 use crate::curves::{Field, GroupG1, GroupG2, GroupGt, Inv as _, PairingCurve};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashMap};
-use tessera_policy::pest::{parse, PolicyLanguage};
+use tessera_policy::{
+    pest::{parse, PolicyLanguage},
+    utils::remove_index,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GlobalParams<T>
@@ -183,7 +186,7 @@ pub fn encrypt<T: PairingCurve>(
     data: &[u8],
 ) -> Result<Ciphertext<T>, ABEError> {
     let (policy_name, language) = policy;
-    let policy = parse(&policy_name, language).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
+    let policy = parse(&policy_name, language).map_err(InvalidPolicyErrorKind::ParsePolicy)?.0;
     let s = T::Field::random_within_order(rng);
     let w = T::Field::new();
 
@@ -220,7 +223,7 @@ pub fn encrypt<T: PairingCurve>(
 
 pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Result<Vec<u8>, ABEError> {
     let (policy_name, lang) = ct.policy.clone();
-    let policy = parse(&policy_name, lang).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
+    let policy = parse(&policy_name, lang).map_err(InvalidPolicyErrorKind::ParsePolicy)?.0;
 
     let attributes = sk.inner.keys().map(|k| k.to_string()).collect::<Vec<_>>();
 

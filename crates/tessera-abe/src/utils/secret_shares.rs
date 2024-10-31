@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use crate::curves::{Field, PairingCurve, RefAdd as _, RefMul as _, RefNeg as _, RefPow as _, RefSub as _};
 use crate::random::Random;
-use crate::utils::tools::contains;
 use tessera_policy::pest::PolicyNode;
+use tessera_policy::utils::{contains, node_index};
 
 pub fn calc_coefficients<T: PairingCurve>(
     policy_value: &PolicyNode,
@@ -45,17 +45,6 @@ pub fn recover_coefficients<T: PairingCurve>(list: Vec<T::Field>) -> Vec<T::Fiel
         coeff.push(result);
     }
     coeff
-}
-
-pub fn node_index(node: &(&str, usize)) -> String {
-    format!("{}_{}", node.0, node.1)
-}
-pub fn remove_index(node: &str) -> String {
-    let mut parts: Vec<_> = node.split('_').collect();
-    if parts.len() > 1 {
-        parts.pop();
-    }
-    parts.join("_")
 }
 
 pub fn gen_shares_policy<T: PairingCurve>(
@@ -163,7 +152,7 @@ mod tests {
     use tessera_policy::pest::{parse, PolicyLanguage};
 
     fn recover_secret<T: PairingCurve>(shares: HashMap<String, T::Field>, policy: &str) -> T::Field {
-        let policy = parse(policy, PolicyLanguage::JsonPolicy).unwrap();
+        let policy = parse(policy, PolicyLanguage::JsonPolicy).unwrap().0;
         let mut coeff_list: HashMap<String, T::Field> = HashMap::new();
         calc_coefficients::<T>(&policy, T::Field::one(), &mut coeff_list);
 
@@ -207,7 +196,7 @@ mod tests {
             r#"{"name": "and", "children": [{"name": "A"}, {"name": "B"}, {"name": "C"}, {"name": "D"}]}"#,
         );
         match parse(&policy, PolicyLanguage::JsonPolicy) {
-            Ok(pol) => {
+            Ok((pol, _)) => {
                 let shares = gen_shares_policy::<Bls24479Curve>(&mut rng, &secret, &pol);
                 let mut coeff_list: HashMap<String, Bls24479Field> = HashMap::new();
                 let coeff = Bls24479Field::one();
@@ -232,8 +221,8 @@ mod tests {
 
         let k = shares[0].clone();
         let mut input: HashMap<String, Bls24479Field> = HashMap::new();
-        input.insert("B_0".to_string(), shares[1].clone());
-        input.insert("A_0".to_string(), shares[2].clone());
+        input.insert("A_0".to_string(), shares[1].clone());
+        input.insert("B_0".to_string(), shares[2].clone());
 
         let reconstruct = recover_secret::<Bls24479Curve>(
             input,
@@ -258,9 +247,9 @@ mod tests {
             r#"{"name": "or", "children": [{"name": "and", "children": [{"name": "A"}, {"name": "C"}]}, {"name": "and", "children": [{"name": "C"}, {"name": "A"}]}]}"#,
         );
 
-        let _result1 = calc_pruned(&_attributes, &parse(pol1.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
-        let _result2 = calc_pruned(&_attributes, &parse(pol2.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
-        let _result3 = calc_pruned(&_attributes, &parse(pol3.as_ref(), PolicyLanguage::JsonPolicy).unwrap());
+        let _result1 = calc_pruned(&_attributes, &parse(pol1.as_ref(), PolicyLanguage::JsonPolicy).unwrap().0);
+        let _result2 = calc_pruned(&_attributes, &parse(pol2.as_ref(), PolicyLanguage::JsonPolicy).unwrap().0);
+        let _result3 = calc_pruned(&_attributes, &parse(pol3.as_ref(), PolicyLanguage::JsonPolicy).unwrap().0);
 
         let (_match1, mut _list1) = _result1;
         assert!(_match1);
@@ -274,7 +263,6 @@ mod tests {
 
         let (_match3, mut _list3) = _result3;
         assert!(_match3);
-        _list3.sort();
-        assert!(_list3 == vec![("A".to_string(), "A_1".to_string()), ("C".to_string(), "C_1".to_string())]);
+        assert!(_list3 == vec![("A".to_string(), "A_0".to_string()), ("C".to_string(), "C_0".to_string())]);
     }
 }
