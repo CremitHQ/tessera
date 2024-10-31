@@ -1,48 +1,41 @@
-use crate::{
-    error::PolicyParserError,
-    pest::{PolicyType, PolicyValue},
-};
+use std::collections::HashMap;
+
+use crate::{error::PolicyParserError, pest::PolicyNode};
 use pest::iterators::Pair;
 
 #[derive(Parser)]
 #[grammar = "human.policy.pest"]
 pub(crate) struct HumanPolicyParser;
 
-pub(crate) fn parse(pair: Pair<Rule>) -> Result<PolicyValue, PolicyParserError> {
+pub(crate) fn parse<'a>(
+    pair: Pair<'a, Rule>,
+    attribute_index: &mut HashMap<&'a str, usize>,
+) -> Result<PolicyNode<'a>, PolicyParserError> {
     match pair.as_rule() {
         Rule::string | Rule::number => {
             let p = pair.into_inner().next().unwrap();
-            Ok(PolicyValue::String((p.as_str(), p.line_col().1)))
+            let index = attribute_index.entry(p.as_str()).and_modify(|i| *i += 1).or_insert(0);
+            Ok(PolicyNode::Leaf((p.as_str(), *index)))
         }
         Rule::and => {
             let mut vec = Vec::new();
             for child in pair.into_inner() {
-                vec.push(parse(child)?);
+                vec.push(parse(child, attribute_index)?);
             }
-            Ok(PolicyValue::Object((PolicyType::And, Box::new(PolicyValue::Array(vec)))))
+
+            debug_assert!(vec.len() > 1);
+            let first = vec.split_off(1);
+            Ok(vec.into_iter().fold(first[0].clone(), |acc, x| PolicyNode::And((Box::new(acc), Box::new(x)))))
         }
         Rule::or => {
             let mut vec = Vec::new();
             for child in pair.into_inner() {
-                vec.push(parse(child)?);
+                vec.push(parse(child, attribute_index)?);
             }
-            Ok(PolicyValue::Object((PolicyType::Or, Box::new(PolicyValue::Array(vec)))))
+            debug_assert!(vec.len() > 1);
+            let first = vec.split_off(1);
+            Ok(vec.into_iter().fold(first[0].clone(), |acc, x| PolicyNode::Or((Box::new(acc), Box::new(x)))))
         }
-        Rule::content
-        | Rule::EOI
-        | Rule::inner
-        | Rule::orinner
-        | Rule::andinner
-        | Rule::term
-        | Rule::node
-        | Rule::value
-        | Rule::andvalue
-        | Rule::orvalue
-        | Rule::char
-        | Rule::COMMENT
-        | Rule::BRACEOPEN
-        | Rule::BRACECLOSE
-        | Rule::QUOTE
-        | Rule::WHITESPACE => Err(PolicyParserError::InvalidPolicyType),
+        _ => Err(PolicyParserError::InvalidPolicyType),
     }
 }

@@ -5,7 +5,6 @@ use crate::{
     utils::{
         aes::{decrypt_symmetric, encrypt_symmetric},
         secret_shares::{calc_coefficients, calc_pruned, gen_shares_policy, remove_index},
-        tools::traverse_policy,
     },
 };
 
@@ -188,8 +187,8 @@ pub fn encrypt<T: PairingCurve>(
     let s = T::Field::random_within_order(rng);
     let w = T::Field::new();
 
-    let s_shares = gen_shares_policy::<T>(rng, &s, &policy, None);
-    let w_shares = gen_shares_policy::<T>(rng, &w, &policy, None);
+    let s_shares = gen_shares_policy::<T>(rng, &s, &policy);
+    let w_shares = gen_shares_policy::<T>(rng, &w, &policy);
 
     let c0 = T::Gt::random(rng);
 
@@ -224,18 +223,14 @@ pub fn decrypt<T: PairingCurve>(sk: &UserSecretKey<T>, ct: &Ciphertext<T>) -> Re
     let policy = parse(&policy_name, lang).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
 
     let attributes = sk.inner.keys().map(|k| k.to_string()).collect::<Vec<_>>();
-    let is_satisfied_policy = traverse_policy(&attributes, &policy, tessera_policy::pest::PolicyType::Leaf);
-    if !is_satisfied_policy {
-        return Err(InvalidPolicyErrorKind::PolicyNotSatisfied.into());
-    }
 
-    let (is_matched, matched_nodes) = calc_pruned(&attributes, &policy, None)?;
+    let (is_matched, matched_nodes) = calc_pruned(&attributes, &policy);
     if !is_matched {
         return Err(InvalidPolicyErrorKind::PolicyNotSatisfied.into());
     }
 
     let mut coefficients = HashMap::new();
-    calc_coefficients::<T>(&policy, T::Field::one(), &mut coefficients, None);
+    calc_coefficients::<T>(&policy, T::Field::one(), &mut coefficients);
 
     let h_user = T::hash_to_g2(sk.gid.as_bytes());
     let mut b = T::Gt::one();
@@ -337,12 +332,13 @@ mod tests {
     }
 
     #[rstest]
-    #[case("THIS IS SECRET MESSAGE!", r#""A@ADMIN" and "B@CTO""#, true, false)]
-    #[case("A~l=GG>APhr0/ML3*nFo#v<#y,=xa+", r#""A@ADMIN" or "C@CEO""#, true, true)]
-    #[case("test_message", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
-    #[case("test_message", r#""C@CEO""#, false, true)]
-    #[case("test_message", r#""A@INFRA" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
-    #[case("test_message", r#""A@INFRA" and "A@ADMIN" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
+    #[case("case: and policy", r#""A@ADMIN" and "B@CTO""#, true, false)]
+    #[case("case: or policy", r#""A@ADMIN" or "C@CEO""#, true, true)]
+    #[case("case: or (_ and _)", r#""A@ADMIN" or ("A@USER" and "C@CEO")"#, true, true)]
+    #[case("case: only one attribute", r#""C@CEO""#, false, true)]
+    #[case("case: and (_ or _)", r#""A@INFRA" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
+    #[case("case: _ and _ and (_ or _)", r#""A@INFRA" and "A@ADMIN" and ("A@LEVEL_3" or "C@CEO")"#, true, false)]
+    #[case("case: () or ()", r#"("A@INFRA" and "A@ADMIN") or ("A@USER" and "A@LEVEL_2" and "C@CEO")"#, true, true)]
     fn encrypt_and_decrypt(
         gp: &GlobalParams<Bls24479Curve>,
         authority_a: &AuthorityKeyPair<Bls24479Curve>,
