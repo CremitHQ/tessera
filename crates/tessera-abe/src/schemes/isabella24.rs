@@ -191,7 +191,7 @@ pub fn encrypt<T: PairingCurve>(
     let msp = MonotoneSpanProgram::from(&policy);
     let n2 = msp.column_size;
 
-    let m = attributes_index_size.iter().map(|(_, x)| *x).max().ok_or(InvalidPolicyErrorKind::EmptyPolicy)?;
+    let m = *attributes_index_size.values().max().ok_or(InvalidPolicyErrorKind::EmptyPolicy)?;
     let s_tilde = T::Field::random_within_order(rng);
     let s_prime = (0..=m).map(|_| T::Field::random_within_order(rng)).collect::<Vec<_>>();
 
@@ -207,8 +207,8 @@ pub fn encrypt<T: PairingCurve>(
     }
 
     let mut c1 = vec![];
-    for i in 0..=m {
-        c1.push(gp.g2.ref_mul(&s_prime[i]));
+    for s in s_prime.iter().take(m + 1) {
+        c1.push(gp.g2.ref_mul(s));
     }
 
     let mut c_j = HashMap::new();
@@ -226,7 +226,7 @@ pub fn encrypt<T: PairingCurve>(
             .iter()
             .zip(v.iter())
             .map(|(&x, y)| {
-                let v = T::Field::from(x.abs() as u64);
+                let v = T::Field::from(x.unsigned_abs() as u64);
                 if x.is_negative() {
                     v.ref_neg().ref_mul(y)
                 } else {
@@ -238,7 +238,7 @@ pub fn encrypt<T: PairingCurve>(
             .iter()
             .zip(v_prime.iter())
             .map(|(&x, y)| {
-                let v = T::Field::from(x.abs() as u64);
+                let v = T::Field::from(x.unsigned_abs() as u64);
                 if x.is_negative() {
                     v.ref_neg().ref_mul(y)
                 } else {
@@ -265,8 +265,8 @@ pub fn decrypt<T: PairingCurve>(
 ) -> Result<Vec<u8>, ABEError> {
     let (policy_name, lang) = ct.policy.clone();
     let (policy, attributes_index_size) = parse(&policy_name, lang).map_err(InvalidPolicyErrorKind::ParsePolicy)?;
-    let m = attributes_index_size.iter().map(|(_, x)| *x).max().ok_or(InvalidPolicyErrorKind::EmptyPolicy)?;
-    let attributes = sk.inner.values().map(|uk| uk.k2.keys()).flatten().map(|k| k.to_string()).collect::<Vec<_>>();
+    let m = *attributes_index_size.values().max().ok_or(InvalidPolicyErrorKind::EmptyPolicy)?;
+    let attributes = sk.inner.values().flat_map(|uk| uk.k2.keys()).map(|k| k.to_string()).collect::<Vec<_>>();
 
     let (is_matched, matched_nodes) = calc_pruned(&attributes, &policy);
     if !is_matched {
@@ -291,11 +291,11 @@ pub fn decrypt<T: PairingCurve>(
             .cj
             .get(&attribute_with_idx)
             .ok_or(InvalidAttributeKind::AttributeNotFound(attribute_with_idx.clone()))?;
-        let c2 = c2_sum.entry(authority.clone()).or_insert_with(|| T::G1::zero());
-        let c4 = c4_sum.entry(authority.clone()).or_insert_with(|| T::G1::zero());
+        let c2 = c2_sum.entry(authority.clone()).or_insert_with(T::G1::zero);
+        let c4 = c4_sum.entry(authority.clone()).or_insert_with(T::G1::zero);
 
-        *c2 = cj.c2.ref_add(&c2);
-        *c4 = cj.c4.ref_add(&c4);
+        *c2 = cj.c2.ref_add(c2);
+        *c4 = cj.c4.ref_add(c4);
 
         c3_sum = cj.c3.ref_add(&c3_sum);
         c5_sum = cj.c5.ref_add(&c5_sum);
@@ -319,7 +319,7 @@ pub fn decrypt<T: PairingCurve>(
     let e3 = T::pair(&c3_sum, &gid_hash);
     let mut e4 = T::Gt::one();
     for (i, k2) in k2_sum.iter().enumerate() {
-        e4 = T::pair(&k2, &ct.c1[i]).ref_mul(&e4);
+        e4 = T::pair(k2, &ct.c1[i]).ref_mul(&e4);
     }
     let e5 = T::pair(&c5_sum, &gp.g2);
 
@@ -339,10 +339,7 @@ mod tests {
     use rand_core::OsRng;
 
     use super::*;
-    use crate::{
-        curves::{bls24479::Bls24479Curve, RefNeg},
-        random::miracl::MiraclRng,
-    };
+    use crate::{curves::bls24479::Bls24479Curve, random::miracl::MiraclRng};
     use rstest::*;
 
     fn rng() -> MiraclRng {
