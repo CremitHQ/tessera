@@ -1,10 +1,10 @@
 pub mod backend;
 pub mod shield;
 
-#[trait_variant::make(Storage: Send + Sync)]
+#[trait_variant::make(Storage: Send)]
 pub trait LocalStorage {
-    type Key: ToOwned + ?Sized + Sync;
-    type Value: ToOwned + ?Sized + Sync;
+    type Key: ToOwned + ?Sized;
+    type Value: ToOwned + ?Sized;
     type StorageError: std::error::Error;
     async fn get(&self, key: &Self::Key) -> Result<Option<<Self::Value as ToOwned>::Owned>, Self::StorageError>;
     async fn set(&self, key: &Self::Key, value: &Self::Value) -> Result<(), Self::StorageError>;

@@ -18,5 +18,11 @@ tokio.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 rmp-serde.workspace = true
+sqlx = { workspace = true, features = [
+    "runtime-tokio",
+    "postgres",
+    "tls-native-tls",
+] }
+bon.workspace = true
 
 [dev-dependencies]
