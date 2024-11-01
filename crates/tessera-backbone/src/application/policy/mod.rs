@@ -12,6 +12,7 @@ use crate::{
 #[async_trait]
 pub(crate) trait PolicyUseCase {
     async fn get_all(&self) -> Result<Vec<PolicyData>>;
+    async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -41,6 +42,20 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         return Ok(policies.into_iter().map(PolicyData::from).collect());
     }
+
+    async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let policy = self
+            .policy_service
+            .get(&transaction, &policy_id)
+            .await?
+            .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: policy_id })?;
+
+        transaction.commit().await?;
+
+        return Ok(policy.into());
+    }
 }
 
 pub(crate) struct PolicyData {
@@ -57,6 +72,8 @@ impl From<domain::policy::Policy> for PolicyData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Policy({entered_policy_id} is not exists)")]
+    PolicyNotExists { entered_policy_id: Ulid },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -138,5 +155,55 @@ mod test {
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+
+    #[tokio::test]
+    async fn when_getting_single_policy_data_is_successful_then_policy_usecase_returns_policy_ok() {
+        let policy_id = Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap();
+        let policy_name = "test policy";
+        let expression = "(\"role=FRONTEND\")";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_get().times(1).returning(move |_, _| {
+            Ok(Some(Policy {
+                id: policy_id.to_owned(),
+                name: policy_name.to_owned(),
+                expression: expression.to_owned(),
+            }))
+        });
+
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.get_policy(policy_id).await.expect("getting policy data should be successful");
+
+        assert_eq!(result.id, policy_id);
+        assert_eq!(result.name, policy_name);
+        assert_eq!(result.expression, expression);
+    }
+
+    #[tokio::test]
+    async fn when_getting_not_existing_single_policy_data_then_policy_usecase_returns_policy_not_exists_err() {
+        let policy_id = Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap();
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_get().times(1).returning(move |_, _| Ok(None));
+
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.get_policy(policy_id).await;
+
+        assert!(matches!(result, Err(Error::PolicyNotExists { .. })));
     }
 }
