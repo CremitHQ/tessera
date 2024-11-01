@@ -5,7 +5,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use ulid::Ulid;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::{OrganizationScopedTransaction, Persistable},
     domain::{
         self,
         policy::{Policy, PolicyService},
@@ -18,6 +18,7 @@ pub(crate) trait SecretUseCase {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>>;
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
+    async fn delete(&self, secret_identifier: &str) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -81,6 +82,16 @@ impl SecretUseCase for SecretUseCaseImpl {
             .register(&transaction, cmd.path, cmd.key, cmd.cipher, reader_policies, writer_policies)
             .await?;
 
+        transaction.commit().await?;
+
+        Ok(())
+    }
+
+    async fn delete(&self, secret_identifier: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        secret.delete();
+        secret.persist(&transaction).await?;
         transaction.commit().await?;
 
         Ok(())

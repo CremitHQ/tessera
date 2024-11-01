@@ -28,7 +28,10 @@ mod response;
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/workspaces/:workspace_name/secrets", get(handle_get_secrets).post(handle_post_secret))
-        .route("/workspaces/:workspace_name/secrets/*secret_identifier", get(handle_get_secret))
+        .route(
+            "/workspaces/:workspace_name/secrets/*secret_identifier",
+            get(handle_get_secret).delete(handle_delete_secret),
+        )
         .with_state(application)
 }
 
@@ -86,6 +89,16 @@ async fn handle_get_secret(
     let secret = application.with_workspace(&workspace_name).secret().get(&format!("/{secret_identifier}")).await?;
 
     Ok(Json(SecretResponse::from(secret)))
+}
+
+#[debug_handler]
+async fn handle_delete_secret(
+    Path((workspace_name, secret_identifier)): Path<(String, String)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, application::secret::Error> {
+    application.with_workspace(&workspace_name).secret().delete(&format!("/{secret_identifier}")).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 impl From<SecretData> for SecretResponse {

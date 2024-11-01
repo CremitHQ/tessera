@@ -7,13 +7,14 @@ use lazy_static::lazy_static;
 use mockall::automock;
 use regex::Regex;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait, QueryFilter,
+    QuerySelect, QueryTrait, Set,
 };
 use ulid::Ulid;
 
 use crate::database::{
     applied_policy::{self, PolicyApplicationType},
-    path, secret_metadata, secret_value, UlidId,
+    path, secret_metadata, secret_value, Persistable, UlidId,
 };
 
 use super::policy::Policy;
@@ -24,6 +25,47 @@ pub(crate) struct SecretEntry {
     pub cipher: Vec<u8>,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
+    deleted: bool,
+}
+
+impl SecretEntry {
+    pub fn delete(&mut self) {
+        self.deleted = true
+    }
+}
+
+#[async_trait]
+impl Persistable for SecretEntry {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            secret_value::Entity::delete_many()
+                .filter(secret_value::Column::Identifier.eq(create_identifier(&self.path, &self.key)))
+                .exec(transaction)
+                .await?;
+            applied_policy::Entity::delete_many()
+                .filter(
+                    applied_policy::Column::SecretMetadataId.in_subquery(
+                        secret_metadata::Entity::find()
+                            .select_only()
+                            .column(secret_metadata::Column::Id)
+                            .filter(secret_metadata::Column::Path.eq(&self.path))
+                            .filter(secret_metadata::Column::Key.eq(&self.key))
+                            .into_query(),
+                    ),
+                )
+                .exec(transaction)
+                .await?;
+            secret_metadata::Entity::delete_many()
+                .filter(secret_metadata::Column::Path.eq(self.path))
+                .filter(secret_metadata::Column::Key.eq(self.key))
+                .exec(transaction)
+                .await?;
+        }
+
+        Ok(())
+    }
 }
 
 impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for SecretEntry {
@@ -42,7 +84,14 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
             }
         }
 
-        SecretEntry { key: metadata.key, cipher, path: metadata.path, reader_policy_ids, writer_policy_ids }
+        SecretEntry {
+            key: metadata.key,
+            cipher,
+            path: metadata.path,
+            reader_policy_ids,
+            writer_policy_ids,
+            deleted: false,
+        }
     }
 }
 
