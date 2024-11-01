@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::{path::PathBuf, time::Duration};
 
 use crate::Storage;
-use derive_builder::Builder;
+use bon::Builder;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::Row;
 use thiserror::Error;
@@ -14,20 +14,24 @@ pub struct PostgresStorage {
 
 #[derive(Builder)]
 pub struct PostgresStorageOptions {
+    #[builder(into)]
     host: String,
     port: u16,
+    #[builder(into)]
     username: String,
+    #[builder(into)]
     password: String,
+    #[builder(into)]
     database: String,
-    #[builder(default = "\"kv_store\".to_string()")]
+    #[builder(into, default = "kv_store")]
     table_name: String,
-    #[builder(setter(into, strip_option))]
+    #[builder(into)]
     tls_ca_cert: Option<PathBuf>,
-    #[builder(default = "5")]
+    #[builder(default = 5)]
     max_connections: u32,
-    #[builder(default = "1")]
+    #[builder(default = 1)]
     min_connections: u32,
-    #[builder(default = "Duration::from_secs(10 * 60)")]
+    #[builder(default = Duration::from_secs(10 * 60))]
     idle_timeout: Duration,
 }
 
