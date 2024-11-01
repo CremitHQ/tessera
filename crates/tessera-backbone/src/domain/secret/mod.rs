@@ -753,6 +753,6 @@ mod test {
 
         secret_entry.delete();
 
-        assert_eq!(secret_entry.deleted, true)
+        assert!(secret_entry.deleted)
     }
 }
