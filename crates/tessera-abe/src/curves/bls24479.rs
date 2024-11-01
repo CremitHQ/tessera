@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::{
+    iter::Sum,
+    ops::{Add, Div, Mul, Neg, Sub},
+};
 
 use crate::random::{miracl::MiraclRng, Random};
 
@@ -84,6 +87,12 @@ impl FieldWithOrder for Bls24479Field {
         let mut r = BIG::random(&mut rng.inner);
         r.rmod(&MODULUS_BIG);
         Self { inner: r }
+    }
+}
+
+impl Sum<Bls24479Field> for Bls24479Field {
+    fn sum<I: Iterator<Item = Bls24479Field>>(iter: I) -> Self {
+        iter.fold(Self::new(), |acc, x| acc + x)
     }
 }
 
@@ -217,6 +226,11 @@ impl GroupG1 for G1 {
     #[inline]
     fn new(x: &Self::Field) -> Self {
         Self::generator() * x
+    }
+
+    #[inline]
+    fn zero() -> Self {
+        Self { inner: ECP::new() }
     }
 
     #[inline]
@@ -471,6 +485,13 @@ impl PairingCurve for Bls24479Curve {
 
     fn pair(e1: &Self::G1, e2: &Self::G2) -> Self::Gt {
         Self::Gt { inner: pair4::fexp(&pair4::ate(&e2.inner, &e1.inner)) }
+    }
+
+    fn hash_to_g1(msg: &[u8]) -> Self::G1 {
+        let mut hash = HASH256::new();
+        hash.process_array(msg);
+        let h = hash.hash();
+        Self::G1 { inner: ECP::mapit(&h) }
     }
 
     fn hash_to_g2(msg: &[u8]) -> Self::G2 {

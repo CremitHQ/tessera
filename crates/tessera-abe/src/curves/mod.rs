@@ -3,7 +3,10 @@ pub mod bls48556;
 
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::{
+    iter::Sum,
+    ops::{Add, Div, Mul, Neg, Sub},
+};
 
 use crate::random::Random;
 
@@ -79,6 +82,7 @@ pub trait Field:
     + RefPow<Self, Output = Self>
     + Serialize
     + Random
+    + Sum<Self>
 where
     Self: for<'de> Deserialize<'de>,
 {
@@ -105,6 +109,7 @@ where
     type Field: Field;
 
     fn new(x: &Self::Field) -> Self;
+    fn zero() -> Self;
     fn generator() -> Self;
 }
 
@@ -154,5 +159,6 @@ pub trait PairingCurve: Sized + Clone {
     type Gt: GroupGt<Field = Self::Field, Rng = Self::Rng>;
 
     fn pair(e1: &Self::G1, e2: &Self::G2) -> Self::Gt;
+    fn hash_to_g1(msg: &[u8]) -> Self::G1;
     fn hash_to_g2(msg: &[u8]) -> Self::G2;
 }
