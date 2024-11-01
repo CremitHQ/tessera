@@ -207,13 +207,13 @@ mod test {
 
         let mut mock_secret_service = MockSecretService::new();
         mock_secret_service.expect_list().withf(|_, path| path == "/").times(1).returning(move |_, _| {
-            Ok(vec![SecretEntry {
-                key: key.to_owned(),
-                path: path.to_owned(),
-                cipher: vec![4, 5, 6],
-                reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
-                writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
-            }])
+            Ok(vec![SecretEntry::new(
+                key.to_owned(),
+                path.to_owned(),
+                vec![4, 5, 6],
+                vec![applied_policy_ids[0].to_owned()],
+                vec![applied_policy_ids[1].to_owned()],
+            )])
         });
         let mock_policy_service = MockPolicyService::new();
 
@@ -279,13 +279,13 @@ mod test {
         let mut mock_secret_service = MockSecretService::new();
         mock_secret_service.expect_get().withf(|_, identifier| identifier == identifier).times(1).returning(
             move |_, _| {
-                Ok(SecretEntry {
-                    key: key.to_owned(),
-                    path: path.to_owned(),
-                    cipher: vec![4, 5, 6],
-                    reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
-                    writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
-                })
+                Ok(SecretEntry::new(
+                    key.to_owned(),
+                    path.to_owned(),
+                    vec![4, 5, 6],
+                    vec![applied_policy_ids[0].to_owned()],
+                    vec![applied_policy_ids[1].to_owned()],
+                ))
             },
         );
         let mock_policy_service = MockPolicyService::new();

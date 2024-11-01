@@ -29,6 +29,16 @@ pub(crate) struct SecretEntry {
 }
 
 impl SecretEntry {
+    pub(crate) fn new(
+        key: String,
+        path: String,
+        cipher: Vec<u8>,
+        reader_policy_ids: Vec<Ulid>,
+        writer_policy_ids: Vec<Ulid>,
+    ) -> Self {
+        Self { key, path, cipher, reader_policy_ids, writer_policy_ids, deleted: false }
+    }
+
     pub fn delete(&mut self) {
         self.deleted = true
     }
@@ -732,22 +742,6 @@ mod test {
 
     #[tokio::test]
     async fn when_delete_secret_entry_then_delete_property_turns_into_true() {
-        let mut secret_entry = SecretEntry {
-            key: "/test/path".to_owned(),
-            path: "TEST_KEY".to_owned(),
-            cipher: vec![1, 2, 3],
-            reader_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            writer_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            deleted: false,
-        };
-
-        secret_entry.delete();
-
-        assert_eq!(secret_entry.deleted, true)
-    }
-
-    #[tokio::test]
-    async fn when_persist_deleted_secret_entry() {
         let mut secret_entry = SecretEntry {
             key: "/test/path".to_owned(),
             path: "TEST_KEY".to_owned(),
