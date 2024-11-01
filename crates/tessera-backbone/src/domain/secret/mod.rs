@@ -315,7 +315,7 @@ mod test {
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
         database::{applied_policy, path, secret_metadata, secret_value, UlidId},
-        domain::policy::Policy,
+        domain::{policy::Policy, secret::SecretEntry},
     };
 
     #[tokio::test]
@@ -728,5 +728,37 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::IdentifierConflicted { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_delete_secret_entry_then_delete_property_turns_into_true() {
+        let mut secret_entry = SecretEntry {
+            key: "/test/path".to_owned(),
+            path: "TEST_KEY".to_owned(),
+            cipher: vec![1, 2, 3],
+            reader_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            writer_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            deleted: false,
+        };
+
+        secret_entry.delete();
+
+        assert_eq!(secret_entry.deleted, true)
+    }
+
+    #[tokio::test]
+    async fn when_persist_deleted_secret_entry() {
+        let mut secret_entry = SecretEntry {
+            key: "/test/path".to_owned(),
+            path: "TEST_KEY".to_owned(),
+            cipher: vec![1, 2, 3],
+            reader_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            writer_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            deleted: false,
+        };
+
+        secret_entry.delete();
+
+        assert_eq!(secret_entry.deleted, true)
     }
 }
