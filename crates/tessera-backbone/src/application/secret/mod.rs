@@ -5,7 +5,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use ulid::Ulid;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::{OrganizationScopedTransaction, Persistable},
     domain::{
         self,
         policy::{Policy, PolicyService},
@@ -18,6 +18,7 @@ pub(crate) trait SecretUseCase {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>>;
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
+    async fn delete(&self, secret_identifier: &str) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -81,6 +82,16 @@ impl SecretUseCase for SecretUseCaseImpl {
             .register(&transaction, cmd.path, cmd.key, cmd.cipher, reader_policies, writer_policies)
             .await?;
 
+        transaction.commit().await?;
+
+        Ok(())
+    }
+
+    async fn delete(&self, secret_identifier: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        secret.delete();
+        secret.persist(&transaction).await?;
         transaction.commit().await?;
 
         Ok(())
@@ -196,13 +207,13 @@ mod test {
 
         let mut mock_secret_service = MockSecretService::new();
         mock_secret_service.expect_list().withf(|_, path| path == "/").times(1).returning(move |_, _| {
-            Ok(vec![SecretEntry {
-                key: key.to_owned(),
-                path: path.to_owned(),
-                cipher: vec![4, 5, 6],
-                reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
-                writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
-            }])
+            Ok(vec![SecretEntry::new(
+                key.to_owned(),
+                path.to_owned(),
+                vec![4, 5, 6],
+                vec![applied_policy_ids[0].to_owned()],
+                vec![applied_policy_ids[1].to_owned()],
+            )])
         });
         let mock_policy_service = MockPolicyService::new();
 
@@ -268,13 +279,13 @@ mod test {
         let mut mock_secret_service = MockSecretService::new();
         mock_secret_service.expect_get().withf(|_, identifier| identifier == identifier).times(1).returning(
             move |_, _| {
-                Ok(SecretEntry {
-                    key: key.to_owned(),
-                    path: path.to_owned(),
-                    cipher: vec![4, 5, 6],
-                    reader_policy_ids: vec![applied_policy_ids[0].to_owned()],
-                    writer_policy_ids: vec![applied_policy_ids[1].to_owned()],
-                })
+                Ok(SecretEntry::new(
+                    key.to_owned(),
+                    path.to_owned(),
+                    vec![4, 5, 6],
+                    vec![applied_policy_ids[0].to_owned()],
+                    vec![applied_policy_ids[1].to_owned()],
+                ))
             },
         );
         let mock_policy_service = MockPolicyService::new();

@@ -7,13 +7,14 @@ use lazy_static::lazy_static;
 use mockall::automock;
 use regex::Regex;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait, QueryFilter,
+    QuerySelect, QueryTrait, Set,
 };
 use ulid::Ulid;
 
 use crate::database::{
     applied_policy::{self, PolicyApplicationType},
-    path, secret_metadata, secret_value, UlidId,
+    path, secret_metadata, secret_value, Persistable, UlidId,
 };
 
 use super::policy::Policy;
@@ -24,6 +25,57 @@ pub(crate) struct SecretEntry {
     pub cipher: Vec<u8>,
     pub reader_policy_ids: Vec<Ulid>,
     pub writer_policy_ids: Vec<Ulid>,
+    deleted: bool,
+}
+
+impl SecretEntry {
+    pub(crate) fn new(
+        key: String,
+        path: String,
+        cipher: Vec<u8>,
+        reader_policy_ids: Vec<Ulid>,
+        writer_policy_ids: Vec<Ulid>,
+    ) -> Self {
+        Self { key, path, cipher, reader_policy_ids, writer_policy_ids, deleted: false }
+    }
+
+    pub fn delete(&mut self) {
+        self.deleted = true
+    }
+}
+
+#[async_trait]
+impl Persistable for SecretEntry {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            secret_value::Entity::delete_many()
+                .filter(secret_value::Column::Identifier.eq(create_identifier(&self.path, &self.key)))
+                .exec(transaction)
+                .await?;
+            applied_policy::Entity::delete_many()
+                .filter(
+                    applied_policy::Column::SecretMetadataId.in_subquery(
+                        secret_metadata::Entity::find()
+                            .select_only()
+                            .column(secret_metadata::Column::Id)
+                            .filter(secret_metadata::Column::Path.eq(&self.path))
+                            .filter(secret_metadata::Column::Key.eq(&self.key))
+                            .into_query(),
+                    ),
+                )
+                .exec(transaction)
+                .await?;
+            secret_metadata::Entity::delete_many()
+                .filter(secret_metadata::Column::Path.eq(self.path))
+                .filter(secret_metadata::Column::Key.eq(self.key))
+                .exec(transaction)
+                .await?;
+        }
+
+        Ok(())
+    }
 }
 
 impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for SecretEntry {
@@ -42,7 +94,14 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
             }
         }
 
-        SecretEntry { key: metadata.key, cipher, path: metadata.path, reader_policy_ids, writer_policy_ids }
+        SecretEntry {
+            key: metadata.key,
+            cipher,
+            path: metadata.path,
+            reader_policy_ids,
+            writer_policy_ids,
+            deleted: false,
+        }
     }
 }
 
@@ -266,7 +325,7 @@ mod test {
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
         database::{applied_policy, path, secret_metadata, secret_value, UlidId},
-        domain::policy::Policy,
+        domain::{policy::Policy, secret::SecretEntry},
     };
 
     #[tokio::test]
@@ -679,5 +738,21 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::IdentifierConflicted { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_delete_secret_entry_then_delete_property_turns_into_true() {
+        let mut secret_entry = SecretEntry {
+            key: "/test/path".to_owned(),
+            path: "TEST_KEY".to_owned(),
+            cipher: vec![1, 2, 3],
+            reader_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            writer_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            deleted: false,
+        };
+
+        secret_entry.delete();
+
+        assert!(secret_entry.deleted)
     }
 }
