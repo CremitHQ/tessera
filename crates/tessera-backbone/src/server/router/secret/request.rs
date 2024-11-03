@@ -7,6 +7,6 @@ pub struct PostSecretRequest {
     pub path: String,
     pub key: String,
     pub cipher: String,
-    pub reader_policy_ids: Vec<Ulid>,
-    pub writer_policy_ids: Vec<Ulid>,
+    pub access_policy_ids: Vec<Ulid>,
+    pub management_policy_ids: Vec<Ulid>,
 }

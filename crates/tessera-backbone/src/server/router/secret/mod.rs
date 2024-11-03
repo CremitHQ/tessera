@@ -73,8 +73,8 @@ async fn handle_post_secret(
             path: payload.path,
             key: payload.key,
             cipher,
-            reader_policy_ids: payload.reader_policy_ids,
-            writer_policy_ids: payload.writer_policy_ids,
+            access_policy_ids: payload.access_policy_ids,
+            management_policy_ids: payload.management_policy_ids,
         })
         .await?;
 
@@ -107,8 +107,8 @@ impl From<SecretData> for SecretResponse {
             key: value.key,
             path: value.path,
             cipher: BASE64_STANDARD.encode(value.cipher),
-            reader_policy_ids: value.reader_policy_ids,
-            writer_policy_ids: value.writer_policy_ids,
+            access_policy_ids: value.access_policy_ids,
+            management_policy_ids: value.management_policy_ids,
         }
     }
 }
