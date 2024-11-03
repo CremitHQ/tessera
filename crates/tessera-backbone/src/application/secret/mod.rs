@@ -103,6 +103,14 @@ impl SecretUseCase for SecretUseCaseImpl {
 
         let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
 
+        if let Some(updated_access_policy_ids) = update.access_policy_ids {
+            let updated_access_policies = self.get_policies(&transaction, updated_access_policy_ids).await?;
+            secret.update_access_policies(updated_access_policies);
+        }
+        if let Some(updated_management_policies) = update.management_policy_ids {
+            let updated_management_policies = self.get_policies(&transaction, updated_management_policies).await?;
+            secret.update_management_policies(updated_management_policies);
+        }
         if let Some(updated_path) = update.path {
             secret.update_path(updated_path);
         }
@@ -128,6 +136,8 @@ pub(crate) struct SecretData {
 pub(crate) struct SecretUpdate {
     pub path: Option<String>,
     pub cipher: Option<Vec<u8>>,
+    pub access_policy_ids: Option<Vec<Ulid>>,
+    pub management_policy_ids: Option<Vec<Ulid>>,
 }
 
 #[derive(thiserror::Error, Debug)]

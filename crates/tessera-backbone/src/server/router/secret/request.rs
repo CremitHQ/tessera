@@ -16,4 +16,6 @@ pub struct PostSecretRequest {
 pub struct PatchSecretRequest {
     pub path: Option<String>,
     pub cipher: Option<String>,
+    pub access_policy_ids: Option<Vec<Ulid>>,
+    pub management_policy_ids: Option<Vec<Ulid>>,
 }

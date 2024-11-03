@@ -116,7 +116,15 @@ async fn handle_patch_secret(
     application
         .with_workspace(&workspace_name)
         .secret()
-        .update(&format!("/{secret_identifier}"), SecretUpdate { path: payload.path, cipher })
+        .update(
+            &format!("/{secret_identifier}"),
+            SecretUpdate {
+                path: payload.path,
+                cipher,
+                access_policy_ids: payload.access_policy_ids,
+                management_policy_ids: payload.management_policy_ids,
+            },
+        )
         .await?;
 
     Ok(StatusCode::NO_CONTENT.into_response())
