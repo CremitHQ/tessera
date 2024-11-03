@@ -100,10 +100,16 @@ impl SecretUseCase for SecretUseCaseImpl {
 
     async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
         let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+
         if let Some(updated_path) = update.path {
             secret.update_path(updated_path);
         }
+        if let Some(updated_cipher) = update.cipher {
+            secret.update_cipher(updated_cipher);
+        }
+
         secret.persist(&transaction).await?;
         transaction.commit().await?;
 
@@ -121,6 +127,7 @@ pub(crate) struct SecretData {
 
 pub(crate) struct SecretUpdate {
     pub path: Option<String>,
+    pub cipher: Option<Vec<u8>>,
 }
 
 #[derive(thiserror::Error, Debug)]

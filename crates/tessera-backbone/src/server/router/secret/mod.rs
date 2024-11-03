@@ -107,13 +107,19 @@ async fn handle_patch_secret(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PatchSecretRequest>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
+    let cipher = match payload.cipher.map(|cipher| BASE64_STANDARD.decode(cipher)) {
+        Some(Ok(cipher)) => Some(cipher),
+        Some(Err(_)) => return Ok(InvalidSecretCipherResponse {}.into_response()),
+        None => None,
+    };
+
     application
         .with_workspace(&workspace_name)
         .secret()
-        .update(&format!("/{secret_identifier}"), SecretUpdate { path: payload.path })
+        .update(&format!("/{secret_identifier}"), SecretUpdate { path: payload.path, cipher })
         .await?;
 
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 
 impl From<SecretData> for SecretResponse {

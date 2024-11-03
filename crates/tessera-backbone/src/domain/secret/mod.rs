@@ -27,6 +27,7 @@ pub(crate) struct SecretEntry {
     pub management_policy_ids: Vec<Ulid>,
     deleted: bool,
     updated_path: Option<String>,
+    updated_cipher: Option<Vec<u8>>,
 }
 
 impl SecretEntry {
@@ -37,7 +38,16 @@ impl SecretEntry {
         access_policy_ids: Vec<Ulid>,
         management_policy_ids: Vec<Ulid>,
     ) -> Self {
-        Self { key, path, cipher, access_policy_ids, management_policy_ids, deleted: false, updated_path: None }
+        Self {
+            key,
+            path,
+            cipher,
+            access_policy_ids,
+            management_policy_ids,
+            deleted: false,
+            updated_path: None,
+            updated_cipher: None,
+        }
     }
 
     pub fn delete(&mut self) {
@@ -50,6 +60,13 @@ impl SecretEntry {
         }
 
         self.updated_path = Some(new_path)
+    }
+
+    pub fn update_cipher(&mut self, new_cipher: Vec<u8>) {
+        if self.cipher == new_cipher {
+            return;
+        }
+        self.updated_cipher = Some(new_cipher)
     }
 }
 
@@ -106,8 +123,10 @@ impl Persistable for SecretEntry {
         } else {
             ActiveValue::default()
         };
+        let cipher_setter = self.updated_cipher.map(Set).unwrap_or_default();
 
-        let active_model = secret_value::ActiveModel { identifier: identifier_setter, ..Default::default() };
+        let active_model =
+            secret_value::ActiveModel { identifier: identifier_setter, cipher: cipher_setter, ..Default::default() };
 
         if active_model.is_changed() {
             secret_value::Entity::update_many()
@@ -147,6 +166,7 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
             management_policy_ids,
             deleted: false,
             updated_path: None,
+            updated_cipher: None,
         }
     }
 }
@@ -804,6 +824,7 @@ mod test {
             management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
+            updated_cipher: None,
         };
 
         secret_entry.delete();
@@ -821,10 +842,29 @@ mod test {
             management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
+            updated_cipher: None,
         };
 
         secret_entry.update_path("/test/path/2".to_owned());
 
         assert_eq!(secret_entry.updated_path.as_deref(), Some("/test/path/2"));
+    }
+
+    #[tokio::test]
+    async fn when_update_cipher_of_secret_entry_then_write_new_cipher_to_field() {
+        let mut secret_entry = SecretEntry {
+            key: "TEST_KEY".to_owned(),
+            path: "/test/path".to_owned(),
+            cipher: vec![1, 2, 3],
+            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            deleted: false,
+            updated_path: None,
+            updated_cipher: None,
+        };
+
+        secret_entry.update_cipher(vec![4, 5, 6]);
+
+        assert_eq!(secret_entry.updated_cipher, Some(vec![4, 5, 6]));
     }
 }

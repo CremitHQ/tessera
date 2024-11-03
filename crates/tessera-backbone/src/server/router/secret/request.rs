@@ -15,4 +15,5 @@ pub struct PostSecretRequest {
 #[serde(rename_all = "camelCase")]
 pub struct PatchSecretRequest {
     pub path: Option<String>,
+    pub cipher: Option<String>,
 }
