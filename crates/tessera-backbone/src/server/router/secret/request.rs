@@ -10,3 +10,9 @@ pub struct PostSecretRequest {
     pub access_policy_ids: Vec<Ulid>,
     pub management_policy_ids: Vec<Ulid>,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchSecretRequest {
+    pub path: Option<String>,
+}

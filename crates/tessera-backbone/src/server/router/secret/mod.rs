@@ -13,12 +13,12 @@ use serde::Deserialize;
 
 use crate::application::{
     self,
-    secret::{SecretData, SecretRegisterCommand, SecretUseCase},
+    secret::{SecretData, SecretRegisterCommand, SecretUpdate, SecretUseCase},
     Application,
 };
 
 use self::{
-    request::PostSecretRequest,
+    request::{PatchSecretRequest, PostSecretRequest},
     response::{InvalidSecretCipherResponse, SecretResponse},
 };
 
@@ -30,7 +30,7 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
         .route("/workspaces/:workspace_name/secrets", get(handle_get_secrets).post(handle_post_secret))
         .route(
             "/workspaces/:workspace_name/secrets/*secret_identifier",
-            get(handle_get_secret).delete(handle_delete_secret),
+            get(handle_get_secret).delete(handle_delete_secret).patch(handle_patch_secret),
         )
         .with_state(application)
 }
@@ -97,6 +97,21 @@ async fn handle_delete_secret(
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
     application.with_workspace(&workspace_name).secret().delete(&format!("/{secret_identifier}")).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[debug_handler]
+async fn handle_patch_secret(
+    Path((workspace_name, secret_identifier)): Path<(String, String)>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PatchSecretRequest>,
+) -> Result<impl IntoResponse, application::secret::Error> {
+    application
+        .with_workspace(&workspace_name)
+        .secret()
+        .update(&format!("/{secret_identifier}"), SecretUpdate { path: payload.path })
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

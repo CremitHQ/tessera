@@ -19,6 +19,7 @@ pub(crate) trait SecretUseCase {
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
     async fn delete(&self, secret_identifier: &str) -> Result<()>;
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -96,6 +97,18 @@ impl SecretUseCase for SecretUseCaseImpl {
 
         Ok(())
     }
+
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        if let Some(updated_path) = update.path {
+            secret.update_path(updated_path);
+        }
+        secret.persist(&transaction).await?;
+        transaction.commit().await?;
+
+        Ok(())
+    }
 }
 
 pub(crate) struct SecretData {
@@ -104,6 +117,10 @@ pub(crate) struct SecretData {
     pub cipher: Vec<u8>,
     pub access_policy_ids: Vec<Ulid>,
     pub management_policy_ids: Vec<Ulid>,
+}
+
+pub(crate) struct SecretUpdate {
+    pub path: Option<String>,
 }
 
 #[derive(thiserror::Error, Debug)]
