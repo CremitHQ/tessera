@@ -20,6 +20,7 @@ use tessera_policy::{
     pest::{parse, PolicyLanguage},
     utils::remove_index,
 };
+use thiserror::Error;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GlobalParams<T>
@@ -54,6 +55,7 @@ pub struct AuthorityKeyPair<T: PairingCurve> {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AuthorityPublicKey<T: PairingCurve> {
+    pub name: String,
     pub large_a: T::G1,
     pub large_b: T::G1,
     pub large_b_prime: T::G1,
@@ -84,7 +86,7 @@ where
         let large_b_prime = gp.g1.ref_mul(&b_prime);
         let name = name.into().into_owned();
 
-        let pk = AuthorityPublicKey { large_a, large_b, large_b_prime };
+        let pk = AuthorityPublicKey { name: name.clone(), large_a, large_b, large_b_prime };
         let mk = AuthorityMasterKey { name: name.clone(), beta, b, b_prime };
 
         Self { name, pk, mk }
@@ -159,6 +161,34 @@ where
         let authority_name = mk.name.as_str();
         let attribute_key = UserAttributeKey::new(rng, authority_name, gp, mk, &self.gid, attributes);
         self.inner.insert(authority_name.to_string(), attribute_key);
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum SumUserSecretKeyError {
+    #[error("gid mismatch: expected `{0}`, found `{1}`")]
+    GidMismatch(String, String),
+    #[error("empty user secret key")]
+    Empty,
+}
+
+impl<T> UserSecretKey<T>
+where
+    T: PairingCurve,
+{
+    pub fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Result<Self, SumUserSecretKeyError> {
+        let first = iter.next().ok_or(SumUserSecretKeyError::Empty)?;
+        let gid = first.gid;
+        let mut inner = first.inner;
+        for key in iter {
+            if key.gid != gid {
+                return Err(SumUserSecretKeyError::GidMismatch(gid, key.gid));
+            }
+            for (authority_name, attribute_key) in key.inner {
+                inner.entry(authority_name).or_insert(attribute_key);
+            }
+        }
+        Ok(Self { gid, inner })
     }
 }
 
