@@ -17,6 +17,9 @@
  * limitations under the License.
  */
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::arch;
 use crate::arch::Chunk;
 
@@ -36,15 +39,9 @@ pub const HMASK: Chunk = (1 << HBITS) - 1;
 pub const NEXCESS: isize = 1 << ((arch::CHUNK) - BASEBITS - 1);
 pub const BIGBITS: usize = MODBYTES * 8;
 
-#[derive(Copy)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct BIG {
     pub w: [Chunk; NLEN],
-}
-
-impl Clone for BIG {
-    fn clone(&self) -> BIG {
-        *self
-    }
 }
 
 #[cfg(feature = "std")]

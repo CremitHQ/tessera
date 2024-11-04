@@ -1,5 +1,6 @@
 pub mod bls24479;
 pub mod bls48556;
+pub mod bn462;
 
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
