@@ -65,8 +65,8 @@ pub(super) struct SecretResponse {
     pub key: String,
     pub path: String,
     pub cipher: String,
-    pub reader_policy_ids: Vec<Ulid>,
-    pub writer_policy_ids: Vec<Ulid>,
+    pub access_policy_ids: Vec<Ulid>,
+    pub management_policy_ids: Vec<Ulid>,
 }
 
 struct PolicyNotExistsErrorResponse {

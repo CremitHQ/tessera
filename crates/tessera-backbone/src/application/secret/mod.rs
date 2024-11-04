@@ -19,6 +19,7 @@ pub(crate) trait SecretUseCase {
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
     async fn delete(&self, secret_identifier: &str) -> Result<()>;
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -75,11 +76,11 @@ impl SecretUseCase for SecretUseCaseImpl {
     async fn register(&self, cmd: SecretRegisterCommand) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
-        let reader_policies = self.get_policies(&transaction, cmd.reader_policy_ids).await?;
-        let writer_policies = self.get_policies(&transaction, cmd.writer_policy_ids).await?;
+        let access_policies = self.get_policies(&transaction, cmd.access_policy_ids).await?;
+        let management_policies = self.get_policies(&transaction, cmd.management_policy_ids).await?;
 
         self.secret_service
-            .register(&transaction, cmd.path, cmd.key, cmd.cipher, reader_policies, writer_policies)
+            .register(&transaction, cmd.path, cmd.key, cmd.cipher, access_policies, management_policies)
             .await?;
 
         transaction.commit().await?;
@@ -96,14 +97,47 @@ impl SecretUseCase for SecretUseCaseImpl {
 
         Ok(())
     }
+
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+
+        if let Some(updated_access_policy_ids) = update.access_policy_ids {
+            let updated_access_policies = self.get_policies(&transaction, updated_access_policy_ids).await?;
+            secret.update_access_policies(updated_access_policies);
+        }
+        if let Some(updated_management_policies) = update.management_policy_ids {
+            let updated_management_policies = self.get_policies(&transaction, updated_management_policies).await?;
+            secret.update_management_policies(updated_management_policies);
+        }
+        if let Some(updated_path) = update.path {
+            secret.update_path(updated_path);
+        }
+        if let Some(updated_cipher) = update.cipher {
+            secret.update_cipher(updated_cipher);
+        }
+
+        secret.persist(&transaction).await?;
+        transaction.commit().await?;
+
+        Ok(())
+    }
 }
 
 pub(crate) struct SecretData {
     pub key: String,
     pub path: String,
     pub cipher: Vec<u8>,
-    pub reader_policy_ids: Vec<Ulid>,
-    pub writer_policy_ids: Vec<Ulid>,
+    pub access_policy_ids: Vec<Ulid>,
+    pub management_policy_ids: Vec<Ulid>,
+}
+
+pub(crate) struct SecretUpdate {
+    pub path: Option<String>,
+    pub cipher: Option<Vec<u8>>,
+    pub access_policy_ids: Option<Vec<Ulid>>,
+    pub management_policy_ids: Option<Vec<Ulid>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -158,8 +192,8 @@ impl From<SecretEntry> for SecretData {
             key: value.key,
             path: value.path,
             cipher: value.cipher,
-            reader_policy_ids: value.reader_policy_ids,
-            writer_policy_ids: value.writer_policy_ids,
+            access_policy_ids: value.access_policy_ids,
+            management_policy_ids: value.management_policy_ids,
         }
     }
 }
@@ -170,8 +204,8 @@ pub(crate) struct SecretRegisterCommand {
     pub path: String,
     pub key: String,
     pub cipher: Vec<u8>,
-    pub reader_policy_ids: Vec<Ulid>,
-    pub writer_policy_ids: Vec<Ulid>,
+    pub access_policy_ids: Vec<Ulid>,
+    pub management_policy_ids: Vec<Ulid>,
 }
 
 #[cfg(test)]
@@ -229,8 +263,8 @@ mod test {
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
         assert_eq!(result[0].cipher, vec![4, 5, 6]);
-        assert_eq!(result[0].reader_policy_ids[0], applied_policy_ids[0]);
-        assert_eq!(result[0].writer_policy_ids[0], applied_policy_ids[1]);
+        assert_eq!(result[0].access_policy_ids[0], applied_policy_ids[0]);
+        assert_eq!(result[0].management_policy_ids[0], applied_policy_ids[1]);
     }
 
     #[tokio::test]
@@ -302,16 +336,16 @@ mod test {
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
         assert_eq!(result.cipher, vec![4, 5, 6]);
-        assert_eq!(result.reader_policy_ids[0], applied_policy_ids[0]);
-        assert_eq!(result.writer_policy_ids[0], applied_policy_ids[1]);
+        assert_eq!(result.access_policy_ids[0], applied_policy_ids[0]);
+        assert_eq!(result.management_policy_ids[0], applied_policy_ids[1]);
     }
 
     #[tokio::test]
     async fn when_registering_secret_is_successful_then_secret_usecase_returns_unit_ok() {
         let key = "TEST_KEY";
         let path = "/test/path";
-        let reader_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
-        let writer_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let access_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let management_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
@@ -341,8 +375,8 @@ mod test {
                 path: path.to_owned(),
                 key: key.to_owned(),
                 cipher: vec![4, 5, 6],
-                reader_policy_ids,
-                writer_policy_ids,
+                access_policy_ids,
+                management_policy_ids,
             })
             .await
             .expect("creating workspace should be successful");
@@ -352,8 +386,8 @@ mod test {
     async fn when_registering_secret_with_not_existing_policy_then_secret_usecase_returns_policy_not_exists_err() {
         let key = "TEST_KEY";
         let path = "/test/path";
-        let reader_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
-        let writer_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let access_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
+        let management_policy_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
@@ -376,8 +410,8 @@ mod test {
                 path: path.to_owned(),
                 key: key.to_owned(),
                 cipher: vec![],
-                reader_policy_ids,
-                writer_policy_ids,
+                access_policy_ids,
+                management_policy_ids,
             })
             .await;
 

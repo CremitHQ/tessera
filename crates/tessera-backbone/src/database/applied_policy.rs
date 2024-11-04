@@ -18,8 +18,8 @@ pub struct Model {
 #[derive(EnumIter, DeriveActiveEnum, Clone, Debug, PartialEq)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::None)", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum PolicyApplicationType {
-    Read,
-    Write,
+    Access,
+    Management,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
