@@ -3705,9 +3705,11 @@ dependencies = [
 name = "tessera-abe-wasm"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "console_error_panic_hook",
  "getrandom",
  "lol_alloc",
+ "rmp-serde",
  "serde",
  "serde-wasm-bindgen",
  "tessera-abe",
