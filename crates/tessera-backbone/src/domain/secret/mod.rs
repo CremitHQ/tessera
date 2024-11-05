@@ -33,6 +33,7 @@ pub(crate) struct SecretEntry {
 }
 
 impl SecretEntry {
+    #[cfg(test)]
     pub(crate) fn new(
         key: String,
         path: String,
@@ -487,6 +488,7 @@ impl SecretService for PostgresSecretService {
                 }
             })?;
         }
+        self.ensure_path_not_duplicated(transaction, &path).await?;
 
         let path_id = Ulid::new();
         let now = Utc::now();
@@ -507,10 +509,20 @@ impl PostgresSecretService {
 
         Ok(())
     }
+
+    async fn ensure_path_not_duplicated(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+        if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
+            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered Path({entered_path}) is already registered")]
+    PathDuplicated { entered_path: String },
     #[error("Entered identifier conflicted with existing secret")]
     IdentifierConflicted { entered_identifier: String },
     #[error("Invalid secret identifier({entered_identifier}) is entered")]
@@ -1105,6 +1117,9 @@ mod test {
             .append_query_results([[maplit::btreemap! {
                 "num_items" => sea_orm::Value::BigInt(Some(1))
             }]])
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
             .append_query_results([[path::Model {
                 id: UlidId::new(Ulid::new()),
                 path: path.to_owned(),
@@ -1161,5 +1176,30 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::ParentPathNotExists { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_path_is_already_registered_then_secret_service_returns_path_duplicated_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([
+            [maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }],
+            [maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }],
+        ]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.register_path(&transaction, path.to_owned()).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::PathDuplicated { .. })));
     }
 }

@@ -60,6 +60,8 @@ impl From<Path> for PathData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered Path({entered_path}) is already registered")]
+    PathDuplicated { entered_path: String },
     #[error("parent path for Path({entered_path}) is not registered")]
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
@@ -78,6 +80,7 @@ impl From<secret::Error> for Error {
             secret::Error::IdentifierConflicted { .. } => Self::Anyhow(value.into()),
             secret::Error::InvalidPath { entered_path } => Self::InvalidPath { entered_path },
             secret::Error::ParentPathNotExists { entered_path } => Self::ParentPathNotExists { entered_path },
+            secret::Error::PathDuplicated { entered_path } => Self::PathDuplicated { entered_path },
         }
     }
 }

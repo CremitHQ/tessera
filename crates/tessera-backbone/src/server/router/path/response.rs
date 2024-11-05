@@ -1,6 +1,6 @@
 use crate::{
     application::path,
-    server::response::{error_payload, handle_internal_server_error},
+    server::response::{error_payload, error_payload_with_data, handle_internal_server_error},
 };
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::Serialize;
@@ -13,7 +13,7 @@ pub struct PathResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct _EnteredPathData {
+struct EnteredPathData {
     pub entered_path: String,
 }
 
@@ -37,12 +37,33 @@ impl IntoResponse for ParentPathNotExistsErrorResponse {
     }
 }
 
+struct PathDuplicatedErrorResponse {
+    pub entered_path: String,
+}
+
+impl IntoResponse for PathDuplicatedErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::CONFLICT,
+            error_payload_with_data(
+                "PATH_DUPLICATED",
+                "entered path is already registered.",
+                EnteredPathData { entered_path: self.entered_path },
+            ),
+        )
+            .into_response()
+    }
+}
+
 impl IntoResponse for path::Error {
     fn into_response(self) -> axum::response::Response {
         match self {
             path::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
             path::Error::InvalidPath { .. } => InvalidPathErrorResponse {}.into_response(),
             path::Error::ParentPathNotExists { .. } => ParentPathNotExistsErrorResponse {}.into_response(),
+            path::Error::PathDuplicated { entered_path } => {
+                PathDuplicatedErrorResponse { entered_path }.into_response()
+            }
         }
     }
 }
