@@ -15,6 +15,7 @@ pub(crate) struct PathData {
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
+    async fn register(&self, path: String) -> Result<()>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -41,6 +42,11 @@ impl PathUseCase for PathUseCaseImpl {
         transaction.commit().await?;
 
         Ok(paths.into_iter().map(PathData::from).collect())
+    }
+
+    async fn register(&self, path: String) -> Result<()> {
+        // TODO: register path in transaction
+        todo!()
     }
 }
 

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{
     debug_handler,
     extract::{Path, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -10,10 +11,26 @@ use axum::{
 
 use crate::application::{self, path::PathUseCase, Application};
 
+use self::reuqest::PostPathRequest;
+
 mod response;
+mod reuqest;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/workspaces/:workspace_name/paths", get(handle_get_paths)).with_state(application)
+    Router::new()
+        .route("/workspaces/:workspace_name/paths", get(handle_get_paths).post(handle_post_path))
+        .with_state(application)
+}
+
+#[debug_handler]
+async fn handle_post_path(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PostPathRequest>,
+) -> Result<impl IntoResponse, application::path::Error> {
+    application.with_workspace(&workspace_name).path().register(payload.path).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[debug_handler]
