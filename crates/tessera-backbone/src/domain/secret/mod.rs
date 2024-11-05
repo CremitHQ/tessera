@@ -281,7 +281,7 @@ pub(crate) trait SecretService {
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>>;
 
-    async fn register(
+    async fn register_secret(
         &self,
         transaction: &DatabaseTransaction,
         path: String,
@@ -290,6 +290,8 @@ pub(crate) trait SecretService {
         access_policies: Vec<Policy>,
         management_policies: Vec<Policy>,
     ) -> Result<()>;
+
+    async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()>;
 }
 
 lazy_static! {
@@ -376,7 +378,7 @@ impl SecretService for PostgresSecretService {
         Ok(metadata.into_iter().map(Path::from).collect())
     }
 
-    async fn register(
+    async fn register_secret(
         &self,
         transaction: &DatabaseTransaction,
         path: String,
@@ -447,6 +449,10 @@ impl SecretService for PostgresSecretService {
         .await?;
 
         Ok(())
+    }
+
+    async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()> {
+        todo!()
     }
 }
 
@@ -822,7 +828,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register(
+            .register_secret(
                 &transaction,
                 path.to_owned(),
                 key.to_owned(),
@@ -861,7 +867,14 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), vec![], access_policies, management_policies)
+            .register_secret(
+                &transaction,
+                path.to_owned(),
+                key.to_owned(),
+                vec![],
+                access_policies,
+                management_policies,
+            )
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -898,7 +911,14 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register(&transaction, path.to_owned(), key.to_owned(), vec![], access_policies, management_policies)
+            .register_secret(
+                &transaction,
+                path.to_owned(),
+                key.to_owned(),
+                vec![],
+                access_policies,
+                management_policies,
+            )
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 

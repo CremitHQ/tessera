@@ -45,8 +45,10 @@ impl PathUseCase for PathUseCaseImpl {
     }
 
     async fn register(&self, path: String) -> Result<()> {
-        // TODO: register path in transaction
-        todo!()
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        self.secret_service.register_path(&transaction, path).await?;
+        transaction.commit().await?;
+        Ok(())
     }
 }
 
@@ -136,5 +138,25 @@ mod test {
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+
+    #[tokio::test]
+    async fn when_registering_path_is_successful_then_secret_usecase_returns_unit_ok() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_register_path().times(1).returning(move |_, _| Ok(()));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.register(path.to_owned()).await.expect("registering path should be successful");
+
+        assert_eq!(result, ())
     }
 }
