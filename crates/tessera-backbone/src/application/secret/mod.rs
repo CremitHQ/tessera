@@ -175,6 +175,7 @@ impl From<domain::secret::Error> for Error {
                 Error::IdentifierConflicted { entered_identifier }
             }
             domain::secret::Error::InvalidPath { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
         }
     }
 }

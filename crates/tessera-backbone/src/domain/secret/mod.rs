@@ -329,6 +329,20 @@ fn validate_path(path: &str) -> Result<()> {
     Err(Error::InvalidPath { entered_path: path.to_owned() })
 }
 
+fn extract_parent_path(path: &str) -> Result<Option<&str>> {
+    if path == "/" {
+        return Ok(None);
+    }
+
+    let (_, [parent, _]) = IDENTIFIER_PATTERN
+        .captures_iter(path)
+        .next()
+        .ok_or_else(|| Error::InvalidPath { entered_path: path.to_owned() })?
+        .extract();
+
+    Ok(Some(parent))
+}
+
 pub(crate) struct PostgresSecretService {}
 
 #[async_trait]
@@ -464,6 +478,15 @@ impl SecretService for PostgresSecretService {
 
     async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()> {
         validate_path(&path)?;
+        if let Some(parent_path) = extract_parent_path(&path)? {
+            self.ensure_path_exists(transaction, parent_path).await.map_err(|e| {
+                if let Error::PathNotExists { entered_path } = e {
+                    Error::ParentPathNotExists { entered_path }
+                } else {
+                    e
+                }
+            })?;
+        }
 
         let path_id = Ulid::new();
         let now = Utc::now();
@@ -496,6 +519,8 @@ pub(crate) enum Error {
     SecretNotExists,
     #[error("Path({entered_path}) is not registered")]
     PathNotExists { entered_path: String },
+    #[error("parent path for Path({entered_path}) is not registered")]
+    ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
     #[error(transparent)]
@@ -1076,12 +1101,16 @@ mod test {
         let now = Utc::now();
         let path = "/test/path";
 
-        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[path::Model {
-            id: UlidId::new(Ulid::new()),
-            path: path.to_owned(),
-            created_at: now,
-            updated_at: now,
-        }]]);
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }]])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: path.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -1112,5 +1141,25 @@ mod test {
         }
 
         transaction.commit().await.expect("commiting transaction should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_parent_path_is_not_exists_then_secret_service_returns_parent_path_not_exists_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(0))
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.register_path(&transaction, path.to_owned()).await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::ParentPathNotExists { .. })));
     }
 }
