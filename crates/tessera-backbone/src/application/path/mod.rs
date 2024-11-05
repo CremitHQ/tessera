@@ -60,6 +60,8 @@ impl From<Path> for PathData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Invalid path({entered_path}) is entered")]
+    InvalidPath { entered_path: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -72,6 +74,7 @@ impl From<secret::Error> for Error {
             secret::Error::Anyhow(e) => Self::Anyhow(e),
             secret::Error::PathNotExists { .. } => Self::Anyhow(value.into()),
             secret::Error::IdentifierConflicted { .. } => Self::Anyhow(value.into()),
+            secret::Error::InvalidPath { entered_path } => Self::InvalidPath { entered_path },
         }
     }
 }

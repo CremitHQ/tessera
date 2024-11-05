@@ -297,6 +297,8 @@ pub(crate) trait SecretService {
 lazy_static! {
     static ref IDENTIFIER_PATTERN: Regex =
         Regex::new(r"^((?:/[^/]+)*)/([^/]+)$").expect("IDENTIFIER_PATTERN should be compiled successfully");
+    static ref PATH_PATTERN: Regex =
+        Regex::new(r"^((?:/[^/]+)*)/([^/]+)$").expect("PATH_PATTERN should be compiled successfully");
 }
 
 fn parse_identifier(full_path: &str) -> Option<(String, String)> {
@@ -314,6 +316,17 @@ fn create_identifier(path: &str, key: &str) -> String {
     } else {
         format!("{path}/{key}")
     }
+}
+
+fn validate_path(path: &str) -> Result<()> {
+    if path == "/" {
+        return Ok(());
+    }
+    if PATH_PATTERN.is_match(path) {
+        return Ok(());
+    }
+
+    Err(Error::InvalidPath { entered_path: path.to_owned() })
 }
 
 pub(crate) struct PostgresSecretService {}
@@ -387,9 +400,7 @@ impl SecretService for PostgresSecretService {
         access_policies: Vec<Policy>,
         management_policies: Vec<Policy>,
     ) -> Result<()> {
-        if path::Entity::find().filter(path::Column::Path.eq(&path)).count(transaction).await? == 0 {
-            return Err(Error::PathNotExists { entered_path: path });
-        }
+        self.ensure_path_exists(transaction, &path).await?;
 
         let identifier = create_identifier(&path, &key);
 
@@ -452,12 +463,24 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()> {
+        validate_path(&path)?;
+
         let path_id = Ulid::new();
         let now = Utc::now();
 
         path::ActiveModel { id: Set(path_id.into()), path: Set(path), created_at: Set(now), updated_at: Set(now) }
             .insert(transaction)
             .await?;
+
+        Ok(())
+    }
+}
+
+impl PostgresSecretService {
+    async fn ensure_path_exists(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+        if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? == 0 {
+            return Err(Error::PathNotExists { entered_path: path.to_owned() });
+        }
 
         Ok(())
     }
@@ -473,6 +496,8 @@ pub(crate) enum Error {
     SecretNotExists,
     #[error("Path({entered_path}) is not registered")]
     PathNotExists { entered_path: String },
+    #[error("Invalid path({entered_path}) is entered")]
+    InvalidPath { entered_path: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -1068,6 +1093,24 @@ mod test {
             .register_path(&transaction, path.to_owned())
             .await
             .expect("registering path should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_path_is_invalid_then_secret_service_returns_invalid_path_err() {
+        let invalid_paths = ["//", "", "/a//b", "a/b/c", "/a/b/c/"];
+
+        let secret_service = PostgresSecretService {};
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres);
+        let mock_connection = Arc::new(mock_database.into_connection());
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        for invalid_path in invalid_paths {
+            let result = secret_service.register_path(&transaction, invalid_path.to_owned()).await;
+
+            assert!(matches!(result, Err(Error::InvalidPath { .. })));
+        }
+
         transaction.commit().await.expect("commiting transaction should be successful");
     }
 }
