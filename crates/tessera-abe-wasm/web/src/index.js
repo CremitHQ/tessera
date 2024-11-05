@@ -9,11 +9,16 @@ import {
 const gp = mock_global_params();
 const authA = mock_authority(gp, "A");
 const authB = mock_authority(gp, "B");
-const aliceSecretKeyFromA = mock_user_secret_key(gp, authA.mk, "alice", [
-  "admin",
-  "ceo",
-  "hr",
-]);
+
+const randomAttributes = new Array(30)
+  .fill(0)
+  .map((_) => `attr${Math.random().toString(36).substring(7)}`);
+const aliceSecretKeyFromA = mock_user_secret_key(
+  gp,
+  authA.mk,
+  "alice",
+  ["admin", "ceo", "hr"].concat(randomAttributes),
+);
 const aliceSecretKeyFromB = mock_user_secret_key(gp, authB.mk, "alice", [
   "cto",
   "dev",
@@ -21,7 +26,7 @@ const aliceSecretKeyFromB = mock_user_secret_key(gp, authB.mk, "alice", [
 ]);
 
 const message = "Hello, Tessera!";
-const policy = `"admin@A" and "cto@B" and "hr@A"`;
+const policy = randomAttributes.map((attr) => `"${attr}@A"`).join(" and ");
 
 let elapsed = Date.now();
 const ciphertext = tessera_encrypt(gp, [authA.pk, authB.pk], policy, message);

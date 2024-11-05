@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use getrandom::getrandom;
 
 use tessera_abe::{
-    curves::bls24479::Bls24479Curve,
+    curves::bn462::Bn462Curve,
     error::ABEError,
     random::miracl::MiraclRng,
     schemes::isabella24::{
@@ -106,17 +106,17 @@ impl From<ABEError> for TesseraError {
 #[wasm_bindgen]
 pub fn tessera_encrypt(gp: &str, pks: Vec<String>, policy: &str, data: &str) -> Result<String, TesseraError> {
     let gp = STANDARD.decode(gp).map_err(TesseraCryptError::DecodeBase64)?;
-    let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
+    let gp: GlobalParams<Bn462Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
 
     let pks = pks
         .iter()
         .map(|public_key| {
             let decoded = STANDARD.decode(public_key).map_err(TesseraCryptError::DecodeBase64)?;
-            let value: AuthorityPublicKey<Bls24479Curve> =
+            let value: AuthorityPublicKey<Bn462Curve> =
                 rmp_serde::from_slice(&decoded).map_err(TesseraCryptError::DecodeMessagePack)?;
             Ok((value.name.clone(), value))
         })
-        .collect::<Result<HashMap<String, AuthorityPublicKey<Bls24479Curve>>, TesseraCryptError>>()?;
+        .collect::<Result<HashMap<String, AuthorityPublicKey<Bn462Curve>>, TesseraCryptError>>()?;
 
     let policy = (policy.to_string(), PolicyLanguage::HumanPolicy);
 
@@ -125,7 +125,7 @@ pub fn tessera_encrypt(gp: &str, pks: Vec<String>, policy: &str, data: &str) -> 
     getrandom(&mut seed).map_err(TesseraCryptError::GetRandom)?;
     rng.seed(&seed);
 
-    let ciphertext = encrypt::<Bls24479Curve>(&mut rng, &gp, &pks, policy, data.as_bytes())
+    let ciphertext = encrypt::<Bn462Curve>(&mut rng, &gp, &pks, policy, data.as_bytes())
         .map_err(TesseraCryptError::AttributeBasedEncrypt)?;
     let ciphertext = rmp_serde::to_vec(&ciphertext).map_err(TesseraCryptError::EncodeMessagePack)?;
     Ok(STANDARD.encode(&ciphertext))
@@ -133,24 +133,24 @@ pub fn tessera_encrypt(gp: &str, pks: Vec<String>, policy: &str, data: &str) -> 
 
 #[wasm_bindgen]
 pub fn tessera_decrypt(gp: &str, sk: Vec<String>, ct: &str) -> Result<String, TesseraError> {
-    let sk = UserSecretKey::<Bls24479Curve>::sum(
+    let sk = UserSecretKey::<Bn462Curve>::sum(
         sk.iter()
             .map(|sk| {
                 let decoded = STANDARD.decode(sk).map_err(TesseraCryptError::DecodeBase64)?;
                 rmp_serde::from_slice(&decoded).map_err(TesseraCryptError::DecodeMessagePack)
             })
-            .collect::<Result<Vec<UserSecretKey<Bls24479Curve>>, TesseraCryptError>>()?
+            .collect::<Result<Vec<UserSecretKey<Bn462Curve>>, TesseraCryptError>>()?
             .into_iter(),
     )
     .map_err(TesseraCryptError::SumUserSecretKey)?;
 
     let gp = STANDARD.decode(gp).map_err(TesseraCryptError::DecodeBase64)?;
-    let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
+    let gp: GlobalParams<Bn462Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
 
     let ct = STANDARD.decode(ct).map_err(TesseraCryptError::DecodeBase64)?;
-    let ct: Ciphertext<Bls24479Curve> = rmp_serde::from_slice(&ct).map_err(TesseraCryptError::DecodeMessagePack)?;
+    let ct: Ciphertext<Bn462Curve> = rmp_serde::from_slice(&ct).map_err(TesseraCryptError::DecodeMessagePack)?;
 
-    let plaintext = decrypt::<Bls24479Curve>(&gp, &sk, &ct).map_err(TesseraCryptError::AttributeBasedEncrypt)?;
+    let plaintext = decrypt::<Bn462Curve>(&gp, &sk, &ct).map_err(TesseraCryptError::AttributeBasedEncrypt)?;
     String::from_utf8(plaintext).map_err(|e| TesseraError {
         r#type: "DecodeUtf8".to_string(),
         message: e.to_string(),
@@ -169,7 +169,7 @@ pub fn mock_global_params() -> Result<String, TesseraError> {
     getrandom(&mut seed).map_err(TesseraCryptError::GetRandom)?;
     rng.seed(&seed);
 
-    let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+    let gp = GlobalParams::<Bn462Curve>::new(&mut rng);
     let gp = rmp_serde::to_vec(&gp).map_err(TesseraCryptError::EncodeMessagePack)?;
     Ok(STANDARD.encode(&gp))
 }
@@ -189,8 +189,8 @@ pub fn mock_authority(gp: &str, name: &str) -> Result<AuthorityKey, TesseraError
     rng.seed(&seed);
 
     let gp = STANDARD.decode(gp).map_err(TesseraCryptError::DecodeBase64)?;
-    let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
-    let authority = AuthorityKeyPair::<Bls24479Curve>::new(&mut rng, &gp, name);
+    let gp: GlobalParams<Bn462Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
+    let authority = AuthorityKeyPair::<Bn462Curve>::new(&mut rng, &gp, name);
 
     let pk = rmp_serde::to_vec(&authority.pk).map_err(TesseraCryptError::EncodeMessagePack)?;
     let pk = STANDARD.encode(&pk);
@@ -208,13 +208,13 @@ pub fn mock_user_secret_key(gp: &str, mk: &str, gid: &str, attributes: Vec<Strin
     rng.seed(&seed);
 
     let gp = STANDARD.decode(gp).map_err(TesseraCryptError::DecodeBase64)?;
-    let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
+    let gp: GlobalParams<Bn462Curve> = rmp_serde::from_slice(&gp).map_err(TesseraCryptError::DecodeMessagePack)?;
 
     let mk = STANDARD.decode(mk).map_err(TesseraCryptError::DecodeBase64)?;
-    let mk: AuthorityMasterKey<Bls24479Curve> =
+    let mk: AuthorityMasterKey<Bn462Curve> =
         rmp_serde::from_slice(&mk).map_err(TesseraCryptError::DecodeMessagePack)?;
 
-    let user_secret_key = UserSecretKey::<Bls24479Curve>::new(&mut rng, &gp, &mk, gid, &attributes);
+    let user_secret_key = UserSecretKey::<Bn462Curve>::new(&mut rng, &gp, &mk, gid, &attributes);
     let user_secret_key = rmp_serde::to_vec(&user_secret_key).map_err(TesseraCryptError::EncodeMessagePack)?;
     Ok(STANDARD.encode(&user_secret_key))
 }
