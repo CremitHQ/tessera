@@ -155,8 +155,6 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.register(path.to_owned()).await.expect("registering path should be successful");
-
-        assert_eq!(result, ())
+        path_usecase.register(path.to_owned()).await.expect("registering path should be successful");
     }
 }

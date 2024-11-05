@@ -452,7 +452,14 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()> {
-        todo!()
+        let path_id = Ulid::new();
+        let now = Utc::now();
+
+        path::ActiveModel { id: Set(path_id.into()), path: Set(path), created_at: Set(now), updated_at: Set(now) }
+            .insert(transaction)
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -1037,5 +1044,30 @@ mod test {
             secret_entry.updated_management_policy_ids,
             Some(vec![Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap()])
         );
+    }
+
+    #[tokio::test]
+    async fn when_path_insertion_is_successful_then_secret_service_returns_unit_ok() {
+        let now = Utc::now();
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[path::Model {
+            id: UlidId::new(Ulid::new()),
+            path: path.to_owned(),
+            created_at: now,
+            updated_at: now,
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        secret_service
+            .register_path(&transaction, path.to_owned())
+            .await
+            .expect("registering path should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
     }
 }
