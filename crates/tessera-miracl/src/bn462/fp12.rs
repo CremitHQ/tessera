@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+use serde::{Deserialize, Serialize};
+
 use crate::bn462::big;
 use crate::bn462::big::BIG;
 use crate::bn462::ecp;
@@ -32,7 +34,7 @@ pub const SPARSER: usize = 3;
 pub const SPARSE: usize = 4;
 pub const DENSE: usize = 5;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub struct FP12 {
     a: FP4,
     b: FP4,
@@ -883,7 +885,7 @@ impl FP12 {
     }
 
     /* convert this to byte array */
-    pub fn tobytes(&mut self, w: &mut [u8]) {
+    pub fn tobytes(&self, w: &mut [u8]) {
         const MB: usize = 4 * big::MODBYTES;
         let mut t: [u8; MB] = [0; MB];
 

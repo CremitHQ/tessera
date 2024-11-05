@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+use serde::{Deserialize, Serialize};
+
 use crate::bn462::big;
 use crate::bn462::big::BIG;
 use crate::bn462::dbig::DBIG;
@@ -24,7 +26,7 @@ use crate::bn462::fp;
 use crate::bn462::fp::FP;
 use crate::bn462::rom;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ECP {
     x: FP,
     y: FP,

@@ -339,7 +339,7 @@ mod tests {
     use rand_core::OsRng;
 
     use super::*;
-    use crate::{curves::bls24479::Bls24479Curve, random::miracl::MiraclRng};
+    use crate::{curves::bn462::Bn462Curve, random::miracl::MiraclRng};
     use rstest::*;
 
     fn rng() -> MiraclRng {
@@ -352,28 +352,28 @@ mod tests {
 
     #[fixture]
     #[once]
-    fn gp() -> GlobalParams<Bls24479Curve> {
+    fn gp() -> GlobalParams<Bn462Curve> {
         let mut rng = rng();
-        GlobalParams::<Bls24479Curve>::new(&mut rng)
+        GlobalParams::<Bn462Curve>::new(&mut rng)
     }
 
     #[fixture]
     #[once]
-    fn authority_a(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+    fn authority_a(gp: &GlobalParams<Bn462Curve>) -> AuthorityKeyPair<Bn462Curve> {
         let mut rng = rng();
         AuthorityKeyPair::new(&mut rng, gp, "A")
     }
 
     #[fixture]
     #[once]
-    fn authority_b(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+    fn authority_b(gp: &GlobalParams<Bn462Curve>) -> AuthorityKeyPair<Bn462Curve> {
         let mut rng = rng();
         AuthorityKeyPair::new(&mut rng, gp, "B")
     }
 
     #[fixture]
     #[once]
-    fn authority_c(gp: &GlobalParams<Bls24479Curve>) -> AuthorityKeyPair<Bls24479Curve> {
+    fn authority_c(gp: &GlobalParams<Bn462Curve>) -> AuthorityKeyPair<Bn462Curve> {
         let mut rng = rng();
         AuthorityKeyPair::new(&mut rng, gp, "C")
     }
@@ -381,10 +381,10 @@ mod tests {
     #[fixture]
     #[once]
     fn alice(
-        gp: &GlobalParams<Bls24479Curve>,
-        authority_a: &AuthorityKeyPair<Bls24479Curve>,
-        authority_b: &AuthorityKeyPair<Bls24479Curve>,
-    ) -> UserSecretKey<Bls24479Curve> {
+        gp: &GlobalParams<Bn462Curve>,
+        authority_a: &AuthorityKeyPair<Bn462Curve>,
+        authority_b: &AuthorityKeyPair<Bn462Curve>,
+    ) -> UserSecretKey<Bn462Curve> {
         let mut rng = rng();
         let mut alice = UserSecretKey::new(&mut rng, gp, &authority_a.mk, "alice", &["ADMIN", "INFRA", "LEVEL_3"]);
         alice.add_attribute_key(&mut rng, gp, &authority_b.mk, &["CTO", "PROFESSOR"]);
@@ -394,10 +394,10 @@ mod tests {
     #[fixture]
     #[once]
     fn bob(
-        gp: &GlobalParams<Bls24479Curve>,
-        authority_a: &AuthorityKeyPair<Bls24479Curve>,
-        authority_c: &AuthorityKeyPair<Bls24479Curve>,
-    ) -> UserSecretKey<Bls24479Curve> {
+        gp: &GlobalParams<Bn462Curve>,
+        authority_a: &AuthorityKeyPair<Bn462Curve>,
+        authority_c: &AuthorityKeyPair<Bn462Curve>,
+    ) -> UserSecretKey<Bn462Curve> {
         let mut rng = rng();
         let mut bob = UserSecretKey::new(&mut rng, gp, &authority_a.mk, "bob", &["USER", "LEVEL_2"]);
         bob.add_attribute_key(&mut rng, gp, &authority_c.mk, &["CEO"]);
@@ -419,12 +419,12 @@ mod tests {
         false
     )]
     fn isabella24_encrypt_and_decrypt(
-        gp: &GlobalParams<Bls24479Curve>,
-        authority_a: &AuthorityKeyPair<Bls24479Curve>,
-        authority_b: &AuthorityKeyPair<Bls24479Curve>,
-        authority_c: &AuthorityKeyPair<Bls24479Curve>,
-        alice: &UserSecretKey<Bls24479Curve>,
-        bob: &UserSecretKey<Bls24479Curve>,
+        gp: &GlobalParams<Bn462Curve>,
+        authority_a: &AuthorityKeyPair<Bn462Curve>,
+        authority_b: &AuthorityKeyPair<Bn462Curve>,
+        authority_c: &AuthorityKeyPair<Bn462Curve>,
+        alice: &UserSecretKey<Bn462Curve>,
+        bob: &UserSecretKey<Bn462Curve>,
         #[case] plaintext: &str,
         #[case] policy: &str,
         #[case] expected_alice: bool,
