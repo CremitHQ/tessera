@@ -286,7 +286,7 @@ impl Path {
             .await?
             > 0
         {
-            return Err(Error::PathIsInUse { entered_path: self.path.to_owned().to_owned() });
+            return Err(Error::PathIsInUse { entered_path: self.path.to_owned() });
         }
 
         Ok(())
