@@ -11,13 +11,13 @@ pub struct PathResponse {
     pub path: String,
 }
 
+pub struct InvalidPathErrorResponse {}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EnteredPathData {
+pub struct EnteredPathData {
     pub entered_path: String,
 }
-
-struct InvalidPathErrorResponse {}
 
 impl IntoResponse for InvalidPathErrorResponse {
     fn into_response(self) -> axum::response::Response {
