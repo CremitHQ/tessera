@@ -15,7 +15,7 @@ pub(crate) struct PathData {
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
-    async fn register(&self, path: String) -> Result<()>;
+    async fn register(&self, path: &str) -> Result<()>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -44,7 +44,7 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(paths.into_iter().map(PathData::from).collect())
     }
 
-    async fn register(&self, path: String) -> Result<()> {
+    async fn register(&self, path: &str) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         self.secret_service.register_path(&transaction, path).await?;
         transaction.commit().await?;
@@ -164,6 +164,6 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        path_usecase.register(path.to_owned()).await.expect("registering path should be successful");
+        path_usecase.register(path).await.expect("registering path should be successful");
     }
 }

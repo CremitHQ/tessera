@@ -28,7 +28,7 @@ async fn handle_post_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PostPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    application.with_workspace(&workspace_name).path().register(payload.path).await?;
+    application.with_workspace(&workspace_name).path().register(&payload.path).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }

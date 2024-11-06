@@ -292,7 +292,7 @@ pub(crate) trait SecretService {
         management_policies: Vec<Policy>,
     ) -> Result<()>;
 
-    async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()>;
+    async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()>;
 }
 
 lazy_static! {
@@ -481,9 +481,9 @@ impl SecretService for PostgresSecretService {
         Ok(())
     }
 
-    async fn register_path(&self, transaction: &DatabaseTransaction, path: String) -> Result<()> {
-        validate_path(&path)?;
-        if let Some(parent_path) = extract_parent_path(&path)? {
+    async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+        validate_path(path)?;
+        if let Some(parent_path) = extract_parent_path(path)? {
             self.ensure_path_exists(transaction, parent_path).await.map_err(|e| {
                 if let Error::PathNotExists { entered_path } = e {
                     Error::ParentPathNotExists { entered_path }
@@ -492,14 +492,19 @@ impl SecretService for PostgresSecretService {
                 }
             })?;
         }
-        self.ensure_path_not_duplicated(transaction, &path).await?;
+        self.ensure_path_not_duplicated(transaction, path).await?;
 
         let path_id = Ulid::new();
         let now = Utc::now();
 
-        path::ActiveModel { id: Set(path_id.into()), path: Set(path), created_at: Set(now), updated_at: Set(now) }
-            .insert(transaction)
-            .await?;
+        path::ActiveModel {
+            id: Set(path_id.into()),
+            path: Set(path.to_owned()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
 
         Ok(())
     }
@@ -1145,10 +1150,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        secret_service
-            .register_path(&transaction, path.to_owned())
-            .await
-            .expect("registering path should be successful");
+        secret_service.register_path(&transaction, path).await.expect("registering path should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
     }
 
@@ -1162,7 +1164,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         for invalid_path in invalid_paths {
-            let result = secret_service.register_path(&transaction, invalid_path.to_owned()).await;
+            let result = secret_service.register_path(&transaction, invalid_path).await;
 
             assert!(matches!(result, Err(Error::InvalidPath { .. })));
         }
@@ -1184,7 +1186,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path.to_owned()).await;
+        let result = secret_service.register_path(&transaction, path).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::ParentPathNotExists { .. })));
@@ -1209,7 +1211,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path.to_owned()).await;
+        let result = secret_service.register_path(&transaction, path).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })));
