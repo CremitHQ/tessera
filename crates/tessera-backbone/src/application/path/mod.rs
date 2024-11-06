@@ -76,7 +76,7 @@ impl PathUseCase for PathUseCaseImpl {
             .await?
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
-        path.update_path(new_path);
+        path.update_path(new_path)?;
         path.persist(&transaction).await?;
 
         transaction.commit().await?;

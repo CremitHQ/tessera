@@ -279,13 +279,15 @@ impl Path {
         self.deleted = true
     }
 
-    pub(crate) fn update_path(&mut self, new_path: &str) {
+    pub(crate) fn update_path(&mut self, new_path: &str) -> Result<()> {
+        validate_path(new_path)?;
         if self.path == new_path {
             self.updated_path = None;
-            return;
+            return Ok(());
         }
 
         self.updated_path = Some(new_path.to_owned());
+        Ok(())
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
@@ -1360,8 +1362,20 @@ mod test {
 
         assert!(path.updated_path.is_none());
 
-        path.update_path("/test/path/new");
+        path.update_path("/test/path/new").expect("updating path should be successful");
 
         assert_eq!(path.updated_path, Some("/test/path/new".to_owned()))
+    }
+
+    #[tokio::test]
+    async fn when_updating_path_with_invalid_path_then_path_returns_invalid_path_err() {
+        let invalid_paths = ["//", "", "/a//b", "a/b/c", "/a/b/c/"];
+
+        for invalid_path in invalid_paths {
+            let mut path = Path::new("/test/path".to_owned());
+            let result = path.update_path(invalid_path);
+
+            assert!(matches!(result, Err(Error::InvalidPath { .. })));
+        }
     }
 }
