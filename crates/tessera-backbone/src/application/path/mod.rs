@@ -117,7 +117,7 @@ mod test {
             .expect_get_paths()
             .withf(|_| true)
             .times(1)
-            .returning(move |_| Ok(vec![Path { path: path.to_owned() }]));
+            .returning(move |_| Ok(vec![Path::new(path.to_owned())]));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));

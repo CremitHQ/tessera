@@ -265,11 +265,36 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
 
 pub(crate) struct Path {
     pub path: String,
+    deleted: bool,
+}
+
+impl Path {
+    #[cfg(test)]
+    pub(crate) fn new(path: String) -> Self {
+        Self { path, deleted: false }
+    }
+
+    fn delete(&mut self) {
+        self.deleted = true
+    }
 }
 
 impl From<path::Model> for Path {
     fn from(value: path::Model) -> Self {
-        Self { path: value.path }
+        Self { path: value.path, deleted: false }
+    }
+}
+
+#[async_trait]
+impl Persistable for Path {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
+        }
+
+        Ok(())
     }
 }
 
@@ -581,7 +606,10 @@ mod test {
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
         database::{applied_policy, path, secret_metadata, secret_value, UlidId},
-        domain::{policy::Policy, secret::SecretEntry},
+        domain::{
+            policy::Policy,
+            secret::{Path, SecretEntry},
+        },
     };
 
     #[tokio::test]
@@ -1249,5 +1277,16 @@ mod test {
         let returned_path = result.unwrap();
 
         assert_eq!(returned_path.path, path);
+    }
+
+    #[tokio::test]
+    async fn when_deleting_path_then_deleted_field_turns_into_true() {
+        let mut path = Path::new("/test/path".to_owned());
+
+        assert!(!path.deleted);
+
+        path.delete();
+
+        assert!(path.deleted);
     }
 }
