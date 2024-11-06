@@ -341,7 +341,11 @@ fn extract_parent_path(path: &str) -> Result<Option<&str>> {
         .ok_or_else(|| Error::InvalidPath { entered_path: path.to_owned() })?
         .extract();
 
-    Ok(Some(parent))
+    if parent.is_empty() {
+        Ok(Some("/"))
+    } else {
+        Ok(Some(parent))
+    }
 }
 
 pub(crate) struct PostgresSecretService {}
@@ -503,6 +507,10 @@ impl SecretService for PostgresSecretService {
 
 impl PostgresSecretService {
     async fn ensure_path_exists(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+        if path == "/" {
+            return Ok(());
+        }
+
         if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? == 0 {
             return Err(Error::PathNotExists { entered_path: path.to_owned() });
         }
@@ -511,6 +519,10 @@ impl PostgresSecretService {
     }
 
     async fn ensure_path_not_duplicated(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+        if path == "/" {
+            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+        }
+
         if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
             return Err(Error::PathDuplicated { entered_path: path.to_owned() });
         }
