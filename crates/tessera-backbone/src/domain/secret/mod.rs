@@ -279,7 +279,13 @@ impl Path {
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
-        if path::Entity::find().filter(path::Column::Path.like(&self.path)).count(transaction).await? > 0 {
+        if path::Entity::find()
+            .filter(path::Column::Path.like(&self.path))
+            .filter(path::Column::Path.ne(&self.path))
+            .count(transaction)
+            .await?
+            > 0
+        {
             return Err(Error::PathIsInUse { entered_path: self.path.to_owned().to_owned() });
         }
 
