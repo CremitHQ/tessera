@@ -352,8 +352,6 @@ mod test {
 
         let result = path_usecase.update(path, "/new/test/path").await;
 
-        dbg!(&result);
-
         assert!(matches!(result, Err(Error::PathDuplicated { .. })))
     }
 }
