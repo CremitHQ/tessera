@@ -266,16 +266,26 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
 pub(crate) struct Path {
     pub path: String,
     deleted: bool,
+    updated_path: Option<String>,
 }
 
 impl Path {
     #[cfg(test)]
     pub(crate) fn new(path: String) -> Self {
-        Self { path, deleted: false }
+        Self { path, deleted: false, updated_path: None }
     }
 
     pub(crate) fn delete(&mut self) {
         self.deleted = true
+    }
+
+    pub(crate) fn update_path(&mut self, new_path: &str) {
+        if self.path == new_path {
+            self.updated_path = None;
+            return;
+        }
+
+        self.updated_path = Some(new_path.to_owned());
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
@@ -313,7 +323,7 @@ impl Path {
 
 impl From<path::Model> for Path {
     fn from(value: path::Model) -> Self {
-        Self { path: value.path, deleted: false }
+        Self { path: value.path, deleted: false, updated_path: None }
     }
 }
 
@@ -326,6 +336,20 @@ impl Persistable for Path {
             self.ensure_child_path_not_exists(transaction).await?;
             self.ensure_child_secret_not_exists(transaction).await?;
             self.delete_from_database(transaction).await?;
+            return Ok(());
+        }
+
+        if let Some(updated_path) = self.updated_path {
+            ensure_path_not_duplicated(transaction, &updated_path).await?;
+
+            let active_model = path::ActiveModel { path: Set(updated_path), ..Default::default() };
+            if active_model.is_changed() {
+                path::Entity::update_many()
+                    .set(active_model)
+                    .filter(path::Column::Path.eq(self.path))
+                    .exec(transaction)
+                    .await?;
+            }
         }
 
         Ok(())
@@ -589,16 +613,20 @@ impl PostgresSecretService {
     }
 
     async fn ensure_path_not_duplicated(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
-        if path == "/" {
-            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
-        }
-
-        if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
-            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
-        }
-
-        Ok(())
+        ensure_path_not_duplicated(transaction, path).await
     }
+}
+
+async fn ensure_path_not_duplicated(transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+    if path == "/" {
+        return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+    }
+
+    if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
+        return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+    }
+
+    Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -1324,5 +1352,16 @@ mod test {
         path.delete();
 
         assert!(path.deleted);
+    }
+
+    #[tokio::test]
+    async fn when_updating_path_then_updated_path_field_turns_into_new_path() {
+        let mut path = Path::new("/test/path".to_owned());
+
+        assert!(path.updated_path.is_none());
+
+        path.update_path("/test/path/new");
+
+        assert_eq!(path.updated_path, Some("/test/path/new".to_owned()))
     }
 }
