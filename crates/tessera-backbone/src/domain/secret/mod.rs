@@ -285,6 +285,24 @@ impl Path {
 
         Ok(())
     }
+
+    async fn ensure_child_secret_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        if secret_metadata::Entity::find()
+            .filter(secret_metadata::Column::Path.like(&self.path))
+            .count(transaction)
+            .await?
+            > 0
+        {
+            return Err(Error::PathIsInUse { entered_path: self.path.to_owned().to_owned() });
+        }
+
+        Ok(())
+    }
+
+    async fn delete_from_database(self, transaction: &DatabaseTransaction) -> Result<()> {
+        path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
+        Ok(())
+    }
 }
 
 impl From<path::Model> for Path {
@@ -300,8 +318,8 @@ impl Persistable for Path {
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
         if self.deleted {
             self.ensure_child_path_not_exists(transaction).await?;
-
-            path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
+            self.ensure_child_secret_not_exists(transaction).await?;
+            self.delete_from_database(transaction).await?;
         }
 
         Ok(())

@@ -194,9 +194,14 @@ mod test {
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
-            .append_query_results([[maplit::btreemap! {
-                "num_items" => sea_orm::Value::BigInt(Some(0))
-            }]])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+            ])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -211,14 +216,48 @@ mod test {
     }
 
     #[tokio::test]
-    async fn when_deleting_existing_path_in_use_then_path_usecase_returns_path_is_in_use_err() {
+    async fn when_deleting_existing_path_having_child_path_then_path_usecase_returns_path_is_in_use_err() {
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
-            .append_query_results([[maplit::btreemap! {
-                "num_items" => sea_orm::Value::BigInt(Some(1))
-            }]])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(1))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+            ])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.delete(path).await;
+
+        assert!(matches!(result, Err(Error::PathIsInUse { .. })))
+    }
+
+    #[tokio::test]
+    async fn when_deleting_existing_path_having_child_secret_then_path_usecase_returns_path_is_in_use_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(1))
+                }],
+            ])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
