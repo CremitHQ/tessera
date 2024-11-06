@@ -277,6 +277,14 @@ impl Path {
     pub(crate) fn delete(&mut self) {
         self.deleted = true
     }
+
+    async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        if path::Entity::find().filter(path::Column::Path.like(&self.path)).count(transaction).await? > 0 {
+            return Err(Error::PathIsInUse { entered_path: self.path.to_owned().to_owned() });
+        }
+
+        Ok(())
+    }
 }
 
 impl From<path::Model> for Path {
@@ -291,6 +299,8 @@ impl Persistable for Path {
 
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
         if self.deleted {
+            self.ensure_child_path_not_exists(transaction).await?;
+
             path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
         }
 
@@ -569,7 +579,9 @@ impl PostgresSecretService {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
-    #[error("Entered Path({entered_path}) is already registered")]
+    #[error("Path({entered_path}) is in use")]
+    PathIsInUse { entered_path: String },
+    #[error("Entered path({entered_path}) is already registered")]
     PathDuplicated { entered_path: String },
     #[error("Entered identifier conflicted with existing secret")]
     IdentifierConflicted { entered_identifier: String },
@@ -579,7 +591,7 @@ pub(crate) enum Error {
     SecretNotExists,
     #[error("Path({entered_path}) is not registered")]
     PathNotExists { entered_path: String },
-    #[error("parent path for Path({entered_path}) is not registered")]
+    #[error("Parent path for path({entered_path}) is not registered")]
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },

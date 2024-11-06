@@ -177,6 +177,7 @@ impl From<domain::secret::Error> for Error {
             domain::secret::Error::InvalidPath { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::PathDuplicated { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::PathIsInUse { .. } => Self::Anyhow(value.into()),
         }
     }
 }

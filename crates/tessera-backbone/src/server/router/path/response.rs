@@ -73,6 +73,15 @@ impl IntoResponse for PathNotExistsErrorResponse {
     }
 }
 
+struct PathIsInUseErrorResponse {}
+
+impl IntoResponse for PathIsInUseErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::CONFLICT, error_payload("PATH_IS_IN_USE", "target path has at least one child secret or path."))
+            .into_response()
+    }
+}
+
 impl IntoResponse for path::Error {
     fn into_response(self) -> axum::response::Response {
         match self {
@@ -83,6 +92,7 @@ impl IntoResponse for path::Error {
                 PathDuplicatedErrorResponse { entered_path }.into_response()
             }
             path::Error::PathNotExists { entered_path } => PathNotExistsErrorResponse { entered_path }.into_response(),
+            path::Error::PathIsInUse { .. } => PathIsInUseErrorResponse {}.into_response(),
         }
     }
 }
