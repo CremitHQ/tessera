@@ -60,9 +60,9 @@ impl From<Path> for PathData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
-    #[error("Entered Path({entered_path}) is already registered")]
+    #[error("Entered path({entered_path}) is already registered")]
     PathDuplicated { entered_path: String },
-    #[error("parent path for Path({entered_path}) is not registered")]
+    #[error("Parent path for Path({entered_path}) is not registered")]
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
