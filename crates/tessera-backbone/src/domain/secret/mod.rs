@@ -274,7 +274,7 @@ impl Path {
         Self { path, deleted: false }
     }
 
-    fn delete(&mut self) {
+    pub(crate) fn delete(&mut self) {
         self.deleted = true
     }
 }
