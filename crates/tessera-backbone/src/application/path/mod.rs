@@ -15,6 +15,7 @@ pub(crate) struct PathData {
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
+    async fn register(&self, path: &str) -> Result<()>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -42,6 +43,13 @@ impl PathUseCase for PathUseCaseImpl {
 
         Ok(paths.into_iter().map(PathData::from).collect())
     }
+
+    async fn register(&self, path: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        self.secret_service.register_path(&transaction, path).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
 }
 
 impl From<Path> for PathData {
@@ -52,6 +60,12 @@ impl From<Path> for PathData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered path({entered_path}) is already registered")]
+    PathDuplicated { entered_path: String },
+    #[error("Parent path for Path({entered_path}) is not registered")]
+    ParentPathNotExists { entered_path: String },
+    #[error("Invalid path({entered_path}) is entered")]
+    InvalidPath { entered_path: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -64,6 +78,9 @@ impl From<secret::Error> for Error {
             secret::Error::Anyhow(e) => Self::Anyhow(e),
             secret::Error::PathNotExists { .. } => Self::Anyhow(value.into()),
             secret::Error::IdentifierConflicted { .. } => Self::Anyhow(value.into()),
+            secret::Error::InvalidPath { entered_path } => Self::InvalidPath { entered_path },
+            secret::Error::ParentPathNotExists { entered_path } => Self::ParentPathNotExists { entered_path },
+            secret::Error::PathDuplicated { entered_path } => Self::PathDuplicated { entered_path },
         }
     }
 }
@@ -130,5 +147,23 @@ mod test {
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
         assert_eq!(result.err().unwrap().to_string(), "some error");
+    }
+
+    #[tokio::test]
+    async fn when_registering_path_is_successful_then_secret_usecase_returns_unit_ok() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_register_path().times(1).returning(move |_, _| Ok(()));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        path_usecase.register(path).await.expect("registering path should be successful");
     }
 }

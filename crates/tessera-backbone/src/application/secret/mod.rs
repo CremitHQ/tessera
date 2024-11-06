@@ -80,7 +80,7 @@ impl SecretUseCase for SecretUseCaseImpl {
         let management_policies = self.get_policies(&transaction, cmd.management_policy_ids).await?;
 
         self.secret_service
-            .register(&transaction, cmd.path, cmd.key, cmd.cipher, access_policies, management_policies)
+            .register_secret(&transaction, cmd.path, cmd.key, cmd.cipher, access_policies, management_policies)
             .await?;
 
         transaction.commit().await?;
@@ -174,6 +174,9 @@ impl From<domain::secret::Error> for Error {
             domain::secret::Error::IdentifierConflicted { entered_identifier } => {
                 Error::IdentifierConflicted { entered_identifier }
             }
+            domain::secret::Error::InvalidPath { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::PathDuplicated { .. } => Self::Anyhow(value.into()),
         }
     }
 }
@@ -353,7 +356,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_register().times(1).returning(move |_, _, _, _, _, _| Ok(()));
+        mock_secret_service.expect_register_secret().times(1).returning(move |_, _, _, _, _, _| Ok(()));
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(2).returning(move |_, _| {
             Ok(Some(Policy {
