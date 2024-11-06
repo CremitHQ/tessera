@@ -265,20 +265,79 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
 
 pub(crate) struct Path {
     pub path: String,
+    deleted: bool,
+}
+
+impl Path {
+    #[cfg(test)]
+    pub(crate) fn new(path: String) -> Self {
+        Self { path, deleted: false }
+    }
+
+    pub(crate) fn delete(&mut self) {
+        self.deleted = true
+    }
+
+    async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        if path::Entity::find()
+            .filter(path::Column::Path.like(&self.path))
+            .filter(path::Column::Path.ne(&self.path))
+            .count(transaction)
+            .await?
+            > 0
+        {
+            return Err(Error::PathIsInUse { entered_path: self.path.to_owned() });
+        }
+
+        Ok(())
+    }
+
+    async fn ensure_child_secret_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        if secret_metadata::Entity::find()
+            .filter(secret_metadata::Column::Path.like(&self.path))
+            .count(transaction)
+            .await?
+            > 0
+        {
+            return Err(Error::PathIsInUse { entered_path: self.path.to_owned() });
+        }
+
+        Ok(())
+    }
+
+    async fn delete_from_database(self, transaction: &DatabaseTransaction) -> Result<()> {
+        path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
+        Ok(())
+    }
 }
 
 impl From<path::Model> for Path {
     fn from(value: path::Model) -> Self {
-        Self { path: value.path }
+        Self { path: value.path, deleted: false }
+    }
+}
+
+#[async_trait]
+impl Persistable for Path {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            self.ensure_child_path_not_exists(transaction).await?;
+            self.ensure_child_secret_not_exists(transaction).await?;
+            self.delete_from_database(transaction).await?;
+        }
+
+        Ok(())
     }
 }
 
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait SecretService {
-    async fn list(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
+    async fn list_secret(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
 
-    async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
+    async fn get_secret(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>>;
 
@@ -293,6 +352,8 @@ pub(crate) trait SecretService {
     ) -> Result<()>;
 
     async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()>;
+
+    async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>>;
 }
 
 lazy_static! {
@@ -352,7 +413,7 @@ pub(crate) struct PostgresSecretService {}
 
 #[async_trait]
 impl SecretService for PostgresSecretService {
-    async fn list(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>> {
+    async fn list_secret(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>> {
         let metadata = secret_metadata::Entity::find()
             .filter(secret_metadata::Column::Path.like(format!("{path_prefix}%")))
             .all(transaction)
@@ -380,7 +441,7 @@ impl SecretService for PostgresSecretService {
             .collect())
     }
 
-    async fn get(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry> {
+    async fn get_secret(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry> {
         let (path, key) = parse_identifier(secret_identifier)
             .ok_or_else(|| Error::InvalidSecretIdentifier { entered_identifier: secret_identifier.to_owned() })?;
 
@@ -508,6 +569,10 @@ impl SecretService for PostgresSecretService {
 
         Ok(())
     }
+
+    async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
+        Ok(path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?.map(Path::from))
+    }
 }
 
 impl PostgresSecretService {
@@ -538,7 +603,9 @@ impl PostgresSecretService {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
-    #[error("Entered Path({entered_path}) is already registered")]
+    #[error("Path({entered_path}) is in use")]
+    PathIsInUse { entered_path: String },
+    #[error("Entered path({entered_path}) is already registered")]
     PathDuplicated { entered_path: String },
     #[error("Entered identifier conflicted with existing secret")]
     IdentifierConflicted { entered_identifier: String },
@@ -548,7 +615,7 @@ pub(crate) enum Error {
     SecretNotExists,
     #[error("Path({entered_path}) is not registered")]
     PathNotExists { entered_path: String },
-    #[error("parent path for Path({entered_path}) is not registered")]
+    #[error("Parent path for path({entered_path}) is not registered")]
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
@@ -575,7 +642,10 @@ mod test {
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
         database::{applied_policy, path, secret_metadata, secret_value, UlidId},
-        domain::{policy::Policy, secret::SecretEntry},
+        domain::{
+            policy::Policy,
+            secret::{Path, SecretEntry},
+        },
     };
 
     #[tokio::test]
@@ -630,7 +700,8 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.list(&transaction, "/").await.expect("creating workspace should be successful");
+        let result =
+            secret_service.list_secret(&transaction, "/").await.expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert_eq!(result[0].key, key);
@@ -650,7 +721,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.list(&transaction, "/").await;
+        let result = secret_service.list_secret(&transaction, "/").await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
@@ -711,7 +782,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result =
-            secret_service.get(&transaction, identifier).await.expect("creating workspace should be successful");
+            secret_service.get_secret(&transaction, identifier).await.expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert_eq!(result.key, key);
@@ -732,7 +803,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
@@ -750,7 +821,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -768,7 +839,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -786,7 +857,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -803,7 +874,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::SecretNotExists { .. })));
@@ -1215,5 +1286,43 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_getting_existing_path_then_secret_service_returns_path_ok() {
+        let now = Utc::now();
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[path::Model {
+            id: UlidId::new(Ulid::new()),
+            path: path.to_owned(),
+            created_at: now,
+            updated_at: now,
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let secret_service = PostgresSecretService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = secret_service.get_path(&transaction, path).await.expect("getting path should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Some(..)));
+        let returned_path = result.unwrap();
+
+        assert_eq!(returned_path.path, path);
+    }
+
+    #[tokio::test]
+    async fn when_deleting_path_then_deleted_field_turns_into_true() {
+        let mut path = Path::new("/test/path".to_owned());
+
+        assert!(!path.deleted);
+
+        path.delete();
+
+        assert!(path.deleted);
     }
 }

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::{OrganizationScopedTransaction, Persistable},
     domain::secret::{self, Path, SecretService},
 };
 
@@ -16,6 +16,7 @@ pub(crate) struct PathData {
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
     async fn register(&self, path: &str) -> Result<()>;
+    async fn delete(&self, path: &str) -> Result<()>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -50,6 +51,21 @@ impl PathUseCase for PathUseCaseImpl {
         transaction.commit().await?;
         Ok(())
     }
+
+    async fn delete(&self, path: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let mut path = self
+            .secret_service
+            .get_path(&transaction, path)
+            .await?
+            .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
+
+        path.delete();
+        path.persist(&transaction).await?;
+
+        transaction.commit().await?;
+        Ok(())
+    }
 }
 
 impl From<Path> for PathData {
@@ -60,6 +76,10 @@ impl From<Path> for PathData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Path({entered_path}) is in use")]
+    PathIsInUse { entered_path: String },
+    #[error("Path({entered_path}) is not registered")]
+    PathNotExists { entered_path: String },
     #[error("Entered path({entered_path}) is already registered")]
     PathDuplicated { entered_path: String },
     #[error("Parent path for Path({entered_path}) is not registered")]
@@ -81,6 +101,7 @@ impl From<secret::Error> for Error {
             secret::Error::InvalidPath { entered_path } => Self::InvalidPath { entered_path },
             secret::Error::ParentPathNotExists { entered_path } => Self::ParentPathNotExists { entered_path },
             secret::Error::PathDuplicated { entered_path } => Self::PathDuplicated { entered_path },
+            secret::Error::PathIsInUse { entered_path } => Self::PathIsInUse { entered_path },
         }
     }
 }
@@ -117,7 +138,7 @@ mod test {
             .expect_get_paths()
             .withf(|_| true)
             .times(1)
-            .returning(move |_| Ok(vec![Path { path: path.to_owned() }]));
+            .returning(move |_| Ok(vec![Path::new(path.to_owned())]));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
@@ -165,5 +186,110 @@ mod test {
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase.register(path).await.expect("registering path should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_deleting_existing_path_then_path_usecase_returns_unit_ok() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+            ])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        path_usecase.delete(path).await.expect("registering path should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_deleting_existing_path_having_child_path_then_path_usecase_returns_path_is_in_use_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(1))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+            ])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.delete(path).await;
+
+        assert!(matches!(result, Err(Error::PathIsInUse { .. })))
+    }
+
+    #[tokio::test]
+    async fn when_deleting_existing_path_having_child_secret_then_path_usecase_returns_path_is_in_use_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(0))
+                }],
+                [maplit::btreemap! {
+                    "num_items" => sea_orm::Value::BigInt(Some(1))
+                }],
+            ])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.delete(path).await;
+
+        assert!(matches!(result, Err(Error::PathIsInUse { .. })))
+    }
+
+    #[tokio::test]
+    async fn when_deleting_not_existing_path_then_path_usecase_returns_path_not_exists_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(None));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.delete(path).await;
+
+        assert!(matches!(result, Err(Error::PathNotExists { .. })));
     }
 }

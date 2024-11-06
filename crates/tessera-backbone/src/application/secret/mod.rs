@@ -59,7 +59,7 @@ impl SecretUseCaseImpl {
 impl SecretUseCase for SecretUseCaseImpl {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        let secrets = self.secret_service.list(&transaction, path).await?;
+        let secrets = self.secret_service.list_secret(&transaction, path).await?;
         transaction.commit().await?;
 
         Ok(secrets.into_iter().map(SecretData::from).collect())
@@ -67,7 +67,7 @@ impl SecretUseCase for SecretUseCaseImpl {
 
     async fn get(&self, secret_identifier: &str) -> Result<SecretData> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        let secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        let secret = self.secret_service.get_secret(&transaction, secret_identifier).await?;
         transaction.commit().await?;
 
         Ok(secret.into())
@@ -90,7 +90,7 @@ impl SecretUseCase for SecretUseCaseImpl {
 
     async fn delete(&self, secret_identifier: &str) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        let mut secret = self.secret_service.get_secret(&transaction, secret_identifier).await?;
         secret.delete();
         secret.persist(&transaction).await?;
         transaction.commit().await?;
@@ -101,7 +101,7 @@ impl SecretUseCase for SecretUseCaseImpl {
     async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
-        let mut secret = self.secret_service.get(&transaction, secret_identifier).await?;
+        let mut secret = self.secret_service.get_secret(&transaction, secret_identifier).await?;
 
         if let Some(updated_access_policy_ids) = update.access_policy_ids {
             let updated_access_policies = self.get_policies(&transaction, updated_access_policy_ids).await?;
@@ -177,6 +177,7 @@ impl From<domain::secret::Error> for Error {
             domain::secret::Error::InvalidPath { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::PathDuplicated { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::PathIsInUse { .. } => Self::Anyhow(value.into()),
         }
     }
 }
@@ -243,7 +244,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_list().withf(|_, path| path == "/").times(1).returning(move |_, _| {
+        mock_secret_service.expect_list_secret().withf(|_, path| path == "/").times(1).returning(move |_, _| {
             Ok(vec![SecretEntry::new(
                 key.to_owned(),
                 path.to_owned(),
@@ -279,7 +280,7 @@ mod test {
 
         let mut mock_secret_service = MockSecretService::new();
         mock_secret_service
-            .expect_list()
+            .expect_list_secret()
             .withf(|_, path| path == "/")
             .times(1)
             .returning(move |_, _| Err(crate::domain::secret::Error::Anyhow(anyhow::anyhow!("some error"))));
@@ -314,7 +315,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get().withf(|_, identifier| identifier == identifier).times(1).returning(
+        mock_secret_service.expect_get_secret().withf(|_, identifier| identifier == identifier).times(1).returning(
             move |_, _| {
                 Ok(SecretEntry::new(
                     key.to_owned(),
