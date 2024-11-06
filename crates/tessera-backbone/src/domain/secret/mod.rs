@@ -7,8 +7,8 @@ use lazy_static::lazy_static;
 use mockall::automock;
 use regex::Regex;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait,
-    QueryFilter, QuerySelect, QueryTrait, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, LoaderTrait,
+    PaginatorTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
 use ulid::Ulid;
 
@@ -344,13 +344,40 @@ impl Persistable for Path {
         if let Some(updated_path) = self.updated_path {
             ensure_path_not_duplicated(transaction, &updated_path).await?;
 
-            let active_model = path::ActiveModel { path: Set(updated_path), ..Default::default() };
-            if active_model.is_changed() {
-                path::Entity::update_many()
-                    .set(active_model)
-                    .filter(path::Column::Path.eq(self.path))
-                    .exec(transaction)
-                    .await?;
+            let child_paths = path::Entity::find()
+                .filter(path::Column::Path.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_path in child_paths {
+                let new_path = child_path.path.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_path.into_active_model();
+                active_model.path = Set(new_path);
+                active_model.update(transaction).await?;
+            }
+
+            let child_secrets = secret_metadata::Entity::find()
+                .filter(secret_metadata::Column::Path.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_secret in child_secrets {
+                let new_path = child_secret.path.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_secret.into_active_model();
+                active_model.path = Set(new_path);
+                active_model.update(transaction).await?;
+            }
+
+            let child_secret_values = secret_value::Entity::find()
+                .filter(secret_value::Column::Identifier.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_secret_value in child_secret_values {
+                let new_identifier = child_secret_value.identifier.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_secret_value.into_active_model();
+                active_model.identifier = Set(new_identifier);
+                active_model.update(transaction).await?;
             }
         }
 
