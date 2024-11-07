@@ -136,7 +136,10 @@ mod test {
 
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
 
-    use crate::domain::secret::{MockSecretService, Path};
+    use crate::{
+        database::{path, secret_metadata, secret_value},
+        domain::secret::{MockSecretService, Path},
+    };
 
     use super::{Error, PathUseCase, PathUseCaseImpl};
 
@@ -318,6 +321,9 @@ mod test {
             .append_query_results([[maplit::btreemap! {
                 "num_items" => sea_orm::Value::BigInt(Some(0))
             }]])
+            .append_query_results([Vec::<path::Model>::new()])
+            .append_query_results([Vec::<secret_metadata::Model>::new()])
+            .append_query_results([Vec::<secret_value::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
