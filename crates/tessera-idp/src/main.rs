@@ -4,7 +4,9 @@ use clap::Parser;
 
 use crate::logger::LoggerConfig;
 
+mod application;
 mod config;
+mod domain;
 mod logger;
 mod server;
 
@@ -15,18 +17,18 @@ struct Args {
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
     /// Sets a port to start a authn server
-    #[arg(short, long, value_name = "FILE")]
+    #[arg(short, long, value_name = "PORT")]
     pub port: Option<u16>,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    let app_config = config::load_config(args.config, args.port)?;
-
     logger::init_logger(LoggerConfig::default());
 
-    server::run((&app_config).into()).await?;
+    let app_config = config::load_config(args.config, args.port)?;
+    let application = application::Application::new();
+
+    server::run(application, app_config.into()).await?;
     Ok(())
 }

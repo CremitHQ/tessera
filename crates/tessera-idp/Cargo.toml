@@ -1,5 +1,5 @@
 [package]
-name = "tessera-authentication"
+name = "tessera-idp"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -17,3 +17,9 @@ axum = "0.7.7"
 xdg = "2.5.2"
 config = "0.14.0"
 serde = { workspace = true }
+directories =  { workspace = true }
+axum_thiserror = "0.1"
+thiserror = { workspace = true }
+validator.workspace = true
+async-trait = { workspace = true }
+samael = { version = "0.0.17" , features = ["xmlsec"] }
