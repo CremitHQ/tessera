@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{
     debug_handler,
     extract::{Path, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -13,11 +14,12 @@ use crate::application::{self, policy::PolicyUseCase, Application};
 
 use self::response::PolicyResponse;
 
+mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
-        .route("/workspaces/:workspace_name/policies", get(handle_get_policies))
+        .route("/workspaces/:workspace_name/policies", get(handle_get_policies).post(handle_post_policy))
         .route("/workspaces/:workspace_name/policies/:policy_id", get(handle_get_policy))
         .with_state(application)
 }
@@ -30,6 +32,17 @@ async fn handle_get_policies(
     let policies = application.with_workspace(&workspace_name).policy().get_all().await?;
 
     Ok(Json(policies.into_iter().map(response::PolicyResponse::from).collect::<Vec<_>>()))
+}
+#[debug_handler]
+
+async fn handle_post_policy(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<request::PostPolicyRequest>,
+) -> Result<impl IntoResponse, application::policy::Error> {
+    application.with_workspace(&workspace_name).policy().register(&payload.name, &payload.expression).await?;
+
+    Ok(StatusCode::CREATED)
 }
 
 #[debug_handler]

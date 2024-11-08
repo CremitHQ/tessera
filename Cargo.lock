@@ -3783,6 +3783,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tessera-abe",
+ "tessera-policy",
  "thiserror",
  "tokio",
  "tracing",

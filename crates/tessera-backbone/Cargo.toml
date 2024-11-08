@@ -34,6 +34,7 @@ tessera-abe = { workspace = true }
 rand = { workspace = true }
 base64 = { workspace = true }
 rmp-serde = { workspace = true }
+tessera-policy.workspace = true
 
 [dev-dependencies]
 mockall = { workspace = true }

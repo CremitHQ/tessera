@@ -13,6 +13,7 @@ use crate::{
 pub(crate) trait PolicyUseCase {
     async fn get_all(&self) -> Result<Vec<PolicyData>>;
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
+    async fn register(&self, name: &str, expression: &str) -> Result<()>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -56,6 +57,16 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         return Ok(policy.into());
     }
+
+    async fn register(&self, name: &str, expression: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        self.policy_service.register(&transaction, name, expression).await?;
+
+        transaction.commit().await?;
+
+        return Ok(());
+    }
 }
 
 pub(crate) struct PolicyData {
@@ -72,6 +83,10 @@ impl From<domain::policy::Policy> for PolicyData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered policy name({entered_policy_name}) is already registered.")]
+    PolicyNameDuplicated { entered_policy_name: String },
+    #[error(transparent)]
+    InvalidExpression(#[from] tessera_policy::error::PolicyParserError),
     #[error("Policy({entered_policy_id} is not exists)")]
     PolicyNotExists { entered_policy_id: Ulid },
     #[error(transparent)]
@@ -88,6 +103,10 @@ impl From<domain::policy::Error> for Error {
     fn from(value: domain::policy::Error) -> Self {
         match value {
             domain::policy::Error::Anyhow(e) => Error::Anyhow(e),
+            domain::policy::Error::InvalidExpression(e) => Error::InvalidExpression(e),
+            domain::policy::Error::PolicyNameDuplicated { entered_policy_name } => {
+                Error::PolicyNameDuplicated { entered_policy_name }
+            }
         }
     }
 }
@@ -205,5 +224,27 @@ mod test {
         let result = policy_usecase.get_policy(policy_id).await;
 
         assert!(matches!(result, Err(Error::PolicyNotExists { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_registering_policy_failed_with_invalid_expression_then_policy_usecase_returns_invalid_policy_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_register().times(1).returning(move |_, _, expression| {
+            Err(crate::domain::policy::Error::InvalidExpression(tessera_policy::error::PolicyParserError::JsonPolicy(
+                expression.to_owned(),
+            )))
+        });
+
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.register("test policy", "(\"role=FRONTEND@A\"").await;
+
+        assert!(matches!(result, Err(Error::InvalidExpression { .. })));
     }
 }

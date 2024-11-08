@@ -186,6 +186,8 @@ impl From<domain::policy::Error> for Error {
     fn from(value: domain::policy::Error) -> Self {
         match value {
             domain::policy::Error::Anyhow(e) => Self::Anyhow(e),
+            domain::policy::Error::InvalidExpression(_) => Self::Anyhow(value.into()),
+            domain::policy::Error::PolicyNameDuplicated { .. } => Self::Anyhow(value.into()),
         }
     }
 }
