@@ -13,6 +13,7 @@ use crate::{
 pub(crate) trait PolicyUseCase {
     async fn get_all(&self) -> Result<Vec<PolicyData>>;
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
+    async fn register(&self, name: &str, expression: &str) -> Result<()>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -55,6 +56,10 @@ impl PolicyUseCase for PolicyUseCaseImpl {
         transaction.commit().await?;
 
         return Ok(policy.into());
+    }
+
+    async fn register(&self, name: &str, expression: &str) -> Result<()> {
+        todo!()
     }
 }
 
