@@ -59,7 +59,15 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn register(&self, name: &str, expression: &str) -> Result<()> {
-        todo!()
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        self.policy_service
+            .register(&transaction, name, expression)
+            .await?
+
+        transaction.commit().await?;
+
+        return Ok(());
     }
 }
 

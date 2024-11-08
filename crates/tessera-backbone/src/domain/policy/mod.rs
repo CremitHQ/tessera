@@ -22,6 +22,7 @@ impl From<policy::Model> for Policy {
 pub(crate) trait PolicyService {
     async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<Policy>>;
     async fn get(&self, transaction: &DatabaseTransaction, id: &Ulid) -> Result<Option<Policy>>;
+    async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()>;
 }
 
 pub(crate) struct PostgresPolicyService {}
@@ -38,6 +39,10 @@ impl PolicyService for PostgresPolicyService {
         let policy = policy::Entity::find_by_id(id).one(transaction).await?;
 
         Ok(policy.map(Policy::from))
+    }
+
+    async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()> {
+        todo!()
     }
 }
 
