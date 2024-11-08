@@ -78,16 +78,14 @@ impl PolicyUseCase for PolicyUseCaseImpl {
             .await?
             .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: policy_id.to_owned() })?;
 
-        if new_name.is_some() || new_expression.is_some() {
-            if let Some(new_name) = new_name {
-                policy.update_name(new_name);
-            }
-            if let Some(new_expression) = new_expression {
-                policy.update_expression(new_expression)?;
-            }
-
-            policy.persist(&transaction).await?;
+        if let Some(new_name) = new_name {
+            policy.update_name(new_name);
         }
+        if let Some(new_expression) = new_expression {
+            policy.update_expression(new_expression)?;
+        }
+
+        policy.persist(&transaction).await?;
 
         transaction.commit().await?;
 
