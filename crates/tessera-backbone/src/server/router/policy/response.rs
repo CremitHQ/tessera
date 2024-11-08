@@ -1,6 +1,6 @@
 use crate::{
     application::policy,
-    server::response::{error_payload_with_data, handle_internal_server_error},
+    server::response::{error_payload, error_payload_with_data, handle_internal_server_error},
 };
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::Serialize;
@@ -32,6 +32,15 @@ impl IntoResponse for PolicyNotExistsResponse {
     }
 }
 
+struct InvalidPolicyResponse {}
+
+impl IntoResponse for InvalidPolicyResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::BAD_REQUEST, error_payload("INVALID_POLICY_EXPRESSION", "entered expression is invalid."))
+            .into_response()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EnteredPolicyIdData {
@@ -45,6 +54,7 @@ impl IntoResponse for policy::Error {
             policy::Error::PolicyNotExists { entered_policy_id } => {
                 PolicyNotExistsResponse { entered_policy_id }.into_response()
             }
+            policy::Error::InvalidExpression(_) => InvalidPolicyResponse {}.into_response(),
         }
     }
 }

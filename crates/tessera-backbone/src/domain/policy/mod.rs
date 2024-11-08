@@ -42,12 +42,15 @@ impl PolicyService for PostgresPolicyService {
     }
 
     async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()> {
+        tessera_policy::pest::parse(expression, tessera_policy::pest::PolicyLanguage::HumanPolicy)?;
         todo!()
     }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error(transparent)]
+    InvalidExpression(#[from] tessera_policy::error::PolicyParserError),
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }

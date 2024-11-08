@@ -61,9 +61,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     async fn register(&self, name: &str, expression: &str) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
-        self.policy_service
-            .register(&transaction, name, expression)
-            .await?
+        self.policy_service.register(&transaction, name, expression).await?;
 
         transaction.commit().await?;
 
@@ -85,6 +83,8 @@ impl From<domain::policy::Policy> for PolicyData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error(transparent)]
+    InvalidExpression(#[from] tessera_policy::error::PolicyParserError),
     #[error("Policy({entered_policy_id} is not exists)")]
     PolicyNotExists { entered_policy_id: Ulid },
     #[error(transparent)]
@@ -101,6 +101,7 @@ impl From<domain::policy::Error> for Error {
     fn from(value: domain::policy::Error) -> Self {
         match value {
             domain::policy::Error::Anyhow(e) => Error::Anyhow(e),
+            domain::policy::Error::InvalidExpression(e) => Error::InvalidExpression(e),
         }
     }
 }
