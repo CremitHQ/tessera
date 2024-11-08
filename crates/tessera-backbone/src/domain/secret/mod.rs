@@ -624,6 +624,7 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
+        validate_path(path)?;
         Ok(path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?.map(Path::from))
     }
 }

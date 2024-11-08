@@ -55,8 +55,6 @@ async fn handle_delete_path(
     Path((workspace_name, path)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    validate_path(&path)?;
-
     application.with_workspace(&workspace_name).path().delete(&normalize_path(path)).await?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -68,7 +66,6 @@ async fn handle_patch_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PatchPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    validate_path(&path)?;
     application.with_workspace(&workspace_name).path().update(&normalize_path(path), &payload.path).await?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -78,18 +75,9 @@ async fn handle_get_path(
     Path((workspace_name, path)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    validate_path(&path)?;
-
     let path = application.with_workspace(&workspace_name).path().get(&normalize_path(path)).await?;
 
     Ok(Json(response::PathResponse::from(path)))
-}
-
-fn validate_path(path: &str) -> Result<(), application::path::Error> {
-    if path == "/" || path.is_empty() || path.ends_with("/") {
-        return Err(application::path::Error::InvalidPath { entered_path: path.to_owned() });
-    }
-    Ok(())
 }
 
 fn normalize_path(path: String) -> String {
