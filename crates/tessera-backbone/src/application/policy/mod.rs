@@ -14,6 +14,7 @@ pub(crate) trait PolicyUseCase {
     async fn get_all(&self) -> Result<Vec<PolicyData>>;
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
     async fn register(&self, name: &str, expression: &str) -> Result<()>;
+    async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -66,6 +67,10 @@ impl PolicyUseCase for PolicyUseCaseImpl {
         transaction.commit().await?;
 
         return Ok(());
+    }
+
+    async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
+        todo!()
     }
 }
 
