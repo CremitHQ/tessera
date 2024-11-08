@@ -4,8 +4,7 @@ use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, PaginatorTrait,
-    QueryFilter, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use ulid::Ulid;
 
