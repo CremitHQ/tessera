@@ -1,4 +1,4 @@
-use crate::database::policy;
+use crate::database::{policy, Persistable};
 use async_trait::async_trait;
 use chrono::Utc;
 #[cfg(test)]
@@ -12,9 +12,28 @@ pub(crate) struct Policy {
     pub expression: String,
 }
 
+impl Policy {
+    pub fn update_name(&mut self, new_name: &str) {
+        todo!()
+    }
+
+    pub fn update_expression(&mut self, new_expression: &str) -> Result<()> {
+        todo!()
+    }
+}
+
 impl From<policy::Model> for Policy {
     fn from(value: policy::Model) -> Self {
         Self { id: value.id.inner(), name: value.name, expression: value.expression }
+    }
+}
+
+#[async_trait]
+impl Persistable for Policy {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        todo!()
     }
 }
 

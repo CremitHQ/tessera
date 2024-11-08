@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use ulid::Ulid;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::{OrganizationScopedTransaction, Persistable},
     domain::{self, policy::PolicyService},
 };
 
@@ -70,7 +70,28 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
-        todo!()
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut policy = self
+            .policy_service
+            .get(&transaction, policy_id)
+            .await?
+            .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: policy_id.to_owned() })?;
+
+        if new_name.is_some() || new_expression.is_some() {
+            if let Some(new_name) = new_name {
+                policy.update_name(new_name);
+            }
+            if let Some(new_expression) = new_expression {
+                policy.update_expression(new_expression)?;
+            }
+
+            policy.persist(&transaction).await?;
+        }
+
+        transaction.commit().await?;
+
+        return Ok(());
     }
 }
 
