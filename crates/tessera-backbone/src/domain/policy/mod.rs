@@ -136,4 +136,22 @@ mod test {
 
         assert!(result.is_empty())
     }
+
+    #[tokio::test]
+    async fn when_registering_policy_with_invalid_expression_then_policy_service_returns_invalid_policy_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let policy_service = PostgresPolicyService {};
+
+        let invalid_expressions = ["(\"role=FRONTEND@A\""];
+
+        for invalid_expression in invalid_expressions {
+            let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+            let result = policy_service.register(&transaction, "test", invalid_expression).await;
+            transaction.commit().await.expect("commiting transaction should be successful");
+            assert!(matches!(result, Err(Error::InvalidExpression { .. })));
+        }
+    }
 }

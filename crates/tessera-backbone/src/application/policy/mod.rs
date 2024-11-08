@@ -220,4 +220,26 @@ mod test {
 
         assert!(matches!(result, Err(Error::PolicyNotExists { .. })));
     }
+
+    #[tokio::test]
+    async fn when_registering_policy_failed_with_invalid_expression_then_policy_usecase_returns_invalid_policy_err() {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_policy_service = MockPolicyService::new();
+        mock_policy_service.expect_register().times(1).returning(move |_, _, expression| {
+            Err(crate::domain::policy::Error::InvalidExpression(tessera_policy::error::PolicyParserError::JsonPolicy(
+                expression.to_owned(),
+            )))
+        });
+
+        let policy_usecase =
+            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+
+        let result = policy_usecase.register("test policy", "(\"role=FRONTEND@A\"").await;
+
+        assert!(matches!(result, Err(Error::InvalidExpression { .. })));
+    }
 }
