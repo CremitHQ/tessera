@@ -20,7 +20,10 @@ mod response;
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/workspaces/:workspace_name/policies", get(handle_get_policies).post(handle_post_policy))
-        .route("/workspaces/:workspace_name/policies/:policy_id", get(handle_get_policy).patch(handle_patch_policy))
+        .route(
+            "/workspaces/:workspace_name/policies/:policy_id",
+            get(handle_get_policy).patch(handle_patch_policy).delete(handle_delete_policy),
+        )
         .with_state(application)
 }
 
@@ -66,6 +69,16 @@ async fn handle_patch_policy(
         .policy()
         .update(&policy_id, payload.name.as_deref(), payload.expression.as_deref())
         .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[debug_handler]
+async fn handle_delete_policy(
+    Path((workspace_name, policy_id)): Path<(String, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, application::policy::Error> {
+    application.with_workspace(&workspace_name).policy().delete(&policy_id).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
