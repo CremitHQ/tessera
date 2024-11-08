@@ -11,12 +11,12 @@ pub(crate) struct Policy {
     pub name: String,
     pub expression: String,
     updated_name: Option<String>,
+    updated_expression: Option<String>,
 }
 
 impl Policy {
-    #[cfg(test)]
     pub fn new(id: Ulid, name: String, expression: String) -> Self {
-        Self { id, name, expression, updated_name: None }
+        Self { id, name, expression, updated_name: None, updated_expression: None }
     }
 
     pub fn update_name(&mut self, new_name: &str) {
@@ -28,13 +28,20 @@ impl Policy {
     }
 
     pub fn update_expression(&mut self, new_expression: &str) -> Result<()> {
-        todo!()
+        validate_expression(new_expression)?;
+        if self.expression == new_expression || self.updated_expression.as_deref() == Some(new_expression) {
+            return Ok(());
+        }
+
+        self.updated_expression = Some(new_expression.to_owned());
+
+        Ok(())
     }
 }
 
 impl From<policy::Model> for Policy {
     fn from(value: policy::Model) -> Self {
-        Self { id: value.id.inner(), name: value.name, expression: value.expression, updated_name: None }
+        Self::new(value.id.inner(), value.name, value.expression)
     }
 }
 
@@ -283,5 +290,38 @@ mod test {
         policy.update_name("test1");
 
         assert_eq!(policy.updated_name, None);
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_then_updated_expression_turns_into_new_expression() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_expression("(\"role=BACKEND@A\")").expect("updating expression should be successful");
+
+        assert_eq!(policy.updated_expression, Some("(\"role=BACKEND@A\")".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_with_same_expression_then_updated_expression_not_changed() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_expression("(\"role=FRONTEND@A\")").expect("updating expression should be successful");
+
+        assert_eq!(policy.updated_expression, None);
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_with_invalid_expression_then_policy_returns_invalid_policy_err() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        let result = policy.update_expression("(\"role=FRONTEND@A\"");
+
+        assert!(matches!(result, Err(Error::InvalidExpression(_))));
     }
 }
