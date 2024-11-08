@@ -14,11 +14,12 @@ pub(crate) struct Policy {
     pub expression: String,
     updated_name: Option<String>,
     updated_expression: Option<String>,
+    deleted: bool,
 }
 
 impl Policy {
     pub fn new(id: Ulid, name: String, expression: String) -> Self {
-        Self { id, name, expression, updated_name: None, updated_expression: None }
+        Self { id, name, expression, updated_name: None, updated_expression: None, deleted: false }
     }
 
     pub fn update_name(&mut self, new_name: &str) {
@@ -39,6 +40,10 @@ impl Policy {
 
         Ok(())
     }
+
+    pub fn delete(&mut self) {
+        self.deleted = true
+    }
 }
 
 impl From<policy::Model> for Policy {
@@ -52,6 +57,11 @@ impl Persistable for Policy {
     type Error = Error;
 
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            policy::Entity::delete_by_id(UlidId::new(self.id)).exec(transaction).await?;
+            return Ok(());
+        }
+
         let name_setter = if let Some(updated_name) = self.updated_name {
             ensure_policy_name_not_duplicated(transaction, &updated_name).await?;
             Set(updated_name)
@@ -369,5 +379,16 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_deleting_policy_then_deleted_into_true() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert!(!policy.deleted);
+
+        policy.delete();
+
+        assert!(policy.deleted);
     }
 }

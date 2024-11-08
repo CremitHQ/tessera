@@ -15,6 +15,7 @@ pub(crate) trait PolicyUseCase {
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
     async fn register(&self, name: &str, expression: &str) -> Result<()>;
     async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()>;
+    async fn delete(&self, policy_id: &Ulid) -> Result<()>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -42,7 +43,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         transaction.commit().await?;
 
-        return Ok(policies.into_iter().map(PolicyData::from).collect());
+        Ok(policies.into_iter().map(PolicyData::from).collect())
     }
 
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData> {
@@ -56,7 +57,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         transaction.commit().await?;
 
-        return Ok(policy.into());
+        Ok(policy.into())
     }
 
     async fn register(&self, name: &str, expression: &str) -> Result<()> {
@@ -66,7 +67,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         transaction.commit().await?;
 
-        return Ok(());
+        Ok(())
     }
 
     async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
@@ -89,7 +90,23 @@ impl PolicyUseCase for PolicyUseCaseImpl {
 
         transaction.commit().await?;
 
-        return Ok(());
+        Ok(())
+    }
+
+    async fn delete(&self, policy_id: &Ulid) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut policy = self
+            .policy_service
+            .get(&transaction, policy_id)
+            .await?
+            .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: policy_id.to_owned() })?;
+        policy.delete();
+        policy.persist(&transaction).await?;
+
+        transaction.commit().await?;
+
+        Ok(())
     }
 }
 
