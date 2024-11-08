@@ -362,11 +362,11 @@ mod test {
         mock_secret_service.expect_register_secret().times(1).returning(move |_, _, _, _, _, _| Ok(()));
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(2).returning(move |_, _| {
-            Ok(Some(Policy {
-                id: Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap(),
-                name: "test policy".to_owned(),
-                expression: "(\"role=FRONTEND\")".to_owned(),
-            }))
+            Ok(Some(Policy::new(
+                Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap(),
+                "test policy".to_owned(),
+                "(\"role=FRONTEND\")".to_owned(),
+            )))
         });
 
         let secret_usecase = SecretUseCaseImpl::new(

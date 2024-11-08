@@ -163,11 +163,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_list().withf(|_| true).times(1).returning(move |_| {
-            Ok(vec![Policy {
-                id: policy_id.to_owned(),
-                name: policy_name.to_owned(),
-                expression: expression.to_owned(),
-            }])
+            Ok(vec![Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())])
         });
 
         let policy_usecase =
@@ -215,11 +211,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(1).returning(move |_, _| {
-            Ok(Some(Policy {
-                id: policy_id.to_owned(),
-                name: policy_name.to_owned(),
-                expression: expression.to_owned(),
-            }))
+            Ok(Some(Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())))
         });
 
         let policy_usecase =

@@ -10,11 +10,21 @@ pub(crate) struct Policy {
     pub id: Ulid,
     pub name: String,
     pub expression: String,
+    updated_name: Option<String>,
 }
 
 impl Policy {
+    #[cfg(test)]
+    pub fn new(id: Ulid, name: String, expression: String) -> Self {
+        Self { id, name, expression, updated_name: None }
+    }
+
     pub fn update_name(&mut self, new_name: &str) {
-        todo!()
+        if self.name == new_name || self.updated_name.as_deref() == Some(new_name) {
+            return;
+        }
+
+        self.updated_name = Some(new_name.to_owned());
     }
 
     pub fn update_expression(&mut self, new_expression: &str) -> Result<()> {
@@ -24,7 +34,7 @@ impl Policy {
 
 impl From<policy::Model> for Policy {
     fn from(value: policy::Model) -> Self {
-        Self { id: value.id.inner(), name: value.name, expression: value.expression }
+        Self { id: value.id.inner(), name: value.name, expression: value.expression, updated_name: None }
     }
 }
 
@@ -122,7 +132,10 @@ mod test {
     use ulid::Ulid;
 
     use super::{Error, PolicyService, PostgresPolicyService};
-    use crate::database::{policy, UlidId};
+    use crate::{
+        database::{policy, UlidId},
+        domain::policy::Policy,
+    };
 
     #[tokio::test]
     async fn when_getting_policy_data_is_successful_then_policy_service_returns_policies_ok() {
@@ -248,5 +261,27 @@ mod test {
             .await
             .expect("registering policy should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_updating_name_then_updated_name_turns_into_new_name() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_name, None);
+
+        policy.update_name("test2");
+
+        assert_eq!(policy.updated_name, Some("test2".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn when_updating_name_with_same_name_then_updated_name_not_changed() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_name, None);
+
+        policy.update_name("test1");
+
+        assert_eq!(policy.updated_name, None);
     }
 }

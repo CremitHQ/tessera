@@ -985,16 +985,16 @@ mod test {
         let now = Utc::now();
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
-        let management_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
+        let access_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
+        let management_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([[maplit::btreemap! {
@@ -1060,16 +1060,16 @@ mod test {
     async fn when_registering_secret_with_not_existing_path_then_secret_service_returns_path_not_exists_err() {
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
-        let management_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
+        let access_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
+        let management_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
             "num_items" => sea_orm::Value::BigInt(Some(0))
@@ -1100,16 +1100,16 @@ mod test {
     async fn when_registering_secret_with_already_used_key_then_secret_service_returns_identifier_conflicted_err() {
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
-        let management_policies = vec![Policy {
-            id: Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            name: "test policy".to_owned(),
-            expression: "(\"role=FRONTEND\")".to_owned(),
-        }];
+        let access_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
+        let management_policies = vec![Policy::new(
+            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
+            "test policy".to_owned(),
+            "(\"role=FRONTEND\")".to_owned(),
+        )];
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([[maplit::btreemap! {
@@ -1215,11 +1215,11 @@ mod test {
             updated_management_policy_ids: None,
         };
 
-        secret_entry.update_access_policies(vec![Policy {
-            id: Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
-            name: "test policy2".to_owned(),
-            expression: "(\"role=BACKEND\")".to_owned(),
-        }]);
+        secret_entry.update_access_policies(vec![Policy::new(
+            Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
+            "test policy2".to_owned(),
+            "(\"role=BACKEND\")".to_owned(),
+        )]);
 
         assert_eq!(
             secret_entry.updated_access_policy_ids,
@@ -1242,11 +1242,11 @@ mod test {
             updated_management_policy_ids: None,
         };
 
-        secret_entry.update_management_policies(vec![Policy {
-            id: Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
-            name: "test policy2".to_owned(),
-            expression: "(\"role=BACKEND\")".to_owned(),
-        }]);
+        secret_entry.update_management_policies(vec![Policy::new(
+            Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
+            "test policy2".to_owned(),
+            "(\"role=BACKEND\")".to_owned(),
+        )]);
 
         assert_eq!(
             secret_entry.updated_management_policy_ids,
