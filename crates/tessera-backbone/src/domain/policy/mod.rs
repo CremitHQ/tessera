@@ -380,4 +380,15 @@ mod test {
 
         assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
     }
+
+    #[tokio::test]
+    async fn when_deleting_policy_then_deleted_into_true() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert!(!policy.deleted);
+
+        policy.delete();
+
+        assert!(policy.deleted);
+    }
 }
