@@ -32,6 +32,12 @@ impl IntoResponse for PolicyNotExistsResponse {
     }
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EnteredPolicyIdData {
+    entered_policy_id: Ulid,
+}
+
 struct InvalidPolicyResponse {}
 
 impl IntoResponse for InvalidPolicyResponse {
@@ -41,10 +47,28 @@ impl IntoResponse for InvalidPolicyResponse {
     }
 }
 
+struct PolicyNameDuplicatedResponse {
+    entered_policy_name: String,
+}
+
+impl IntoResponse for PolicyNameDuplicatedResponse {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::CONFLICT,
+            error_payload_with_data(
+                "POLICY_NAME_DUPLICATED",
+                "entered policy name is already in used.",
+                EnteredPolicyNameData { entered_policy_name: self.entered_policy_name },
+            ),
+        )
+            .into_response()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct EnteredPolicyIdData {
-    entered_policy_id: Ulid,
+struct EnteredPolicyNameData {
+    entered_policy_name: String,
 }
 
 impl IntoResponse for policy::Error {
@@ -55,6 +79,9 @@ impl IntoResponse for policy::Error {
                 PolicyNotExistsResponse { entered_policy_id }.into_response()
             }
             policy::Error::InvalidExpression(_) => InvalidPolicyResponse {}.into_response(),
+            policy::Error::PolicyNameDuplicated { entered_policy_name } => {
+                PolicyNameDuplicatedResponse { entered_policy_name }.into_response()
+            }
         }
     }
 }

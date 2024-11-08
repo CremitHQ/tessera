@@ -83,6 +83,8 @@ impl From<domain::policy::Policy> for PolicyData {
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
+    #[error("Entered policy name({entered_policy_name}) is already registered.")]
+    PolicyNameDuplicated { entered_policy_name: String },
     #[error(transparent)]
     InvalidExpression(#[from] tessera_policy::error::PolicyParserError),
     #[error("Policy({entered_policy_id} is not exists)")]
@@ -102,6 +104,9 @@ impl From<domain::policy::Error> for Error {
         match value {
             domain::policy::Error::Anyhow(e) => Error::Anyhow(e),
             domain::policy::Error::InvalidExpression(e) => Error::InvalidExpression(e),
+            domain::policy::Error::PolicyNameDuplicated { entered_policy_name } => {
+                Error::PolicyNameDuplicated { entered_policy_name }
+            }
         }
     }
 }

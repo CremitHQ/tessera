@@ -2,7 +2,7 @@ use crate::database::policy;
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::automock;
-use sea_orm::{DatabaseTransaction, EntityTrait};
+use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter};
 use ulid::Ulid;
 
 pub(crate) struct Policy {
@@ -42,15 +42,33 @@ impl PolicyService for PostgresPolicyService {
     }
 
     async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()> {
-        tessera_policy::pest::parse(expression, tessera_policy::pest::PolicyLanguage::HumanPolicy)?;
+        validate_expression(expression)?;
+        ensure_policy_name_not_duplicated(transaction, name).await?;
+
         todo!()
     }
+}
+
+async fn ensure_policy_name_not_duplicated(transaction: &DatabaseTransaction, policy_name: &str) -> Result<()> {
+    if policy::Entity::find().filter(policy::Column::Name.eq(policy_name)).count(transaction).await? > 0 {
+        return Err(Error::PolicyNameDuplicated { entered_policy_name: policy_name.to_owned() });
+    }
+
+    todo!()
+}
+
+fn validate_expression(expression: &str) -> Result<()> {
+    tessera_policy::pest::parse(expression, tessera_policy::pest::PolicyLanguage::HumanPolicy)?;
+
+    Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error(transparent)]
     InvalidExpression(#[from] tessera_policy::error::PolicyParserError),
+    #[error("Entered policy name({entered_policy_name}) is already registered.")]
+    PolicyNameDuplicated { entered_policy_name: String },
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -153,5 +171,23 @@ mod test {
             transaction.commit().await.expect("commiting transaction should be successful");
             assert!(matches!(result, Err(Error::InvalidExpression { .. })));
         }
+    }
+
+    #[tokio::test]
+    async fn when_registering_policy_with_already_registered_name_then_policy_service_returns_policy_name_duplicated_err(
+    ) {
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(1))
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let policy_service = PostgresPolicyService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+        let result = policy_service.register(&transaction, "test", "(\"role=FRONTEND@A\")").await;
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
     }
 }
