@@ -1,8 +1,9 @@
 use crate::database::policy;
 use async_trait::async_trait;
+use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
-use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use ulid::Ulid;
 
 pub(crate) struct Policy {
@@ -45,7 +46,19 @@ impl PolicyService for PostgresPolicyService {
         validate_expression(expression)?;
         ensure_policy_name_not_duplicated(transaction, name).await?;
 
-        todo!()
+        let now = Utc::now();
+
+        let active_model = policy::ActiveModel {
+            id: Set(Ulid::new().into()),
+            name: Set(name.to_owned()),
+            expression: Set(expression.to_owned()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+
+        active_model.insert(transaction).await?;
+
+        Ok(())
     }
 }
 
@@ -54,7 +67,7 @@ async fn ensure_policy_name_not_duplicated(transaction: &DatabaseTransaction, po
         return Err(Error::PolicyNameDuplicated { entered_policy_name: policy_name.to_owned() });
     }
 
-    todo!()
+    Ok(())
 }
 
 fn validate_expression(expression: &str) -> Result<()> {
@@ -189,5 +202,32 @@ mod test {
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_registering_policy_is_successful_then_policy_service_returns_unit_ok() {
+        let now = Utc::now();
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
+            .append_query_results([[policy::Model {
+                id: Ulid::new().into(),
+                name: "test".to_owned(),
+                expression: "(\"role=FRONTEND@A\")".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let policy_service = PostgresPolicyService {};
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+        policy_service
+            .register(&transaction, "test", "(\"role=FRONTEND@A\")")
+            .await
+            .expect("registering policy should be successful");
+        transaction.commit().await.expect("commiting transaction should be successful");
     }
 }
