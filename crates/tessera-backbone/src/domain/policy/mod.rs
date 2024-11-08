@@ -50,6 +50,10 @@ impl Persistable for Policy {
     type Error = Error;
 
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if let Some(updated_name) = self.updated_name {
+            ensure_policy_name_not_duplicated(transaction, &updated_name).await?;
+        }
+
         todo!()
     }
 }
@@ -140,7 +144,7 @@ mod test {
 
     use super::{Error, PolicyService, PostgresPolicyService};
     use crate::{
-        database::{policy, UlidId},
+        database::{policy, Persistable, UlidId},
         domain::policy::Policy,
     };
 
@@ -323,5 +327,28 @@ mod test {
         let result = policy.update_expression("(\"role=FRONTEND@A\"");
 
         assert!(matches!(result, Err(Error::InvalidExpression(_))));
+    }
+
+    #[tokio::test]
+    async fn when_update_and_persist_with_existing_name_then_policy_returns_name_duplicated_err() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_name("test2");
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(1))
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = policy.persist(&transaction).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
     }
 }
