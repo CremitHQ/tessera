@@ -56,9 +56,6 @@ async fn handle_delete_path(
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, application::path::Error> {
     validate_path(&path)?;
-    if path == "/" || path.is_empty() {
-        return Err(application::path::Error::InvalidPath { entered_path: path });
-    }
 
     application.with_workspace(&workspace_name).path().delete(&normalize_path(path)).await?;
 
