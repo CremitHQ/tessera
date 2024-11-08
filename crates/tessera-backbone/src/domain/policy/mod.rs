@@ -1,20 +1,79 @@
-use crate::database::policy;
+use crate::database::{policy, Persistable, UlidId};
 use async_trait::async_trait;
 use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, Set,
+};
 use ulid::Ulid;
 
 pub(crate) struct Policy {
     pub id: Ulid,
     pub name: String,
     pub expression: String,
+    updated_name: Option<String>,
+    updated_expression: Option<String>,
+}
+
+impl Policy {
+    pub fn new(id: Ulid, name: String, expression: String) -> Self {
+        Self { id, name, expression, updated_name: None, updated_expression: None }
+    }
+
+    pub fn update_name(&mut self, new_name: &str) {
+        if self.name == new_name || self.updated_name.as_deref() == Some(new_name) {
+            return;
+        }
+
+        self.updated_name = Some(new_name.to_owned());
+    }
+
+    pub fn update_expression(&mut self, new_expression: &str) -> Result<()> {
+        validate_expression(new_expression)?;
+        if self.expression == new_expression || self.updated_expression.as_deref() == Some(new_expression) {
+            return Ok(());
+        }
+
+        self.updated_expression = Some(new_expression.to_owned());
+
+        Ok(())
+    }
 }
 
 impl From<policy::Model> for Policy {
     fn from(value: policy::Model) -> Self {
-        Self { id: value.id.inner(), name: value.name, expression: value.expression }
+        Self::new(value.id.inner(), value.name, value.expression)
+    }
+}
+
+#[async_trait]
+impl Persistable for Policy {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        let name_setter = if let Some(updated_name) = self.updated_name {
+            ensure_policy_name_not_duplicated(transaction, &updated_name).await?;
+            Set(updated_name)
+        } else {
+            ActiveValue::default()
+        };
+        let expression_setter = if let Some(updated_expression) = self.updated_expression {
+            Set(updated_expression)
+        } else {
+            ActiveValue::default()
+        };
+
+        let active_model =
+            policy::ActiveModel { name: name_setter, expression: expression_setter, ..Default::default() };
+
+        policy::Entity::update_many()
+            .set(active_model)
+            .filter(policy::Column::Id.eq(UlidId::new(self.id)))
+            .exec(transaction)
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -103,7 +162,10 @@ mod test {
     use ulid::Ulid;
 
     use super::{Error, PolicyService, PostgresPolicyService};
-    use crate::database::{policy, UlidId};
+    use crate::{
+        database::{policy, Persistable, UlidId},
+        domain::policy::Policy,
+    };
 
     #[tokio::test]
     async fn when_getting_policy_data_is_successful_then_policy_service_returns_policies_ok() {
@@ -229,5 +291,83 @@ mod test {
             .await
             .expect("registering policy should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_updating_name_then_updated_name_turns_into_new_name() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_name, None);
+
+        policy.update_name("test2");
+
+        assert_eq!(policy.updated_name, Some("test2".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn when_updating_name_with_same_name_then_updated_name_not_changed() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_name, None);
+
+        policy.update_name("test1");
+
+        assert_eq!(policy.updated_name, None);
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_then_updated_expression_turns_into_new_expression() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_expression("(\"role=BACKEND@A\")").expect("updating expression should be successful");
+
+        assert_eq!(policy.updated_expression, Some("(\"role=BACKEND@A\")".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_with_same_expression_then_updated_expression_not_changed() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_expression("(\"role=FRONTEND@A\")").expect("updating expression should be successful");
+
+        assert_eq!(policy.updated_expression, None);
+    }
+
+    #[tokio::test]
+    async fn when_updating_expression_with_invalid_expression_then_policy_returns_invalid_policy_err() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        let result = policy.update_expression("(\"role=FRONTEND@A\"");
+
+        assert!(matches!(result, Err(Error::InvalidExpression(_))));
+    }
+
+    #[tokio::test]
+    async fn when_update_and_persist_with_existing_name_then_policy_returns_name_duplicated_err() {
+        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+
+        assert_eq!(policy.updated_expression, None);
+
+        policy.update_name("test2");
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[maplit::btreemap! {
+            "num_items" => sea_orm::Value::BigInt(Some(1))
+        }]]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
+
+        let result = policy.persist(&transaction).await;
+
+        transaction.commit().await.expect("commiting transaction should be successful");
+
+        assert!(matches!(result, Err(Error::PolicyNameDuplicated { .. })));
     }
 }

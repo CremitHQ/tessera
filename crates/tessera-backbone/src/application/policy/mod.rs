@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use ulid::Ulid;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::{OrganizationScopedTransaction, Persistable},
     domain::{self, policy::PolicyService},
 };
 
@@ -14,6 +14,7 @@ pub(crate) trait PolicyUseCase {
     async fn get_all(&self) -> Result<Vec<PolicyData>>;
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData>;
     async fn register(&self, name: &str, expression: &str) -> Result<()>;
+    async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()>;
 }
 
 pub(crate) struct PolicyUseCaseImpl {
@@ -62,6 +63,29 @@ impl PolicyUseCase for PolicyUseCaseImpl {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
         self.policy_service.register(&transaction, name, expression).await?;
+
+        transaction.commit().await?;
+
+        return Ok(());
+    }
+
+    async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut policy = self
+            .policy_service
+            .get(&transaction, policy_id)
+            .await?
+            .ok_or_else(|| Error::PolicyNotExists { entered_policy_id: policy_id.to_owned() })?;
+
+        if let Some(new_name) = new_name {
+            policy.update_name(new_name);
+        }
+        if let Some(new_expression) = new_expression {
+            policy.update_expression(new_expression)?;
+        }
+
+        policy.persist(&transaction).await?;
 
         transaction.commit().await?;
 
@@ -137,11 +161,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_list().withf(|_| true).times(1).returning(move |_| {
-            Ok(vec![Policy {
-                id: policy_id.to_owned(),
-                name: policy_name.to_owned(),
-                expression: expression.to_owned(),
-            }])
+            Ok(vec![Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())])
         });
 
         let policy_usecase =
@@ -189,11 +209,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(1).returning(move |_, _| {
-            Ok(Some(Policy {
-                id: policy_id.to_owned(),
-                name: policy_name.to_owned(),
-                expression: expression.to_owned(),
-            }))
+            Ok(Some(Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())))
         });
 
         let policy_usecase =
