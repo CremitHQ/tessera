@@ -1,9 +1,12 @@
-use crate::database::{policy, Persistable};
+use crate::database::{policy, Persistable, UlidId};
 use async_trait::async_trait;
 use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, PaginatorTrait,
+    QueryFilter, Set,
+};
 use ulid::Ulid;
 
 pub(crate) struct Policy {
@@ -50,11 +53,28 @@ impl Persistable for Policy {
     type Error = Error;
 
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
-        if let Some(updated_name) = self.updated_name {
+        let name_setter = if let Some(updated_name) = self.updated_name {
             ensure_policy_name_not_duplicated(transaction, &updated_name).await?;
-        }
+            Set(updated_name)
+        } else {
+            ActiveValue::default()
+        };
+        let expression_setter = if let Some(updated_expression) = self.updated_expression {
+            Set(updated_expression)
+        } else {
+            ActiveValue::default()
+        };
 
-        todo!()
+        let active_model =
+            policy::ActiveModel { name: name_setter, expression: expression_setter, ..Default::default() };
+
+        policy::Entity::update_many()
+            .set(active_model)
+            .filter(policy::Column::Id.eq(UlidId::new(self.id)))
+            .exec(transaction)
+            .await?;
+
+        Ok(())
     }
 }
 
