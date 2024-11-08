@@ -18,6 +18,7 @@ pub(crate) trait PathUseCase {
     async fn register(&self, path: &str) -> Result<()>;
     async fn delete(&self, path: &str) -> Result<()>;
     async fn update(&self, path: &str, new_path: &str) -> Result<()>;
+    async fn get(&self, path: &str) -> Result<PathData>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -81,6 +82,18 @@ impl PathUseCase for PathUseCaseImpl {
 
         transaction.commit().await?;
         Ok(())
+    }
+
+    async fn get(&self, path: &str) -> Result<PathData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let path = self
+            .secret_service
+            .get_path(&transaction, path)
+            .await?
+            .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
+        transaction.commit().await?;
+
+        Ok(path.into())
     }
 }
 
