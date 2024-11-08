@@ -7,8 +7,8 @@ use lazy_static::lazy_static;
 use mockall::automock;
 use regex::Regex;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, LoaderTrait, PaginatorTrait,
-    QueryFilter, QuerySelect, QueryTrait, Set,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, LoaderTrait,
+    PaginatorTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
 use ulid::Ulid;
 
@@ -266,16 +266,28 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
 pub(crate) struct Path {
     pub path: String,
     deleted: bool,
+    updated_path: Option<String>,
 }
 
 impl Path {
     #[cfg(test)]
     pub(crate) fn new(path: String) -> Self {
-        Self { path, deleted: false }
+        Self { path, deleted: false, updated_path: None }
     }
 
     pub(crate) fn delete(&mut self) {
         self.deleted = true
+    }
+
+    pub(crate) fn update_path(&mut self, new_path: &str) -> Result<()> {
+        validate_path(new_path)?;
+        if self.path == new_path {
+            self.updated_path = None;
+            return Ok(());
+        }
+
+        self.updated_path = Some(new_path.to_owned());
+        Ok(())
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
@@ -313,7 +325,7 @@ impl Path {
 
 impl From<path::Model> for Path {
     fn from(value: path::Model) -> Self {
-        Self { path: value.path, deleted: false }
+        Self { path: value.path, deleted: false, updated_path: None }
     }
 }
 
@@ -326,6 +338,47 @@ impl Persistable for Path {
             self.ensure_child_path_not_exists(transaction).await?;
             self.ensure_child_secret_not_exists(transaction).await?;
             self.delete_from_database(transaction).await?;
+            return Ok(());
+        }
+
+        if let Some(updated_path) = self.updated_path {
+            ensure_path_not_duplicated(transaction, &updated_path).await?;
+
+            let child_paths = path::Entity::find()
+                .filter(path::Column::Path.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_path in child_paths {
+                let new_path = child_path.path.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_path.into_active_model();
+                active_model.path = Set(new_path);
+                active_model.update(transaction).await?;
+            }
+
+            let child_secrets = secret_metadata::Entity::find()
+                .filter(secret_metadata::Column::Path.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_secret in child_secrets {
+                let new_path = child_secret.path.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_secret.into_active_model();
+                active_model.path = Set(new_path);
+                active_model.update(transaction).await?;
+            }
+
+            let child_secret_values = secret_value::Entity::find()
+                .filter(secret_value::Column::Identifier.like(format!("{}%", &self.path)))
+                .all(transaction)
+                .await?;
+
+            for child_secret_value in child_secret_values {
+                let new_identifier = child_secret_value.identifier.replacen(&self.path, &updated_path, 1);
+                let mut active_model = child_secret_value.into_active_model();
+                active_model.identifier = Set(new_identifier);
+                active_model.update(transaction).await?;
+            }
         }
 
         Ok(())
@@ -571,6 +624,7 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
+        validate_path(path)?;
         Ok(path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?.map(Path::from))
     }
 }
@@ -589,16 +643,20 @@ impl PostgresSecretService {
     }
 
     async fn ensure_path_not_duplicated(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
-        if path == "/" {
-            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
-        }
-
-        if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
-            return Err(Error::PathDuplicated { entered_path: path.to_owned() });
-        }
-
-        Ok(())
+        ensure_path_not_duplicated(transaction, path).await
     }
+}
+
+async fn ensure_path_not_duplicated(transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+    if path == "/" {
+        return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+    }
+
+    if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
+        return Err(Error::PathDuplicated { entered_path: path.to_owned() });
+    }
+
+    Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -1324,5 +1382,28 @@ mod test {
         path.delete();
 
         assert!(path.deleted);
+    }
+
+    #[tokio::test]
+    async fn when_updating_path_then_updated_path_field_turns_into_new_path() {
+        let mut path = Path::new("/test/path".to_owned());
+
+        assert!(path.updated_path.is_none());
+
+        path.update_path("/test/path/new").expect("updating path should be successful");
+
+        assert_eq!(path.updated_path, Some("/test/path/new".to_owned()))
+    }
+
+    #[tokio::test]
+    async fn when_updating_path_with_invalid_path_then_path_returns_invalid_path_err() {
+        let invalid_paths = ["//", "", "/a//b", "a/b/c", "/a/b/c/"];
+
+        for invalid_path in invalid_paths {
+            let mut path = Path::new("/test/path".to_owned());
+            let result = path.update_path(invalid_path);
+
+            assert!(matches!(result, Err(Error::InvalidPath { .. })));
+        }
     }
 }

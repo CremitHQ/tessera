@@ -17,6 +17,8 @@ pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
     async fn register(&self, path: &str) -> Result<()>;
     async fn delete(&self, path: &str) -> Result<()>;
+    async fn update(&self, path: &str, new_path: &str) -> Result<()>;
+    async fn get(&self, path: &str) -> Result<PathData>;
 }
 
 pub(crate) struct PathUseCaseImpl {
@@ -65,6 +67,33 @@ impl PathUseCase for PathUseCaseImpl {
 
         transaction.commit().await?;
         Ok(())
+    }
+
+    async fn update(&self, path: &str, new_path: &str) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let mut path = self
+            .secret_service
+            .get_path(&transaction, path)
+            .await?
+            .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
+
+        path.update_path(new_path)?;
+        path.persist(&transaction).await?;
+
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    async fn get(&self, path: &str) -> Result<PathData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let path = self
+            .secret_service
+            .get_path(&transaction, path)
+            .await?
+            .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
+        transaction.commit().await?;
+
+        Ok(path.into())
     }
 }
 
@@ -120,7 +149,10 @@ mod test {
 
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
 
-    use crate::domain::secret::{MockSecretService, Path};
+    use crate::{
+        database::{path, secret_metadata, secret_value},
+        domain::secret::{MockSecretService, Path},
+    };
 
     use super::{Error, PathUseCase, PathUseCaseImpl};
 
@@ -291,5 +323,54 @@ mod test {
         let result = path_usecase.delete(path).await;
 
         assert!(matches!(result, Err(Error::PathNotExists { .. })));
+    }
+
+    #[tokio::test]
+    async fn when_updating_existing_path_then_path_usecase_returns_unit_ok() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(0))
+            }]])
+            .append_query_results([Vec::<path::Model>::new()])
+            .append_query_results([Vec::<secret_metadata::Model>::new()])
+            .append_query_results([Vec::<secret_value::Model>::new()])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        path_usecase.update(path, "/new/test/path").await.expect("registering path should be successful");
+    }
+
+    #[tokio::test]
+    async fn when_updating_existing_path_to_existing_path_then_path_usecase_returns_path_duplicated_err() {
+        let path = "/test/path";
+
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[maplit::btreemap! {
+                "num_items" => sea_orm::Value::BigInt(Some(1))
+            }]])
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+
+        let mock_connection = Arc::new(mock_database.into_connection());
+
+        let mut mock_secret_service = MockSecretService::new();
+        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+
+        let path_usecase =
+            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+
+        let result = path_usecase.update(path, "/new/test/path").await;
+
+        assert!(matches!(result, Err(Error::PathDuplicated { .. })))
     }
 }
