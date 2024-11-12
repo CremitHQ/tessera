@@ -1,0 +1,29 @@
+use std::sync::Arc;
+
+use axum::{routing::get, Router};
+use tracing::debug;
+
+use crate::{application::Application, config::ApplicationConfig};
+
+//mod response;
+mod router;
+
+pub(super) struct ServerConfig {
+    pub port: u16,
+}
+
+impl From<ApplicationConfig> for ServerConfig {
+    fn from(value: ApplicationConfig) -> Self {
+        Self { port: value.port }
+    }
+}
+
+pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
+    let _application = Arc::new(application);
+    let app = Router::new().route("/health", get(|| async { "" }));
+
+    let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
+    debug!("starting idp server on {}", config.port);
+    axum::serve(listener, app).await?;
+    Ok(())
+}

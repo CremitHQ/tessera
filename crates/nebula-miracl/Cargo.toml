@@ -1,0 +1,15 @@
+[package]
+name = "nebula-miracl"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+
+[features]
+std = []
