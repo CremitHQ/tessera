@@ -1,0 +1,27 @@
+[package]
+name = "nebula-abe-wasm"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+wasm-bindgen = "0.2.84"
+console_error_panic_hook = { version = "0.1.7", optional = true }
+getrandom = { version = "0.2", features = ["js"] }
+serde-wasm-bindgen = "0.4"
+nebula-abe.workspace = true
+nebula-policy.workspace = true
+lol_alloc = "0.4.1"
+serde = { workspace = true, features = ["derive"] }
+base64.workspace = true
+rmp-serde.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"

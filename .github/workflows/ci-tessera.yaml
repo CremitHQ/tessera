@@ -1,4 +1,4 @@
-name: CI-tessera
+name: CI-nebula
 
 on:
   push:

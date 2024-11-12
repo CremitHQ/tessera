@@ -10,25 +10,25 @@ author: john@cremit.io
 
 - [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
-  - [What is Tessera?](#what-is-tessera)
-  - [Tessera objectives](#tessera-objectives)
-  - [Why Tessera?](#why-tessera)
+  - [What is Nebula?](#what-is-nebula)
+  - [Nebula objectives](#nebula-objectives)
+  - [Why Nebula?](#why-nebula)
 - [Techincal Details and Architecture](#techincal-details-and-architecture)
 - [Acknowledgements](#acknowledgements)
 
 ## Introduction
 
-#### What is Tessera?
+#### What is Nebula?
 
-Tessera is a comprehensive platform for secret management, designed to support various applications and use cases. It provides a secure, scalable, and flexible solution for storing and controlling access to sensitive information across multiple domains and organizations.
+Nebula is a comprehensive platform for secret management, designed to support various applications and use cases. It provides a secure, scalable, and flexible solution for storing and controlling access to sensitive information across multiple domains and organizations.
 
-- Multi-Authority Attribute-Based Encryption (MA-ABE) is the core cryptographic protocol used by Tessera to securely store and control access to secrets. It allows for fine-grained access control based on user attributes across multiple authorities.
+- Multi-Authority Attribute-Based Encryption (MA-ABE) is the core cryptographic protocol used by Nebula to securely store and control access to secrets. It allows for fine-grained access control based on user attributes across multiple authorities.
 
-- A key security feature of Tessera is its end-to-end encryption(E2EE) model. All encryption and decryption operations are performed on the client side, ensuring that sensitive data never leaves the client in an unencrypted form. This approach significantly enhances security by reducing the attack surface and eliminating the need to trust the server with unencrypted secrets.
+- A key security feature of Nebula is its end-to-end encryption(E2EE) model. All encryption and decryption operations are performed on the client side, ensuring that sensitive data never leaves the client in an unencrypted form. This approach significantly enhances security by reducing the attack surface and eliminating the need to trust the server with unencrypted secrets.
 
-- The Tessera protocol operates over a secure transport layer (e.g., TLS) that provides integrity, server authentication, confidentiality, and transport channel binding.
+- The Nebula protocol operates over a secure transport layer (e.g., TLS) that provides integrity, server authentication, confidentiality, and transport channel binding.
 
-#### Tessera objectives
+#### Nebula objectives
 
 1. Provide a secure and decentralized secret management infrastructure for organizations and applications. This infrastructure aims to achieve the following qualities:
 
@@ -42,7 +42,7 @@ Tessera is a comprehensive platform for secret management, designed to support v
 
    - Robust Validation: Validate client credentials against trusted third-party sources, similar to Vault's approach with Github, LDAP, AppRole, and others, ensuring the authenticity of access requests.
 
-2. Offer a more secure and privacy-focused alternative to traditional centralized secret management solutions. Tessera aims to provide:
+2. Offer a more secure and privacy-focused alternative to traditional centralized secret management solutions. Nebula aims to provide:
 
    - Improved security against potential compromises of individual authorities in the system.
 
@@ -52,7 +52,7 @@ Tessera is a comprehensive platform for secret management, designed to support v
 
 4. Provide a scalable and adaptable solution that can grow with organizations, supporting complex multi-domain and multi-organizational secret sharing scenarios while maintaining strict security standards.
 
-#### Why Tessera?
+#### Why Nebula?
 
 TBD
 

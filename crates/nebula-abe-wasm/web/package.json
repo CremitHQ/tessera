@@ -1,0 +1,14 @@
+{
+	"name": "nebula-wasm-test",
+	"version": "1.0.0",
+	"main": "src/index.js",
+	"license": "MIT",
+	"dependencies": {
+		"webpack": "^5.58.2",
+		"webpack-cli": "^4.9.0",
+		"nebula-abe-wasm": "file:../pkg"
+	},
+	"devDependencies": {
+		"webpack-dev-server": "^4.3.1"
+	}
+}

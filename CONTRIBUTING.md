@@ -1,20 +1,20 @@
 ## Contribution Guidelines
 
-Thank you for your interest in contributing to Tessera! We appreciate your efforts to help us enhance and refine our open-source secret management platform. This guide provides instructions and best practices to streamline your contribution process.
+Thank you for your interest in contributing to Nebula! We appreciate your efforts to help us enhance and refine our open-source secret management platform. This guide provides instructions and best practices to streamline your contribution process.
 
 ---
 ### Getting Started
 
 #### 1. Fork the Repository
 
-Begin by forking the Tessera repository to your own GitHub account. This creates a personal copy where you can make changes independently.
+Begin by forking the Nebula repository to your own GitHub account. This creates a personal copy where you can make changes independently.
 
 #### 2. Clone Your Fork Locally
 
 Clone the forked repository to your local development environment:
 
 ```sh
-git clone https://github.com/your-username/tessera.git
+git clone https://github.com/your-username/nebula.git
 ```
 
 Replace your-username with your GitHub username.
@@ -24,8 +24,8 @@ Replace your-username with your GitHub username.
 To keep your fork synchronized with the original repository, add it as an upstream remote:
 
 ```sh
-cd tessera
-git remote add upstream https://github.com/CremitHQ/tessera.git
+cd nebula
+git remote add upstream https://github.com/CremitHQ/nebula.git
 ```
 
 #### 4. Create a New Branch
@@ -106,7 +106,7 @@ If you find a bug or have a suggestion:
 
 #### License
 
-By contributing to Tessera, you agree that your contributions will be licensed under the [Apache License 2.0.](./LICENSE)
+By contributing to Nebula, you agree that your contributions will be licensed under the [Apache License 2.0.](./LICENSE)
 
 --- 
-Once again, We greatly appreciate your contributions and efforts to improve Tessera. Together, we can build a more secure and versatile secret management solution for everyone.
+Once again, We greatly appreciate your contributions and efforts to improve Nebula. Together, we can build a more secure and versatile secret management solution for everyone.
