@@ -1,11 +1,54 @@
 .features {
-  display: flex;
-  align-items: center;
-  padding: 2rem 0;
-  width: 100%;
+  padding: 6rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+.keyFeatures {
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 3rem;
+  color: var(--ifm-heading-color);
+}
+
+.featureCard {
+  padding: 2rem;
+  background: var(--ifm-card-background-color);
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px var(--ifm-shadow-color);
+  transition: transform 0.2s ease-in-out;
+}
+
+.featureCard:hover {
+  transform: translateY(-4px);
+}
+
+.featureCard .icon {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.featureCard h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-heading-color);
+}
+
+.featureCard p {
+  color: var(--ifm-font-color-base);
+  line-height: 1.6;
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+@media screen and (max-width: 996px) {
+  .keyFeatures {
+    font-size: 2rem;
+  }  
 }

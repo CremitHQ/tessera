@@ -1,10 +1,10 @@
-import clsx from 'clsx';
 import Heading from '@theme/Heading';
 import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
   description: JSX.Element;
+  icon: string;
 };
 
 const FeatureList: FeatureItem[] = [
@@ -16,6 +16,7 @@ const FeatureList: FeatureItem[] = [
         (ABE), ensuring secure data protection.
       </>
     ),
+    icon: '🔐',
   },
   {
     title: 'Policy-Based Access Control',
@@ -25,6 +26,7 @@ const FeatureList: FeatureItem[] = [
         access only to users with attributes that satisfy the policies.
       </>
     ),
+    icon: '📝',
   },
   {
     title: 'Secure User Key Management',
@@ -34,30 +36,33 @@ const FeatureList: FeatureItem[] = [
         that meet the policies, enhancing security.
       </>
     ),
+    icon: '📝',
   },
 ];
 
-function Feature({ title, Svg, description }: FeatureItem) {
+function Feature({ title, icon, description }: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="padding-horiz--md">
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
-      </div>
+    <div className={styles.featureCard}>
+      <div className="icon">{icon}</div>
+      <Heading as="h3">{title}</Heading>
+      <p>{description}</p>
     </div>
   );
 }
 
 export default function HomepageFeatures(): JSX.Element {
   return (
-    <section className={styles.features}>
-      <div className="container">
-        <div className="row">
+    <div className="container">
+      <section className={styles.features}>
+        <Heading as="h2" className={styles.keyFeatures}>
+          Key Features
+        </Heading>
+        <div className={styles.featureGrid}>
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />
           ))}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
