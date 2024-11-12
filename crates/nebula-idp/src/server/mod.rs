@@ -19,7 +19,7 @@ impl From<ApplicationConfig> for ServerConfig {
 }
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
-    let application = Arc::new(application);
+    let _application = Arc::new(application);
     let app = Router::new().route("/health", get(|| async { "" }));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;

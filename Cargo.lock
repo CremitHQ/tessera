@@ -2153,6 +2153,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "libxml"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fe73cdec2bcb36d25a9fe3f607ffcd44bb8907ca0100c4098d1aa342d1e7bec"
+dependencies = [
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3450,6 +3461,9 @@ dependencies = [
  "data-encoding",
  "derive_builder",
  "flate2",
+ "lazy_static",
+ "libc",
+ "libxml",
  "openssl",
  "openssl-probe",
  "openssl-sys",

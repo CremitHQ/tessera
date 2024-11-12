@@ -22,6 +22,6 @@ axum_thiserror = "0.1"
 thiserror = { workspace = true }
 validator.workspace = true
 async-trait = { workspace = true }
-samael = { version = "0.0.17" }
+samael = { version = "0.0.17", features = ["xmlsec"] }
 base64 = { workspace = true }
 bon = { workspace = true }

@@ -17,6 +17,10 @@ jobs:
       - name: Set up toolchain for stable rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install xmlsec1
+        if: matrix.os == 'ubuntu-latest'
+        run: apt-get install pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl
+
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
