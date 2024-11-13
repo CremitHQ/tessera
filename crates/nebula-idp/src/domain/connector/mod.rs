@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 pub mod saml;
@@ -9,4 +11,5 @@ pub struct Identity {
     pub email: String,
     pub email_verified: bool,
     pub groups: Vec<String>,
+    pub custom_claims: HashMap<String, String>,
 }

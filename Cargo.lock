@@ -2432,6 +2432,7 @@ dependencies = [
  "clap",
  "config",
  "directories",
+ "openssl",
  "samael",
  "serde",
  "thiserror",

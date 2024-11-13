@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bon::Builder;
 use samael::{
-    metadata::NameIdFormat,
+    metadata::{Endpoint, EntityDescriptor, IdpSsoDescriptor, NameIdFormat, HTTP_POST_BINDING, HTTP_REDIRECT_BINDING},
     schema::AttributeStatement,
     service_provider::{ServiceProvider, ServiceProviderBuilder},
 };
@@ -15,12 +17,15 @@ pub struct SAMLConnertorConfig {
     entity_id: String,
     idp_url: String,
     acs_url: String,
+    sso_url: String,
     user_name_attr: String,
     email_attr: String,
     groups_attr: String,
     groups_separator: Option<String>,
     #[builder(default = NameIdFormat::PersistentNameIDFormat)]
     name_id_policy_format: NameIdFormat,
+    ca: openssl::x509::X509,
+    attribute_mapping: Vec<(String, String)>,
 }
 
 pub struct SAMLConnector {
@@ -29,6 +34,7 @@ pub struct SAMLConnector {
     email_attr: String,
     groups_attr: String,
     groups_separator: Option<String>,
+    attribute_mapping: Vec<(String, String)>,
 }
 
 #[derive(Error, Debug)]
@@ -60,14 +66,55 @@ pub enum SAMLHandlerError {
 
 impl SAMLConnector {
     pub fn new(config: SAMLConnertorConfig) -> Result<Self, SAMLHandlerError> {
-        let service_provider =
-            ServiceProviderBuilder::default().entity_id(config.entity_id).acs_url(config.acs_url).build()?;
+        let service_provider = ServiceProviderBuilder::default()
+            .entity_id(config.entity_id)
+            .idp_metadata(EntityDescriptor {
+                entity_id: Some(config.idp_url),
+                idp_sso_descriptors: Some(vec![IdpSsoDescriptor {
+                    single_sign_on_services: vec![
+                        Endpoint {
+                            binding: HTTP_POST_BINDING.to_string(),
+                            location: config.sso_url.clone(),
+                            response_location: None,
+                        },
+                        Endpoint {
+                            binding: HTTP_REDIRECT_BINDING.to_string(),
+                            location: config.sso_url.clone(),
+                            response_location: None,
+                        },
+                    ],
+                    id: None,
+                    valid_until: None,
+                    cache_duration: None,
+                    protocol_support_enumeration: None,
+                    error_url: None,
+                    signature: None,
+                    key_descriptors: vec![],
+                    organization: None,
+                    contact_people: vec![],
+                    artifact_resolution_service: vec![],
+                    single_logout_services: vec![],
+                    manage_name_id_services: vec![],
+                    name_id_formats: vec![],
+                    want_authn_requests_signed: None,
+                    name_id_mapping_services: vec![],
+                    assertion_id_request_services: vec![],
+                    attribute_profiles: vec![],
+                    attributes: vec![],
+                }]),
+                ..Default::default()
+            })
+            .acs_url(config.acs_url)
+            .allow_idp_initiated(true)
+            .certificate(config.ca)
+            .build()?;
         Ok(Self {
             service_provider,
             user_name_attr: config.user_name_attr,
             email_attr: config.email_attr,
             groups_attr: config.groups_attr,
             groups_separator: config.groups_separator,
+            attribute_mapping: config.attribute_mapping,
         })
     }
 
@@ -92,8 +139,17 @@ impl SAMLConnector {
             get_all_attribute(&attributes, &self.groups_attr)?
         };
 
+        let custom_claims = self
+            .attribute_mapping
+            .iter()
+            .map(|(key, value)| {
+                let val = get_attribute(&attributes, value)?;
+                Ok((key.clone(), val))
+            })
+            .collect::<Result<HashMap<_, _>, SAMLHandlerError>>()?;
+
         // SAML does not provide a way to verify the email address of the user
-        Ok(Identity { user_id, user_name, email, email_verified: true, groups })
+        Ok(Identity { user_id, user_name, email, email_verified: true, groups, custom_claims })
     }
 }
 

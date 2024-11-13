@@ -25,3 +25,4 @@ async-trait = { workspace = true }
 samael = { version = "0.0.17", features = ["xmlsec"] }
 base64 = { workspace = true }
 bon = { workspace = true }
+openssl = { workspace = true }
