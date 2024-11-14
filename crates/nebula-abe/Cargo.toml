@@ -9,8 +9,8 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
-sha3 = "0.10"
 rand_core = "0.6"
+sha3 = { workspace = true }
 aes-gcm = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }

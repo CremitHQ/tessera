@@ -26,3 +26,15 @@ samael = { version = "0.0.17", features = ["xmlsec"] }
 base64 = { workspace = true }
 bon = { workspace = true }
 openssl = { workspace = true }
+josekit = "0.10"
+serde_json = { workspace = true }
+time = "0.3"
+url = { workspace = true, features = ["serde"] }
+rand = { workspace = true }
+sha3 = { workspace = true }
+sea-orm = { workspace = true, features = ["mock"] }
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sigv4 = { workspace = true }
+ulid = { workspace = true }
+urlencoding = { workspace = true }

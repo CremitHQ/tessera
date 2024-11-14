@@ -2066,6 +2066,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
+name = "josekit"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a603084e34e151e215d232e401df0d9299bdced264b8054e4888ea614e59bb06"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "flate2",
+ "openssl",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "time",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2425,6 +2442,9 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sigv4",
  "axum",
  "axum_thiserror",
  "base64 0.22.1",
@@ -2432,13 +2452,22 @@ dependencies = [
  "clap",
  "config",
  "directories",
+ "josekit",
  "openssl",
+ "rand",
  "samael",
+ "sea-orm",
  "serde",
+ "serde_json",
+ "sha3",
  "thiserror",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "ulid",
+ "url",
+ "urlencoding",
  "validator",
  "xdg",
 ]
@@ -3676,6 +3705,7 @@ version = "1.0.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "ryu",
@@ -4620,6 +4650,7 @@ dependencies = [
  "form_urlencoded",
  "idna 0.5.0",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]
