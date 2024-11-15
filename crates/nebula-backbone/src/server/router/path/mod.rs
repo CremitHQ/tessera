@@ -11,13 +11,14 @@ use axum::{
 
 use crate::{
     application::{self, path::PathUseCase, Application},
-    server::router::path::reuqest::PatchPathRequest,
+    server::router::path::request::PatchPathRequest,
 };
 
-use self::reuqest::PostPathRequest;
+use self::request::PostPathRequest;
 
+mod model;
+mod request;
 mod response;
-mod reuqest;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
