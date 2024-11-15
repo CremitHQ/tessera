@@ -25,7 +25,7 @@ pub struct SAMLConnertorConfig {
     #[builder(default = NameIdFormat::PersistentNameIDFormat)]
     name_id_policy_format: NameIdFormat,
     ca: openssl::x509::X509,
-    attribute_mapping: Vec<(String, String)>,
+    claim_mapping: Vec<(String, String)>,
 }
 
 pub struct SAMLConnector {
@@ -34,7 +34,7 @@ pub struct SAMLConnector {
     email_attr: String,
     groups_attr: String,
     groups_separator: Option<String>,
-    attribute_mapping: Vec<(String, String)>,
+    claim_mapping: Vec<(String, String)>,
 }
 
 #[derive(Error, Debug)]
@@ -114,7 +114,7 @@ impl SAMLConnector {
             email_attr: config.email_attr,
             groups_attr: config.groups_attr,
             groups_separator: config.groups_separator,
-            attribute_mapping: config.attribute_mapping,
+            claim_mapping: config.claim_mapping,
         })
     }
 
@@ -140,7 +140,7 @@ impl SAMLConnector {
         };
 
         let custom_claims = self
-            .attribute_mapping
+            .claim_mapping
             .iter()
             .map(|(key, value)| {
                 let val = get_attribute(&attributes, value)?;
