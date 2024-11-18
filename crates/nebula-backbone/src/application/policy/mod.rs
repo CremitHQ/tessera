@@ -116,8 +116,8 @@ pub(crate) struct PolicyData {
     pub expression: String,
 }
 
-impl From<domain::policy::Policy> for PolicyData {
-    fn from(value: domain::policy::Policy) -> Self {
+impl From<domain::policy::AccessCondition> for PolicyData {
+    fn from(value: domain::policy::AccessCondition) -> Self {
         Self { id: value.id, name: value.name, expression: value.expression }
     }
 }
@@ -161,7 +161,7 @@ mod test {
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
-    use crate::domain::policy::{MockPolicyService, Policy};
+    use crate::domain::policy::{AccessCondition, MockPolicyService};
 
     use super::{Error, PolicyUseCase, PolicyUseCaseImpl};
 
@@ -178,7 +178,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_list().withf(|_| true).times(1).returning(move |_| {
-            Ok(vec![Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())])
+            Ok(vec![AccessCondition::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())])
         });
 
         let policy_usecase =
@@ -226,7 +226,7 @@ mod test {
 
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(1).returning(move |_, _| {
-            Ok(Some(Policy::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())))
+            Ok(Some(AccessCondition::new(policy_id.to_owned(), policy_name.to_owned(), expression.to_owned())))
         });
 
         let policy_usecase =

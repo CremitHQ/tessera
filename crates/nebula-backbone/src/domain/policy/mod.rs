@@ -8,7 +8,7 @@ use sea_orm::{
 };
 use ulid::Ulid;
 
-pub(crate) struct Policy {
+pub(crate) struct AccessCondition {
     pub id: Ulid,
     pub name: String,
     pub expression: String,
@@ -17,7 +17,7 @@ pub(crate) struct Policy {
     deleted: bool,
 }
 
-impl Policy {
+impl AccessCondition {
     pub fn new(id: Ulid, name: String, expression: String) -> Self {
         Self { id, name, expression, updated_name: None, updated_expression: None, deleted: false }
     }
@@ -46,14 +46,14 @@ impl Policy {
     }
 }
 
-impl From<policy::Model> for Policy {
+impl From<policy::Model> for AccessCondition {
     fn from(value: policy::Model) -> Self {
         Self::new(value.id.inner(), value.name, value.expression)
     }
 }
 
 #[async_trait]
-impl Persistable for Policy {
+impl Persistable for AccessCondition {
     type Error = Error;
 
     async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
@@ -90,8 +90,8 @@ impl Persistable for Policy {
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait PolicyService {
-    async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<Policy>>;
-    async fn get(&self, transaction: &DatabaseTransaction, id: &Ulid) -> Result<Option<Policy>>;
+    async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<AccessCondition>>;
+    async fn get(&self, transaction: &DatabaseTransaction, id: &Ulid) -> Result<Option<AccessCondition>>;
     async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()>;
 }
 
@@ -99,16 +99,16 @@ pub(crate) struct PostgresPolicyService {}
 
 #[async_trait]
 impl PolicyService for PostgresPolicyService {
-    async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<Policy>> {
+    async fn list(&self, transaction: &DatabaseTransaction) -> Result<Vec<AccessCondition>> {
         let policies = policy::Entity::find().all(transaction).await?;
 
-        Ok(policies.into_iter().map(Policy::from).collect())
+        Ok(policies.into_iter().map(AccessCondition::from).collect())
     }
 
-    async fn get(&self, transaction: &DatabaseTransaction, id: &Ulid) -> Result<Option<Policy>> {
+    async fn get(&self, transaction: &DatabaseTransaction, id: &Ulid) -> Result<Option<AccessCondition>> {
         let policy = policy::Entity::find_by_id(id).one(transaction).await?;
 
-        Ok(policy.map(Policy::from))
+        Ok(policy.map(AccessCondition::from))
     }
 
     async fn register(&self, transaction: &DatabaseTransaction, name: &str, expression: &str) -> Result<()> {
@@ -174,7 +174,7 @@ mod test {
     use super::{Error, PolicyService, PostgresPolicyService};
     use crate::{
         database::{policy, Persistable, UlidId},
-        domain::policy::Policy,
+        domain::policy::AccessCondition,
     };
 
     #[tokio::test]
@@ -305,7 +305,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_name_then_updated_name_turns_into_new_name() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_name, None);
 
@@ -316,7 +316,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_name_with_same_name_then_updated_name_not_changed() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_name, None);
 
@@ -327,7 +327,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_expression_then_updated_expression_turns_into_new_expression() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_expression, None);
 
@@ -338,7 +338,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_expression_with_same_expression_then_updated_expression_not_changed() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_expression, None);
 
@@ -349,7 +349,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_expression_with_invalid_expression_then_policy_returns_invalid_policy_err() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_expression, None);
 
@@ -360,7 +360,7 @@ mod test {
 
     #[tokio::test]
     async fn when_update_and_persist_with_existing_name_then_policy_returns_name_duplicated_err() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert_eq!(policy.updated_expression, None);
 
@@ -383,7 +383,7 @@ mod test {
 
     #[tokio::test]
     async fn when_deleting_policy_then_deleted_into_true() {
-        let mut policy = Policy::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
+        let mut policy = AccessCondition::new(Ulid::new(), "test1".to_owned(), "(\"role=FRONTEND@A\")".to_owned());
 
         assert!(!policy.deleted);
 

@@ -7,8 +7,7 @@ pub struct PostSecretRequest {
     pub path: String,
     pub key: String,
     pub cipher: String,
-    pub access_policy_ids: Vec<Ulid>,
-    pub management_policy_ids: Vec<Ulid>,
+    pub access_condition_ids: Vec<Ulid>,
 }
 
 #[derive(Deserialize)]
@@ -16,6 +15,5 @@ pub struct PostSecretRequest {
 pub struct PatchSecretRequest {
     pub path: Option<String>,
     pub cipher: Option<String>,
-    pub access_policy_ids: Option<Vec<Ulid>>,
-    pub management_policy_ids: Option<Vec<Ulid>>,
+    pub access_condition_ids: Option<Vec<Ulid>>,
 }

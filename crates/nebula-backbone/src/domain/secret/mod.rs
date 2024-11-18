@@ -12,46 +12,33 @@ use sea_orm::{
 };
 use ulid::Ulid;
 
-use crate::database::{
-    applied_policy::{self, PolicyApplicationType},
-    path, secret_metadata, secret_value, Persistable, UlidId,
-};
+use crate::database::{applied_policy, path, secret_metadata, secret_value, Persistable, UlidId};
 
-use super::policy::Policy;
+use super::policy::AccessCondition;
 
 pub(crate) struct SecretEntry {
     pub key: String,
     pub path: String,
     pub cipher: Vec<u8>,
-    pub access_policy_ids: Vec<Ulid>,
-    pub management_policy_ids: Vec<Ulid>,
+    pub access_condition_ids: Vec<Ulid>,
     deleted: bool,
     updated_path: Option<String>,
     updated_cipher: Option<Vec<u8>>,
-    updated_access_policy_ids: Option<Vec<Ulid>>,
-    updated_management_policy_ids: Option<Vec<Ulid>>,
+    updated_access_condition_ids: Option<Vec<Ulid>>,
 }
 
 impl SecretEntry {
     #[cfg(test)]
-    pub(crate) fn new(
-        key: String,
-        path: String,
-        cipher: Vec<u8>,
-        access_policy_ids: Vec<Ulid>,
-        management_policy_ids: Vec<Ulid>,
-    ) -> Self {
+    pub(crate) fn new(key: String, path: String, cipher: Vec<u8>, access_condition_ids: Vec<Ulid>) -> Self {
         Self {
             key,
             path,
             cipher,
-            access_policy_ids,
-            management_policy_ids,
+            access_condition_ids,
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         }
     }
 
@@ -74,27 +61,16 @@ impl SecretEntry {
         self.updated_cipher = Some(new_cipher)
     }
 
-    pub fn update_access_policies(&mut self, new_access_policies: Vec<Policy>) {
-        let new_access_policy_ids: Vec<_> = new_access_policies.into_iter().map(|policy| policy.id).collect();
+    pub fn update_access_conditions(&mut self, new_access_conditions: Vec<AccessCondition>) {
+        let new_access_condition_ids: Vec<_> = new_access_conditions.into_iter().map(|policy| policy.id).collect();
 
-        if self.access_policy_ids.iter().collect::<HashSet<_>>() == new_access_policy_ids.iter().collect::<HashSet<_>>()
+        if self.access_condition_ids.iter().collect::<HashSet<_>>()
+            == new_access_condition_ids.iter().collect::<HashSet<_>>()
         {
             return;
         }
 
-        self.updated_access_policy_ids = Some(new_access_policy_ids);
-    }
-
-    pub fn update_management_policies(&mut self, new_management_policies: Vec<Policy>) {
-        let new_management_policy_ids: Vec<_> = new_management_policies.into_iter().map(|policy| policy.id).collect();
-
-        if self.management_policy_ids.iter().collect::<HashSet<_>>()
-            == new_management_policy_ids.iter().collect::<HashSet<_>>()
-        {
-            return;
-        }
-
-        self.updated_management_policy_ids = Some(new_management_policy_ids);
+        self.updated_access_condition_ids = Some(new_access_condition_ids);
     }
 }
 
@@ -133,7 +109,7 @@ impl Persistable for SecretEntry {
         let now = Utc::now();
 
         // update applied polciies
-        if self.updated_access_policy_ids.is_some() || self.updated_management_policy_ids.is_some() {
+        if let Some(updated_access_condition_ids) = self.updated_access_condition_ids {
             let metadata_id: UlidId = if let Some(metadata_id) = secret_metadata::Entity::find()
                 .select_only()
                 .column(secret_metadata::Column::Id)
@@ -147,48 +123,22 @@ impl Persistable for SecretEntry {
             } else {
                 return Ok(());
             };
+            applied_policy::Entity::delete_many()
+                .filter(applied_policy::Column::SecretMetadataId.eq(metadata_id.clone()))
+                .exec(transaction)
+                .await?;
 
-            if let Some(updated_access_policy_ids) = self.updated_access_policy_ids {
-                applied_policy::Entity::delete_many()
-                    .filter(applied_policy::Column::SecretMetadataId.eq(metadata_id.clone()))
-                    .filter(applied_policy::Column::Type.eq(PolicyApplicationType::Access))
-                    .exec(transaction)
-                    .await?;
+            if !updated_access_condition_ids.is_empty() {
+                let applied_access_policies =
+                    updated_access_condition_ids.into_iter().map(|policy_id| applied_policy::ActiveModel {
+                        id: Set(UlidId::new(Ulid::new())),
+                        secret_metadata_id: Set(metadata_id.clone()),
+                        policy_id: Set(UlidId::new(policy_id)),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    });
 
-                if !updated_access_policy_ids.is_empty() {
-                    let applied_access_policies =
-                        updated_access_policy_ids.into_iter().map(|policy_id| applied_policy::ActiveModel {
-                            id: Set(UlidId::new(Ulid::new())),
-                            secret_metadata_id: Set(metadata_id.clone()),
-                            r#type: Set(PolicyApplicationType::Access),
-                            policy_id: Set(UlidId::new(policy_id)),
-                            created_at: Set(now),
-                            updated_at: Set(now),
-                        });
-
-                    applied_policy::Entity::insert_many(applied_access_policies).exec(transaction).await?;
-                }
-            }
-            if let Some(updated_management_policy_ids) = self.updated_management_policy_ids {
-                applied_policy::Entity::delete_many()
-                    .filter(applied_policy::Column::SecretMetadataId.eq(metadata_id.clone()))
-                    .filter(applied_policy::Column::Type.eq(PolicyApplicationType::Management))
-                    .exec(transaction)
-                    .await?;
-
-                if !updated_management_policy_ids.is_empty() {
-                    let applied_management_policies =
-                        updated_management_policy_ids.into_iter().map(|policy_id| applied_policy::ActiveModel {
-                            id: Set(UlidId::new(Ulid::new())),
-                            secret_metadata_id: Set(metadata_id.clone()),
-                            r#type: Set(PolicyApplicationType::Management),
-                            policy_id: Set(UlidId::new(policy_id)),
-                            created_at: Set(now),
-                            updated_at: Set(now),
-                        });
-
-                    applied_policy::Entity::insert_many(applied_management_policies).exec(transaction).await?;
-                }
+                applied_policy::Entity::insert_many(applied_access_policies).exec(transaction).await?;
             }
         }
 
@@ -234,31 +184,17 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
     fn from(
         (metadata, applied_policies, cipher): (secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>),
     ) -> Self {
-        let mut access_policy_ids: Vec<Ulid> = vec![];
-        let mut management_policy_ids: Vec<Ulid> = vec![];
-
-        for applied_policy in applied_policies {
-            match applied_policy.r#type {
-                applied_policy::PolicyApplicationType::Access => {
-                    access_policy_ids.push(applied_policy.policy_id.inner())
-                }
-                applied_policy::PolicyApplicationType::Management => {
-                    management_policy_ids.push(applied_policy.policy_id.inner())
-                }
-            }
-        }
+        let access_condition_ids = applied_policies.into_iter().map(|ap| ap.policy_id.inner()).collect();
 
         SecretEntry {
             key: metadata.key,
             cipher,
             path: metadata.path,
-            access_policy_ids,
-            management_policy_ids,
+            access_condition_ids,
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         }
     }
 }
@@ -400,8 +336,7 @@ pub(crate) trait SecretService {
         path: String,
         key: String,
         cipher: Vec<u8>,
-        access_policies: Vec<Policy>,
-        management_policies: Vec<Policy>,
+        access_conditions: Vec<AccessCondition>,
     ) -> Result<()>;
 
     async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()>;
@@ -530,8 +465,7 @@ impl SecretService for PostgresSecretService {
         path: String,
         key: String,
         cipher: Vec<u8>,
-        access_policies: Vec<Policy>,
-        management_policies: Vec<Policy>,
+        access_conditions: Vec<AccessCondition>,
     ) -> Result<()> {
         self.ensure_path_exists(transaction, &path).await?;
 
@@ -560,27 +494,15 @@ impl SecretService for PostgresSecretService {
         .insert(transaction)
         .await?;
 
-        let applied_access_policies = access_policies.into_iter().map(|access_policy| applied_policy::ActiveModel {
+        let applied_access_policies = access_conditions.into_iter().map(|access_policy| applied_policy::ActiveModel {
             id: Set(UlidId::new(Ulid::new())),
             secret_metadata_id: Set(secret_metadata_id.clone()),
-            r#type: Set(PolicyApplicationType::Access),
             policy_id: Set(UlidId::new(access_policy.id)),
             created_at: Set(now),
             updated_at: Set(now),
         });
-        let applied_management_policies =
-            management_policies.into_iter().map(|management_policy| applied_policy::ActiveModel {
-                id: Set(UlidId::new(Ulid::new())),
-                secret_metadata_id: Set(secret_metadata_id.clone()),
-                r#type: Set(PolicyApplicationType::Management),
-                policy_id: Set(UlidId::new(management_policy.id)),
-                created_at: Set(now),
-                updated_at: Set(now),
-            });
 
-        applied_policy::Entity::insert_many(applied_access_policies.chain(applied_management_policies))
-            .exec(transaction)
-            .await?;
+        applied_policy::Entity::insert_many(applied_access_policies).exec(transaction).await?;
 
         secret_value::ActiveModel {
             id: Set(UlidId::new(Ulid::new())),
@@ -701,7 +623,7 @@ mod test {
     use crate::{
         database::{applied_policy, path, secret_metadata, secret_value, UlidId},
         domain::{
-            policy::Policy,
+            policy::AccessCondition,
             secret::{Path, SecretEntry},
         },
     };
@@ -726,24 +648,13 @@ mod test {
                 created_at: now,
                 updated_at: now,
             }]])
-            .append_query_results([vec![
-                applied_policy::Model {
-                    id: applied_policy_ids[0].to_owned(),
-                    secret_metadata_id: metadata_id.to_owned(),
-                    r#type: applied_policy::PolicyApplicationType::Access,
-                    policy_id: policy_id.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                },
-                applied_policy::Model {
-                    id: applied_policy_ids[1].to_owned(),
-                    secret_metadata_id: metadata_id.to_owned(),
-                    r#type: applied_policy::PolicyApplicationType::Management,
-                    policy_id: policy_id.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                },
-            ]])
+            .append_query_results([vec![applied_policy::Model {
+                id: applied_policy_ids[0].to_owned(),
+                secret_metadata_id: metadata_id.to_owned(),
+                policy_id: policy_id.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
@@ -765,8 +676,7 @@ mod test {
         assert_eq!(result[0].key, key);
         assert_eq!(result[0].path, path);
         assert_eq!(result[0].cipher, vec![1, 2, 3]);
-        assert_eq!(result[0].access_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
-        assert_eq!(result[0].management_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
+        assert_eq!(result[0].access_condition_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
 
     #[tokio::test]
@@ -807,24 +717,13 @@ mod test {
                 created_at: now,
                 updated_at: now,
             }]])
-            .append_query_results([vec![
-                applied_policy::Model {
-                    id: applied_policy_ids[0].to_owned(),
-                    secret_metadata_id: metadata_id.to_owned(),
-                    r#type: applied_policy::PolicyApplicationType::Access,
-                    policy_id: policy_id.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                },
-                applied_policy::Model {
-                    id: applied_policy_ids[1].to_owned(),
-                    secret_metadata_id: metadata_id.to_owned(),
-                    r#type: applied_policy::PolicyApplicationType::Management,
-                    policy_id: policy_id.to_owned(),
-                    created_at: now,
-                    updated_at: now,
-                },
-            ]])
+            .append_query_results([vec![applied_policy::Model {
+                id: applied_policy_ids[0].to_owned(),
+                secret_metadata_id: metadata_id.to_owned(),
+                policy_id: policy_id.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
@@ -846,8 +745,7 @@ mod test {
         assert_eq!(result.key, key);
         assert_eq!(result.path, path);
         assert_eq!(result.cipher, vec![1, 2, 3]);
-        assert_eq!(result.access_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
-        assert_eq!(result.management_policy_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
+        assert_eq!(result.access_condition_ids[0], Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap());
     }
 
     #[tokio::test]
@@ -985,12 +883,7 @@ mod test {
         let now = Utc::now();
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy::new(
-            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            "test policy".to_owned(),
-            "(\"role=FRONTEND\")".to_owned(),
-        )];
-        let management_policies = vec![Policy::new(
+        let access_conditions = vec![AccessCondition::new(
             Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
             "test policy".to_owned(),
             "(\"role=FRONTEND\")".to_owned(),
@@ -1010,24 +903,13 @@ mod test {
                 created_at: now,
                 updated_at: now,
             }]])
-            .append_query_results([vec![
-                applied_policy::Model {
-                    id: UlidId::new(Ulid::new()),
-                    secret_metadata_id: UlidId::new(Ulid::new()),
-                    r#type: applied_policy::PolicyApplicationType::Access,
-                    policy_id: UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap()),
-                    created_at: now,
-                    updated_at: now,
-                },
-                applied_policy::Model {
-                    id: UlidId::new(Ulid::new()),
-                    secret_metadata_id: UlidId::new(Ulid::new()),
-                    r#type: applied_policy::PolicyApplicationType::Management,
-                    policy_id: UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap()),
-                    created_at: now,
-                    updated_at: now,
-                },
-            ]])
+            .append_query_results([vec![applied_policy::Model {
+                id: UlidId::new(Ulid::new()),
+                secret_metadata_id: UlidId::new(Ulid::new()),
+                policy_id: UlidId::new(Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap()),
+                created_at: now,
+                updated_at: now,
+            }]])
             .append_query_results([vec![secret_value::Model {
                 id: UlidId::new(Ulid::new()),
                 identifier: "/test/path/TEST_KEY".to_owned(),
@@ -1043,14 +925,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         secret_service
-            .register_secret(
-                &transaction,
-                path.to_owned(),
-                key.to_owned(),
-                vec![1, 2, 3],
-                access_policies,
-                management_policies,
-            )
+            .register_secret(&transaction, path.to_owned(), key.to_owned(), vec![1, 2, 3], access_conditions)
             .await
             .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
@@ -1060,12 +935,7 @@ mod test {
     async fn when_registering_secret_with_not_existing_path_then_secret_service_returns_path_not_exists_err() {
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy::new(
-            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            "test policy".to_owned(),
-            "(\"role=FRONTEND\")".to_owned(),
-        )];
-        let management_policies = vec![Policy::new(
+        let access_conditions = vec![AccessCondition::new(
             Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
             "test policy".to_owned(),
             "(\"role=FRONTEND\")".to_owned(),
@@ -1082,14 +952,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register_secret(
-                &transaction,
-                path.to_owned(),
-                key.to_owned(),
-                vec![],
-                access_policies,
-                management_policies,
-            )
+            .register_secret(&transaction, path.to_owned(), key.to_owned(), vec![], access_conditions)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -1100,12 +963,7 @@ mod test {
     async fn when_registering_secret_with_already_used_key_then_secret_service_returns_identifier_conflicted_err() {
         let path = "/test/path";
         let key = "TEST_KEY";
-        let access_policies = vec![Policy::new(
-            Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
-            "test policy".to_owned(),
-            "(\"role=FRONTEND\")".to_owned(),
-        )];
-        let management_policies = vec![Policy::new(
+        let access_conditions = vec![AccessCondition::new(
             Ulid::from_str("01JACZ44MJDY5GD21X2W910CFV").unwrap(),
             "test policy".to_owned(),
             "(\"role=FRONTEND\")".to_owned(),
@@ -1126,14 +984,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         let result = secret_service
-            .register_secret(
-                &transaction,
-                path.to_owned(),
-                key.to_owned(),
-                vec![],
-                access_policies,
-                management_policies,
-            )
+            .register_secret(&transaction, path.to_owned(), key.to_owned(), vec![], access_conditions)
             .await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -1146,13 +997,11 @@ mod test {
             key: "TEST_KEY".to_owned(),
             path: "/test/path".to_owned(),
             cipher: vec![1, 2, 3],
-            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            access_condition_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         };
 
         secret_entry.delete();
@@ -1166,13 +1015,11 @@ mod test {
             key: "TEST_KEY".to_owned(),
             path: "/test/path".to_owned(),
             cipher: vec![1, 2, 3],
-            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            access_condition_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         };
 
         secret_entry.update_path("/test/path/2".to_owned());
@@ -1186,13 +1033,11 @@ mod test {
             key: "TEST_KEY".to_owned(),
             path: "/test/path".to_owned(),
             cipher: vec![1, 2, 3],
-            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            access_condition_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         };
 
         secret_entry.update_cipher(vec![4, 5, 6]);
@@ -1206,50 +1051,21 @@ mod test {
             key: "TEST_KEY".to_owned(),
             path: "/test/path".to_owned(),
             cipher: vec![1, 2, 3],
-            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
+            access_condition_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
             deleted: false,
             updated_path: None,
             updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
+            updated_access_condition_ids: None,
         };
 
-        secret_entry.update_access_policies(vec![Policy::new(
+        secret_entry.update_access_conditions(vec![AccessCondition::new(
             Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
             "test policy2".to_owned(),
             "(\"role=BACKEND\")".to_owned(),
         )]);
 
         assert_eq!(
-            secret_entry.updated_access_policy_ids,
-            Some(vec![Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap()])
-        );
-    }
-
-    #[tokio::test]
-    async fn when_update_management_policies_of_secret_entry_then_write_new_access_policy_ids_to_field() {
-        let mut secret_entry = SecretEntry {
-            key: "TEST_KEY".to_owned(),
-            path: "/test/path".to_owned(),
-            cipher: vec![1, 2, 3],
-            access_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            management_policy_ids: vec![Ulid::from_string("01JACZ44MJDY5GD21X2W910CFV").unwrap()],
-            deleted: false,
-            updated_path: None,
-            updated_cipher: None,
-            updated_access_policy_ids: None,
-            updated_management_policy_ids: None,
-        };
-
-        secret_entry.update_management_policies(vec![Policy::new(
-            Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap(),
-            "test policy2".to_owned(),
-            "(\"role=BACKEND\")".to_owned(),
-        )]);
-
-        assert_eq!(
-            secret_entry.updated_management_policy_ids,
+            secret_entry.updated_access_condition_ids,
             Some(vec![Ulid::from_str("01JBS3ATPE50HBBFENKJDDBM08").unwrap()])
         );
     }
