@@ -483,7 +483,7 @@ pub(crate) trait SecretService {
         &self,
         transaction: &DatabaseTransaction,
         path: &str,
-        policies: Vec<AppliedPolicy>,
+        policies: &[AppliedPolicy],
     ) -> Result<()>;
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>>;
@@ -702,7 +702,7 @@ impl SecretService for PostgresSecretService {
         &self,
         transaction: &DatabaseTransaction,
         path: &str,
-        policies: Vec<AppliedPolicy>,
+        policies: &[AppliedPolicy],
     ) -> Result<()> {
         validate_path(path)?;
         if let Some(parent_path) = extract_parent_path(path)? {
@@ -1356,7 +1356,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        secret_service.register_path(&transaction, path, vec![]).await.expect("registering path should be successful");
+        secret_service.register_path(&transaction, path, &[]).await.expect("registering path should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
     }
 
@@ -1370,7 +1370,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         for invalid_path in invalid_paths {
-            let result = secret_service.register_path(&transaction, invalid_path, vec![]).await;
+            let result = secret_service.register_path(&transaction, invalid_path, &[]).await;
 
             assert!(matches!(result, Err(Error::InvalidPath { .. })));
         }
@@ -1392,7 +1392,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path, vec![]).await;
+        let result = secret_service.register_path(&transaction, path, &[]).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::ParentPathNotExists { .. })));
@@ -1417,7 +1417,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path, vec![]).await;
+        let result = secret_service.register_path(&transaction, path, &[]).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })));

@@ -36,14 +36,9 @@ async fn handle_post_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PostPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    application
-        .with_workspace(&workspace_name)
-        .path()
-        .register(
-            &payload.path,
-            payload.applied_policies.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect(),
-        )
-        .await?;
+    let policies: Vec<_> =
+        payload.applied_policies.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect();
+    application.with_workspace(&workspace_name).path().register(&payload.path, &policies).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
