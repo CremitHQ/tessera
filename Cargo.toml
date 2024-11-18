@@ -62,3 +62,5 @@ sqlx = "0.8"
 bon = "2.3"
 directories = "5.0"
 validator = { version = "0.19", features = ["derive"] }
+openssl = "0.10"
+sha3 = "0.10"
