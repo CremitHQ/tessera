@@ -21,6 +21,8 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
+pub(crate) mod applied_path_policy;
+pub(crate) mod applied_path_policy_allowed_action;
 pub(crate) mod applied_policy;
 pub(crate) mod parameter;
 pub(crate) mod path;
@@ -157,7 +159,7 @@ impl OrganizationScopedTransaction for DatabaseConnection {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UlidId(Ulid);
 
 impl UlidId {

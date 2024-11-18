@@ -14,6 +14,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::applied_path_policy::Entity")]
+    AppliedPathPolicy,
+}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Related<super::applied_path_policy::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AppliedPathPolicy.def()
+    }
+}

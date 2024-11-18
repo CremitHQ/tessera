@@ -5,19 +5,20 @@ use sea_orm::DatabaseConnection;
 
 use crate::{
     database::{OrganizationScopedTransaction, Persistable},
-    domain::secret::{self, Path, SecretService},
+    domain::secret::{self, AppliedPolicy, Path, SecretService},
 };
 
 pub(crate) struct PathData {
     pub path: String,
+    pub applied_policies: Vec<AppliedPolicy>,
 }
 
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
-    async fn register(&self, path: &str) -> Result<()>;
+    async fn register(&self, path: &str, policies: Vec<AppliedPolicy>) -> Result<()>;
     async fn delete(&self, path: &str) -> Result<()>;
-    async fn update(&self, path: &str, new_path: &str) -> Result<()>;
+    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<Vec<AppliedPolicy>>) -> Result<()>;
     async fn get(&self, path: &str) -> Result<PathData>;
 }
 
@@ -47,9 +48,9 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(paths.into_iter().map(PathData::from).collect())
     }
 
-    async fn register(&self, path: &str) -> Result<()> {
+    async fn register(&self, path: &str, policies: Vec<AppliedPolicy>) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        self.secret_service.register_path(&transaction, path).await?;
+        self.secret_service.register_path(&transaction, path, policies).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -69,7 +70,7 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(())
     }
 
-    async fn update(&self, path: &str, new_path: &str) -> Result<()> {
+    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<Vec<AppliedPolicy>>) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -77,7 +78,13 @@ impl PathUseCase for PathUseCaseImpl {
             .await?
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
-        path.update_path(new_path)?;
+        if let Some(new_path) = new_path {
+            path.update_path(new_path)?;
+        }
+        if let Some(new_policies) = new_policies {
+            path.update_policies(new_policies);
+        }
+
         path.persist(&transaction).await?;
 
         transaction.commit().await?;
@@ -99,7 +106,7 @@ impl PathUseCase for PathUseCaseImpl {
 
 impl From<Path> for PathData {
     fn from(value: Path) -> Self {
-        Self { path: value.path }
+        Self { path: value.path, applied_policies: value.applied_policies }
     }
 }
 
@@ -147,10 +154,12 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 mod test {
     use std::sync::Arc;
 
+    use chrono::Utc;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use ulid::Ulid;
 
     use crate::{
-        database::{path, secret_metadata, secret_value},
+        database::{applied_path_policy, path, secret_metadata, secret_value, UlidId},
         domain::secret::{MockSecretService, Path},
     };
 
@@ -170,7 +179,7 @@ mod test {
             .expect_get_paths()
             .withf(|_| true)
             .times(1)
-            .returning(move |_| Ok(vec![Path::new(path.to_owned())]));
+            .returning(move |_| Ok(vec![Path::new(path.to_owned(), vec![])]));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
@@ -212,17 +221,18 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_register_path().times(1).returning(move |_, _| Ok(()));
+        mock_secret_service.expect_register_path().times(1).returning(move |_, _, _| Ok(()));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        path_usecase.register(path).await.expect("registering path should be successful");
+        path_usecase.register(path, vec![]).await.expect("registering path should be successful");
     }
 
     #[tokio::test]
     async fn when_deleting_existing_path_then_path_usecase_returns_unit_ok() {
         let path = "/test/path";
+        let now = Utc::now();
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
@@ -234,12 +244,22 @@ mod test {
                     "num_items" => sea_orm::Value::BigInt(Some(0))
                 }],
             ])
-            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: path.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+        mock_secret_service
+            .expect_get_path()
+            .times(1)
+            .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
@@ -266,7 +286,10 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+        mock_secret_service
+            .expect_get_path()
+            .times(1)
+            .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
@@ -295,7 +318,10 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+        mock_secret_service
+            .expect_get_path()
+            .times(1)
+            .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
@@ -342,12 +368,18 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+        mock_secret_service
+            .expect_get_path()
+            .times(1)
+            .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        path_usecase.update(path, "/new/test/path").await.expect("registering path should be successful");
+        path_usecase
+            .update(path, Some("/new/test/path"), Some(vec![]))
+            .await
+            .expect("registering path should be successful");
     }
 
     #[tokio::test]
@@ -364,12 +396,15 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(Some(Path::new(path.to_owned()))));
+        mock_secret_service
+            .expect_get_path()
+            .times(1)
+            .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.update(path, "/new/test/path").await;
+        let result = path_usecase.update(path, Some("/new/test/path"), Some(vec![])).await;
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })))
     }

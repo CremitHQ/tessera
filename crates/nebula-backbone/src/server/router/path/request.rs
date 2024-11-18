@@ -11,5 +11,6 @@ pub(super) struct PostPathRequest {
 
 #[derive(Deserialize)]
 pub(super) struct PatchPathRequest {
-    pub path: String,
+    pub path: Option<String>,
+    pub applied_policies: Option<Vec<AppliedPolicy>>,
 }
