@@ -77,7 +77,7 @@ impl SecretEntry {
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(crate) struct AppliedPolicy {
     pub expression: String,
     pub allowed_actions: Vec<AllowedAction>,
@@ -97,7 +97,7 @@ impl From<(applied_path_policy::Model, Vec<applied_path_policy_allowed_action::M
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub(crate) enum AllowedAction {
     Create,
     Update,
@@ -280,14 +280,12 @@ impl Path {
         Ok(())
     }
 
-    pub(crate) fn update_policies(&mut self, new_policies: Vec<AppliedPolicy>) {
+    pub(crate) fn update_policies(&mut self, new_policies: &[AppliedPolicy]) {
         if self.applied_policies.iter().collect::<HashSet<_>>() == new_policies.iter().collect::<HashSet<_>>() {
-            dbg!("wtf?");
             return;
         }
-        dbg!("wtf?");
 
-        self.updated_policies = Some(new_policies);
+        self.updated_policies = Some(new_policies.to_vec());
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {

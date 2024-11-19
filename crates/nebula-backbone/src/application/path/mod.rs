@@ -18,7 +18,7 @@ pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
     async fn register(&self, path: &str, policies: &[AppliedPolicy]) -> Result<()>;
     async fn delete(&self, path: &str) -> Result<()>;
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<Vec<AppliedPolicy>>) -> Result<()>;
+    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()>;
     async fn get(&self, path: &str) -> Result<PathData>;
 }
 
@@ -70,7 +70,7 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(())
     }
 
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<Vec<AppliedPolicy>>) -> Result<()> {
+    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -377,7 +377,7 @@ mod test {
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase
-            .update(path, Some("/new/test/path"), Some(vec![]))
+            .update(path, Some("/new/test/path"), Some(&[]))
             .await
             .expect("registering path should be successful");
     }
@@ -404,7 +404,7 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.update(path, Some("/new/test/path"), Some(vec![])).await;
+        let result = path_usecase.update(path, Some("/new/test/path"), Some(&[])).await;
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })))
     }

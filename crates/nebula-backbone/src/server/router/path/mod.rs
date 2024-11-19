@@ -69,16 +69,12 @@ async fn handle_patch_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PatchPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
+    let new_policies: Option<Vec<_>> =
+        payload.applied_policies.map(|aps| aps.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect());
     application
         .with_workspace(&workspace_name)
         .path()
-        .update(
-            &normalize_path(path),
-            payload.path.as_deref(),
-            payload
-                .applied_policies
-                .map(|aps| aps.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect()),
-        )
+        .update(&normalize_path(path), payload.path.as_deref(), new_policies.as_deref())
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
