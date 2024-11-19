@@ -11,13 +11,14 @@ use axum::{
 
 use crate::{
     application::{self, path::PathUseCase, Application},
-    server::router::path::reuqest::PatchPathRequest,
+    server::router::path::request::PatchPathRequest,
 };
 
-use self::reuqest::PostPathRequest;
+use self::request::PostPathRequest;
 
+mod model;
+mod request;
 mod response;
-mod reuqest;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
@@ -35,7 +36,9 @@ async fn handle_post_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PostPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    application.with_workspace(&workspace_name).path().register(&payload.path).await?;
+    let policies: Vec<_> =
+        payload.applied_policies.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect();
+    application.with_workspace(&workspace_name).path().register(&payload.path, &policies).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -66,7 +69,13 @@ async fn handle_patch_path(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PatchPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    application.with_workspace(&workspace_name).path().update(&normalize_path(path), &payload.path).await?;
+    let new_policies: Option<Vec<_>> =
+        payload.applied_policies.map(|aps| aps.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect());
+    application
+        .with_workspace(&workspace_name)
+        .path()
+        .update(&normalize_path(path), payload.path.as_deref(), new_policies.as_deref())
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -90,6 +99,53 @@ fn normalize_path(path: String) -> String {
 
 impl From<application::path::PathData> for response::PathResponse {
     fn from(value: application::path::PathData) -> Self {
-        Self { path: value.path }
+        Self {
+            path: value.path,
+            applied_policies: value.applied_policies.into_iter().map(model::AppliedPolicy::from).collect(),
+        }
+    }
+}
+
+impl From<crate::domain::secret::AppliedPolicy> for model::AppliedPolicy {
+    fn from(value: crate::domain::secret::AppliedPolicy) -> Self {
+        Self {
+            expression: value.expression,
+            allowed_actions: value.allowed_actions.into_iter().map(model::AllowedAction::from).collect(),
+        }
+    }
+}
+
+impl From<crate::domain::secret::AllowedAction> for model::AllowedAction {
+    fn from(value: crate::domain::secret::AllowedAction) -> Self {
+        match value {
+            crate::domain::secret::AllowedAction::Create => model::AllowedAction::Create,
+            crate::domain::secret::AllowedAction::Update => model::AllowedAction::Update,
+            crate::domain::secret::AllowedAction::Delete => model::AllowedAction::Delete,
+            crate::domain::secret::AllowedAction::Manage => model::AllowedAction::Manage,
+        }
+    }
+}
+
+impl From<model::AppliedPolicy> for crate::domain::secret::AppliedPolicy {
+    fn from(value: model::AppliedPolicy) -> Self {
+        Self {
+            expression: value.expression,
+            allowed_actions: value
+                .allowed_actions
+                .into_iter()
+                .map(crate::domain::secret::AllowedAction::from)
+                .collect(),
+        }
+    }
+}
+
+impl From<model::AllowedAction> for crate::domain::secret::AllowedAction {
+    fn from(value: model::AllowedAction) -> Self {
+        match value {
+            model::AllowedAction::Create => Self::Create,
+            model::AllowedAction::Update => Self::Update,
+            model::AllowedAction::Delete => Self::Delete,
+            model::AllowedAction::Manage => Self::Manage,
+        }
     }
 }

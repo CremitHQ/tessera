@@ -5,10 +5,13 @@ use crate::{
 use axum::{http::StatusCode, response::IntoResponse};
 use serde::Serialize;
 
+use super::model::AppliedPolicy;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathResponse {
     pub path: String,
+    pub applied_policies: Vec<AppliedPolicy>,
 }
 
 #[derive(Serialize)]

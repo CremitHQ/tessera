@@ -12,7 +12,10 @@ use sea_orm::{
 };
 use ulid::Ulid;
 
-use crate::database::{applied_policy, path, secret_metadata, secret_value, Persistable, UlidId};
+use crate::database::{
+    applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, secret_metadata, secret_value,
+    Persistable, UlidId,
+};
 
 use super::policy::AccessCondition;
 
@@ -71,6 +74,56 @@ impl SecretEntry {
         }
 
         self.updated_access_condition_ids = Some(new_access_condition_ids);
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub(crate) struct AppliedPolicy {
+    pub expression: String,
+    pub allowed_actions: Vec<AllowedAction>,
+}
+
+impl From<(applied_path_policy::Model, Vec<applied_path_policy_allowed_action::Model>)> for AppliedPolicy {
+    fn from(
+        (policy_model, allowed_action_models): (
+            applied_path_policy::Model,
+            Vec<applied_path_policy_allowed_action::Model>,
+        ),
+    ) -> Self {
+        Self {
+            expression: policy_model.expression,
+            allowed_actions: allowed_action_models.into_iter().map(|aa| aa.action.into()).collect(),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub(crate) enum AllowedAction {
+    Create,
+    Update,
+    Delete,
+    Manage,
+}
+
+impl From<applied_path_policy_allowed_action::AllowedAction> for AllowedAction {
+    fn from(value: applied_path_policy_allowed_action::AllowedAction) -> Self {
+        match value {
+            applied_path_policy_allowed_action::AllowedAction::Create => AllowedAction::Create,
+            applied_path_policy_allowed_action::AllowedAction::Update => AllowedAction::Update,
+            applied_path_policy_allowed_action::AllowedAction::Delete => AllowedAction::Delete,
+            applied_path_policy_allowed_action::AllowedAction::Manage => AllowedAction::Manage,
+        }
+    }
+}
+
+impl From<&AllowedAction> for applied_path_policy_allowed_action::AllowedAction {
+    fn from(value: &AllowedAction) -> Self {
+        match value {
+            AllowedAction::Create => applied_path_policy_allowed_action::AllowedAction::Create,
+            AllowedAction::Update => applied_path_policy_allowed_action::AllowedAction::Update,
+            AllowedAction::Delete => applied_path_policy_allowed_action::AllowedAction::Delete,
+            AllowedAction::Manage => applied_path_policy_allowed_action::AllowedAction::Manage,
+        }
     }
 }
 
@@ -201,14 +254,15 @@ impl From<(secret_metadata::Model, Vec<applied_policy::Model>, Vec<u8>)> for Sec
 
 pub(crate) struct Path {
     pub path: String,
+    pub applied_policies: Vec<AppliedPolicy>,
     deleted: bool,
     updated_path: Option<String>,
+    updated_policies: Option<Vec<AppliedPolicy>>,
 }
 
 impl Path {
-    #[cfg(test)]
-    pub(crate) fn new(path: String) -> Self {
-        Self { path, deleted: false, updated_path: None }
+    pub(crate) fn new(path: String, applied_policies: Vec<AppliedPolicy>) -> Self {
+        Self { path, applied_policies, deleted: false, updated_path: None, updated_policies: None }
     }
 
     pub(crate) fn delete(&mut self) {
@@ -224,6 +278,14 @@ impl Path {
 
         self.updated_path = Some(new_path.to_owned());
         Ok(())
+    }
+
+    pub(crate) fn update_policies(&mut self, new_policies: &[AppliedPolicy]) {
+        if self.applied_policies.iter().collect::<HashSet<_>>() == new_policies.iter().collect::<HashSet<_>>() {
+            return;
+        }
+
+        self.updated_policies = Some(new_policies.to_vec());
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
@@ -254,14 +316,49 @@ impl Path {
     }
 
     async fn delete_from_database(self, transaction: &DatabaseTransaction) -> Result<()> {
+        self.clear_policies(transaction).await?;
+
         path::Entity::delete_many().filter(path::Column::Path.eq(self.path)).exec(transaction).await?;
+        Ok(())
+    }
+
+    async fn clear_policies(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        let path = if let Some(path) =
+            path::Entity::find().filter(path::Column::Path.eq(self.path.clone())).one(transaction).await?
+        {
+            path
+        } else {
+            return Ok(());
+        };
+
+        let applied_path_policies = applied_path_policy::Entity::find()
+            .filter(applied_path_policy::Column::PathId.eq(path.id.clone()))
+            .all(transaction)
+            .await?;
+
+        if applied_path_policies.is_empty() {
+            return Ok(());
+        }
+
+        applied_path_policy_allowed_action::Entity::delete_many()
+            .filter(
+                applied_path_policy_allowed_action::Column::AppliedPathPolicyId
+                    .is_in(applied_path_policies.iter().map(|app| app.id.clone())),
+            )
+            .exec(transaction)
+            .await?;
+
+        for path_policy in applied_path_policies {
+            applied_path_policy::Entity::delete(path_policy.into_active_model()).exec(transaction).await?;
+        }
+
         Ok(())
     }
 }
 
-impl From<path::Model> for Path {
-    fn from(value: path::Model) -> Self {
-        Self { path: value.path, deleted: false, updated_path: None }
+impl From<(path::Model, Vec<AppliedPolicy>)> for Path {
+    fn from((path_model, applied_policies): (path::Model, Vec<AppliedPolicy>)) -> Self {
+        Self::new(path_model.path, applied_policies)
     }
 }
 
@@ -277,8 +374,9 @@ impl Persistable for Path {
             return Ok(());
         }
 
-        if let Some(updated_path) = self.updated_path {
-            ensure_path_not_duplicated(transaction, &updated_path).await?;
+        let now = Utc::now();
+        if let Some(ref updated_path) = self.updated_path {
+            ensure_path_not_duplicated(transaction, updated_path).await?;
 
             let child_paths = path::Entity::find()
                 .filter(path::Column::Path.like(format!("{}%", &self.path)))
@@ -286,7 +384,7 @@ impl Persistable for Path {
                 .await?;
 
             for child_path in child_paths {
-                let new_path = child_path.path.replacen(&self.path, &updated_path, 1);
+                let new_path = child_path.path.replacen(&self.path, updated_path, 1);
                 let mut active_model = child_path.into_active_model();
                 active_model.path = Set(new_path);
                 active_model.update(transaction).await?;
@@ -298,7 +396,7 @@ impl Persistable for Path {
                 .await?;
 
             for child_secret in child_secrets {
-                let new_path = child_secret.path.replacen(&self.path, &updated_path, 1);
+                let new_path = child_secret.path.replacen(&self.path, updated_path, 1);
                 let mut active_model = child_secret.into_active_model();
                 active_model.path = Set(new_path);
                 active_model.update(transaction).await?;
@@ -310,11 +408,51 @@ impl Persistable for Path {
                 .await?;
 
             for child_secret_value in child_secret_values {
-                let new_identifier = child_secret_value.identifier.replacen(&self.path, &updated_path, 1);
+                let new_identifier = child_secret_value.identifier.replacen(&self.path, updated_path, 1);
                 let mut active_model = child_secret_value.into_active_model();
                 active_model.identifier = Set(new_identifier);
                 active_model.update(transaction).await?;
             }
+        }
+
+        if let Some(ref updated_policies) = self.updated_policies {
+            let path = if let Some(path) =
+                path::Entity::find().filter(path::Column::Path.eq(self.path.clone())).one(transaction).await?
+            {
+                path
+            } else {
+                return Ok(());
+            };
+
+            self.clear_policies(transaction).await?;
+
+            let mut applied_path_policy_models: Vec<applied_path_policy::ActiveModel> = vec![];
+            let mut allowed_action_models: Vec<applied_path_policy_allowed_action::ActiveModel> = vec![];
+
+            for updated_policy in updated_policies {
+                let policy_id = Ulid::new();
+
+                applied_path_policy_models.push(applied_path_policy::ActiveModel {
+                    id: Set(policy_id.into()),
+                    path_id: Set(path.id.clone()),
+                    expression: Set(updated_policy.expression.clone()),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                });
+
+                for allowed_action in &updated_policy.allowed_actions {
+                    allowed_action_models.push(applied_path_policy_allowed_action::ActiveModel {
+                        id: Set(Ulid::new().into()),
+                        applied_path_policy_id: Set(policy_id.into()),
+                        action: Set(allowed_action.into()),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    });
+                }
+            }
+
+            applied_path_policy::Entity::insert_many(applied_path_policy_models).exec(transaction).await?;
+            applied_path_policy_allowed_action::Entity::insert_many(allowed_action_models).exec(transaction).await?;
         }
 
         Ok(())
@@ -339,7 +477,12 @@ pub(crate) trait SecretService {
         access_conditions: Vec<AccessCondition>,
     ) -> Result<()>;
 
-    async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()>;
+    async fn register_path(
+        &self,
+        transaction: &DatabaseTransaction,
+        path: &str,
+        policies: &[AppliedPolicy],
+    ) -> Result<()>;
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>>;
 }
@@ -454,9 +597,45 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>> {
-        let metadata = path::Entity::find().all(transaction).await?;
+        let paths = path::Entity::find().all(transaction).await?;
+        let applied_path_policies = paths.load_many(applied_path_policy::Entity, transaction).await?;
 
-        Ok(metadata.into_iter().map(Path::from).collect())
+        let applied_path_poilicy_ids =
+            applied_path_policies.iter().flat_map(|apps| apps.iter().map(|app| app.id.clone())).collect::<Vec<_>>();
+
+        let mut allowed_actions_map = if !applied_path_poilicy_ids.is_empty() {
+            let mut allowed_actions_map = HashMap::<UlidId, Vec<applied_path_policy_allowed_action::Model>>::new();
+            let allowed_actions = applied_path_policy_allowed_action::Entity::find()
+                .filter(applied_path_policy_allowed_action::Column::AppliedPathPolicyId.is_in(applied_path_poilicy_ids))
+                .all(transaction)
+                .await?;
+
+            for allowed_action in allowed_actions {
+                let allowed_actions =
+                    allowed_actions_map.entry(allowed_action.applied_path_policy_id.clone()).or_default();
+                allowed_actions.push(allowed_action);
+            }
+
+            allowed_actions_map
+        } else {
+            HashMap::new()
+        };
+
+        Ok(paths
+            .into_iter()
+            .zip(applied_path_policies.into_iter())
+            .map(|(path, path_policies)| {
+                let aapplied_path_policies = path_policies
+                    .into_iter()
+                    .map(|pp| {
+                        let allowed_actions = allowed_actions_map.remove(&pp.id).unwrap_or_default();
+                        AppliedPolicy::from((pp, allowed_actions))
+                    })
+                    .collect::<Vec<_>>();
+
+                (path, aapplied_path_policies).into()
+            })
+            .collect())
     }
 
     async fn register_secret(
@@ -517,7 +696,12 @@ impl SecretService for PostgresSecretService {
         Ok(())
     }
 
-    async fn register_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<()> {
+    async fn register_path(
+        &self,
+        transaction: &DatabaseTransaction,
+        path: &str,
+        policies: &[AppliedPolicy],
+    ) -> Result<()> {
         validate_path(path)?;
         if let Some(parent_path) = extract_parent_path(path)? {
             self.ensure_path_exists(transaction, parent_path).await.map_err(|e| {
@@ -542,12 +726,82 @@ impl SecretService for PostgresSecretService {
         .insert(transaction)
         .await?;
 
+        if !policies.is_empty() {
+            let mut applied_path_policy_models: Vec<applied_path_policy::ActiveModel> = vec![];
+            let mut allowed_action_models: Vec<applied_path_policy_allowed_action::ActiveModel> = vec![];
+
+            for policy in policies {
+                let policy_id = Ulid::new();
+
+                applied_path_policy_models.push(applied_path_policy::ActiveModel {
+                    id: Set(policy_id.into()),
+                    path_id: Set(path_id.into()),
+                    expression: Set(policy.expression.clone()),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                });
+
+                for allowed_action in &policy.allowed_actions {
+                    allowed_action_models.push(applied_path_policy_allowed_action::ActiveModel {
+                        id: Set(Ulid::new().into()),
+                        applied_path_policy_id: Set(policy_id.into()),
+                        action: Set(allowed_action.into()),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                    });
+                }
+            }
+
+            applied_path_policy::Entity::insert_many(applied_path_policy_models).exec(transaction).await?;
+            applied_path_policy_allowed_action::Entity::insert_many(allowed_action_models).exec(transaction).await?;
+        }
+
         Ok(())
     }
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
         validate_path(path)?;
-        Ok(path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?.map(Path::from))
+        let path = if let Some(path) = path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?
+        {
+            path
+        } else {
+            return Ok(None);
+        };
+
+        let applied_path_policies = applied_path_policy::Entity::find()
+            .filter(applied_path_policy::Column::PathId.eq(path.id.clone()))
+            .all(transaction)
+            .await?;
+
+        let mut allowed_actions_map = if !applied_path_policies.is_empty() {
+            let mut allowed_actions_map = HashMap::<UlidId, Vec<applied_path_policy_allowed_action::Model>>::new();
+            let allowed_actions = applied_path_policy_allowed_action::Entity::find()
+                .filter(
+                    applied_path_policy_allowed_action::Column::AppliedPathPolicyId
+                        .is_in(applied_path_policies.iter().map(|app| app.id.clone())),
+                )
+                .all(transaction)
+                .await?;
+
+            for allowed_action in allowed_actions {
+                let allowed_actions =
+                    allowed_actions_map.entry(allowed_action.applied_path_policy_id.clone()).or_default();
+                allowed_actions.push(allowed_action);
+            }
+            allowed_actions_map
+        } else {
+            HashMap::new()
+        };
+
+        let applied_path_policies = applied_path_policies
+            .into_iter()
+            .map(|pp| {
+                let allowed_actions = allowed_actions_map.remove(&pp.id).unwrap_or_default();
+                AppliedPolicy::from((pp, allowed_actions))
+            })
+            .collect::<Vec<_>>();
+
+        Ok(Some(Path::from((path, applied_path_policies))))
     }
 }
 
@@ -621,7 +875,10 @@ mod test {
 
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
-        database::{applied_policy, path, secret_metadata, secret_value, UlidId},
+        database::{
+            applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, secret_metadata,
+            secret_value, UlidId,
+        },
         domain::{
             policy::AccessCondition,
             secret::{Path, SecretEntry},
@@ -842,12 +1099,14 @@ mod test {
         let path_id = UlidId::new(Ulid::from_str("01JACYVTYB4F2PEBFRG1BB7BKP").unwrap());
         let path = "/test/path";
 
-        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([vec![path::Model {
-            id: path_id.to_owned(),
-            path: path.to_owned(),
-            created_at: now,
-            updated_at: now,
-        }]]);
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([vec![path::Model {
+                id: path_id.to_owned(),
+                path: path.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -1095,7 +1354,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        secret_service.register_path(&transaction, path).await.expect("registering path should be successful");
+        secret_service.register_path(&transaction, path, &[]).await.expect("registering path should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
     }
 
@@ -1109,7 +1368,7 @@ mod test {
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
         for invalid_path in invalid_paths {
-            let result = secret_service.register_path(&transaction, invalid_path).await;
+            let result = secret_service.register_path(&transaction, invalid_path, &[]).await;
 
             assert!(matches!(result, Err(Error::InvalidPath { .. })));
         }
@@ -1131,7 +1390,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path).await;
+        let result = secret_service.register_path(&transaction, path, &[]).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::ParentPathNotExists { .. })));
@@ -1156,7 +1415,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.register_path(&transaction, path).await;
+        let result = secret_service.register_path(&transaction, path, &[]).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })));
@@ -1167,12 +1426,15 @@ mod test {
         let now = Utc::now();
         let path = "/test/path";
 
-        let mock_database = MockDatabase::new(DatabaseBackend::Postgres).append_query_results([[path::Model {
-            id: UlidId::new(Ulid::new()),
-            path: path.to_owned(),
-            created_at: now,
-            updated_at: now,
-        }]]);
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: path.to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
+            .append_query_results([Vec::<applied_path_policy_allowed_action::Model>::new()]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -1191,7 +1453,7 @@ mod test {
 
     #[tokio::test]
     async fn when_deleting_path_then_deleted_field_turns_into_true() {
-        let mut path = Path::new("/test/path".to_owned());
+        let mut path = Path::new("/test/path".to_owned(), vec![]);
 
         assert!(!path.deleted);
 
@@ -1202,7 +1464,7 @@ mod test {
 
     #[tokio::test]
     async fn when_updating_path_then_updated_path_field_turns_into_new_path() {
-        let mut path = Path::new("/test/path".to_owned());
+        let mut path = Path::new("/test/path".to_owned(), vec![]);
 
         assert!(path.updated_path.is_none());
 
@@ -1216,7 +1478,7 @@ mod test {
         let invalid_paths = ["//", "", "/a//b", "a/b/c", "/a/b/c/"];
 
         for invalid_path in invalid_paths {
-            let mut path = Path::new("/test/path".to_owned());
+            let mut path = Path::new("/test/path".to_owned(), vec![]);
             let result = path.update_path(invalid_path);
 
             assert!(matches!(result, Err(Error::InvalidPath { .. })));
