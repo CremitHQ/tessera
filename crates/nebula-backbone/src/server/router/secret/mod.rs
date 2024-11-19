@@ -73,8 +73,7 @@ async fn handle_post_secret(
             path: payload.path,
             key: payload.key,
             cipher,
-            access_policy_ids: payload.access_policy_ids,
-            management_policy_ids: payload.management_policy_ids,
+            access_condition_ids: payload.access_condition_ids,
         })
         .await?;
 
@@ -118,12 +117,7 @@ async fn handle_patch_secret(
         .secret()
         .update(
             &format!("/{secret_identifier}"),
-            SecretUpdate {
-                path: payload.path,
-                cipher,
-                access_policy_ids: payload.access_policy_ids,
-                management_policy_ids: payload.management_policy_ids,
-            },
+            SecretUpdate { path: payload.path, cipher, access_condition_ids: payload.access_condition_ids },
         )
         .await?;
 
@@ -136,8 +130,7 @@ impl From<SecretData> for SecretResponse {
             key: value.key,
             path: value.path,
             cipher: BASE64_STANDARD.encode(value.cipher),
-            access_policy_ids: value.access_policy_ids,
-            management_policy_ids: value.management_policy_ids,
+            access_condition_ids: value.access_condition_ids,
         }
     }
 }
