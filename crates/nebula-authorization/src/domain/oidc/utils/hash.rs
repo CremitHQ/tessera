@@ -1,6 +1,5 @@
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as base64_engine;
 use base64::Engine;
-use josekit::jwk::Jwk;
 use sha3::{Digest, Sha3_256 as Sha256, Sha3_384 as Sha384, Sha3_512 as Sha512};
 use thiserror::Error;
 

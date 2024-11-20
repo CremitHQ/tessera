@@ -17,16 +17,22 @@ use nebula_token::{
     jwt::Jwt,
     JwsHeader, JwtPayload, Map, Value,
 };
+use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::application::Application;
+use crate::{
+    application::Application,
+    database::WorkspaceScopedTransaction,
+    domain::machine_identity,
+};
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/login/:connector", get(handle_connector_login))
         .route("/callback/saml", post(handle_saml_connector_callback))
         .route("/jwks", get(handle_jwks))
+        .route("/workspaces/:workspace_name/machine-identities", post(handle_post_machine_identity))
         .with_state(application)
 }
 
@@ -134,4 +140,54 @@ pub struct SAMLConnectorCallbackResponse {
 
 async fn handle_jwks(State(application): State<Arc<Application>>) -> impl IntoResponse {
     Json(PublicJwkSet::new(&application.token_service.jwks))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Attribute {
+    key: String,
+    value: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostMachineIdentityRequest {
+    label: String,
+    attributes: Vec<Attribute>,
+}
+
+#[derive(Error, Debug, ErrorStatus)]
+enum MachineIdentityError {
+    #[error("Error occurrred by database")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    DatabaseError(#[from] DbErr),
+}
+
+impl From<machine_identity::Error> for MachineIdentityError {
+    fn from(value: machine_identity::Error) -> Self {
+        match value {
+            machine_identity::Error::DatabaseError(e) => Self::DatabaseError(e),
+        }
+    }
+}
+
+async fn handle_post_machine_identity(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PostMachineIdentityRequest>,
+) -> Result<impl IntoResponse, MachineIdentityError> {
+    let attributes: Vec<_> =
+        payload.attributes.iter().map(|attribute| (attribute.key.as_str(), attribute.value.as_str())).collect();
+
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    application
+        .machine_identity_service
+        .register_machine_identity(&transaction, &payload.label, &attributes)
+        .await
+        .inspect_err(|e| eprintln!("{:?}", e))?;
+
+    transaction.commit().await?;
+
+    Ok(StatusCode::CREATED)
 }
