@@ -2390,6 +2390,7 @@ dependencies = [
  "nebula-abe",
  "nebula-secret-sharing",
  "nebula-storage",
+ "nebula-token",
  "rand",
  "reqwest",
  "rmp-serde",
@@ -2398,6 +2399,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
  "zeroize",
 ]
 
@@ -2418,7 +2420,7 @@ dependencies = [
  "clap",
  "config",
  "directories",
- "josekit",
+ "nebula-token",
  "openssl",
  "rand",
  "samael",
@@ -2519,6 +2521,31 @@ dependencies = [
  "tracing-subscriber",
  "trait-variant",
  "zeroize",
+]
+
+[[package]]
+name = "nebula-token"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "axum_thiserror",
+ "base64 0.22.1",
+ "bon",
+ "directories",
+ "futures-util",
+ "josekit",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "validator",
 ]
 
 [[package]]
