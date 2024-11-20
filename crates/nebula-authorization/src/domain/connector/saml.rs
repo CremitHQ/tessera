@@ -4,37 +4,33 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bon::Builder;
 use samael::{
     metadata::{Endpoint, EntityDescriptor, IdpSsoDescriptor, NameIdFormat, HTTP_POST_BINDING, HTTP_REDIRECT_BINDING},
-    schema::AttributeStatement,
+    schema::{AttributeStatement, AuthnRequest},
     service_provider::{ServiceProvider, ServiceProviderBuilder},
 };
 use thiserror::Error;
+
+use crate::config::ClaimsConfig;
 
 use super::Identity;
 
 #[derive(Builder)]
 #[builder(on(String, into))]
 pub struct SAMLConnertorConfig {
-    entity_id: String,
-    idp_url: String,
-    acs_url: String,
+    entity_id: Option<String>,
+    redirect_uri: String,
+    idp_issuer: String,
     sso_url: String,
-    user_name_attr: String,
-    email_attr: String,
-    groups_attr: String,
-    groups_separator: Option<String>,
     #[builder(default = NameIdFormat::PersistentNameIDFormat)]
     name_id_policy_format: NameIdFormat,
     ca: openssl::x509::X509,
-    claim_mapping: Vec<(String, String)>,
+    claims: ClaimsConfig,
 }
 
 pub struct SAMLConnector {
+    sso_url: String,
+    pub redirect_uri: String,
     service_provider: ServiceProvider,
-    user_name_attr: String,
-    email_attr: String,
-    groups_attr: String,
-    groups_separator: Option<String>,
-    claim_mapping: Vec<(String, String)>,
+    claims_config: ClaimsConfig,
 }
 
 #[derive(Error, Debug)]
@@ -62,6 +58,9 @@ pub enum SAMLHandlerError {
 
     #[error("attribute not found")]
     AttributeNotFound,
+
+    #[error("failed to make SAML authentication request")]
+    MakeSAMLAuthRequest,
 }
 
 impl SAMLConnector {
@@ -69,7 +68,7 @@ impl SAMLConnector {
         let service_provider = ServiceProviderBuilder::default()
             .entity_id(config.entity_id)
             .idp_metadata(EntityDescriptor {
-                entity_id: Some(config.idp_url),
+                entity_id: Some(config.idp_issuer),
                 idp_sso_descriptors: Some(vec![IdpSsoDescriptor {
                     single_sign_on_services: vec![
                         Endpoint {
@@ -104,18 +103,22 @@ impl SAMLConnector {
                 }]),
                 ..Default::default()
             })
-            .acs_url(config.acs_url)
+            .acs_url(config.redirect_uri.clone())
             .allow_idp_initiated(true)
             .certificate(config.ca)
             .build()?;
         Ok(Self {
             service_provider,
-            user_name_attr: config.user_name_attr,
-            email_attr: config.email_attr,
-            groups_attr: config.groups_attr,
-            groups_separator: config.groups_separator,
-            claim_mapping: config.claim_mapping,
+            sso_url: config.sso_url,
+            redirect_uri: config.redirect_uri,
+            claims_config: config.claims,
         })
+    }
+
+    pub fn authentication_request(&self) -> Result<AuthnRequest, SAMLHandlerError> {
+        self.service_provider
+            .make_authentication_request(&self.sso_url)
+            .map_err(|_| SAMLHandlerError::MakeSAMLAuthRequest)
     }
 
     pub fn identity(&self, response: &str, request_id: &str) -> Result<Identity, SAMLHandlerError> {
@@ -130,26 +133,31 @@ impl SAMLConnector {
             .ok_or(SAMLHandlerError::NameIdNotFound)?
             .value;
         let attributes = assertion.attribute_statements.ok_or(SAMLHandlerError::AttributeStatementNotFound)?;
-        let user_name = get_attribute(&attributes, &self.user_name_attr)?;
-        let email = get_attribute(&attributes, &self.email_attr)?;
-        let groups = if let Some(separator) = &self.groups_separator {
-            let raw_groups = get_attribute(&attributes, &self.groups_attr)?;
-            raw_groups.split(separator).map(String::from).collect::<Vec<_>>()
-        } else {
-            get_all_attribute(&attributes, &self.groups_attr)?
-        };
 
-        let custom_claims = self
-            .claim_mapping
-            .iter()
-            .map(|(key, value)| {
-                let val = get_attribute(&attributes, value)?;
-                Ok((key.clone(), val))
-            })
-            .collect::<Result<HashMap<_, _>, SAMLHandlerError>>()?;
+        let claims = match self.claims_config {
+            ClaimsConfig::Mapping(ref mapping) => mapping
+                .iter()
+                .map(|(key, mapped_key)| {
+                    let value = get_attribute(&attributes, key)?;
+                    Ok((mapped_key.clone(), value))
+                })
+                .collect::<Result<HashMap<_, _>, SAMLHandlerError>>(),
+            ClaimsConfig::All => attributes
+                .iter()
+                .flat_map(|statement| &statement.attributes)
+                .map(|attribute| {
+                    let key = attribute.name.as_ref().unwrap();
+                    let value = attribute
+                        .values
+                        .first()
+                        .and_then(|value| value.value.clone())
+                        .ok_or(SAMLHandlerError::AttributeNotFound)?;
+                    Ok((key.clone(), value))
+                })
+                .collect::<Result<HashMap<_, _>, SAMLHandlerError>>(),
+        }?;
 
-        // SAML does not provide a way to verify the email address of the user
-        Ok(Identity { user_id, user_name, email, email_verified: true, groups, custom_claims })
+        Ok(Identity { user_id, claims })
     }
 }
 
