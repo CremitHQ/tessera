@@ -5,13 +5,11 @@ use base64::DecodeError;
 use josekit::JoseError;
 use thiserror::Error;
 
-use super::jws::ParseAlgError;
-
 #[derive(Debug, Error)]
 pub enum JWTError {
     #[error("error decoding b64 jwt part")]
     DecodeBase64(#[from] DecodeError),
-    #[error("JWT has an invalid format")]
+    #[error("JWT has an invalid format '{0}'")]
     InvalidJwtFormat(String),
     #[error("Unable to parse jwt to json")]
     SerDeParseError(#[from] serde_json::Error),
@@ -37,8 +35,6 @@ pub enum JWTError {
     EncryptError(JoseError),
     #[error("Invalid JWS Signature")]
     InvalidSignature(JoseError),
-    #[error("Invalid JWS Signature")]
-    ParseAlg(#[from] ParseAlgError),
     #[error("Invalid encoding of payload")]
     NoUTF8(#[from] Utf8Error),
     #[error("Error getting client keystore")]

@@ -20,11 +20,13 @@ pub struct JwkSet {
     key_map: HashMap<String, usize>,
 }
 
+pub const JWK_SET_DEFAULT_KEY_ID: &str = "default-key";
+
 impl Default for JwkSet {
     fn default() -> Self {
         let mut jwk = Jwk::generate_ec_key(EcCurve::P256).expect("Error computing default signing key");
         jwk.set_algorithm(EcdsaJwsAlgorithm::Es256.name());
-        jwk.set_key_id("default-key");
+        jwk.set_key_id(JWK_SET_DEFAULT_KEY_ID);
         jwk.set_key_use("sig");
 
         JwkSet::new(vec![jwk])
