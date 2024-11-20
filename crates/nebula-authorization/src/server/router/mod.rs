@@ -15,7 +15,7 @@ use josekit::{jws::JwsHeader, jwt::JwtPayload, Map, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{application::Application, domain::token::jwt::JWT};
+use crate::{application::Application, domain::token::jwt::Jwt};
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
@@ -86,7 +86,7 @@ async fn handle_saml_connector_callback(
     jwt_payload.set_expires_at(&expires_at);
     jwt_payload.set_issued_at(&now);
 
-    let jwt = JWT::new(
+    let jwt = Jwt::new(
         jws_header,
         jwt_payload,
         application
@@ -121,7 +121,7 @@ pub enum SAMLConnectorCallbackError {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SAMLConnectorCallbackResponse {
-    access_token: JWT,
+    access_token: Jwt,
 }
 
 async fn handle_jwks(State(application): State<Arc<Application>>) -> impl IntoResponse {

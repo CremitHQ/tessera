@@ -116,10 +116,9 @@ impl SAMLConnector {
     }
 
     pub fn authentication_request(&self) -> Result<AuthnRequest, SAMLHandlerError> {
-        Ok(self
-            .service_provider
+        self.service_provider
             .make_authentication_request(&self.sso_url)
-            .map_err(|_| SAMLHandlerError::MakeSAMLAuthRequest)?)
+            .map_err(|_| SAMLHandlerError::MakeSAMLAuthRequest)
     }
 
     pub fn identity(&self, response: &str, request_id: &str) -> Result<Identity, SAMLHandlerError> {

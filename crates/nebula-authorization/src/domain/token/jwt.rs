@@ -16,17 +16,17 @@ use super::jwk::jwk_ext::JwkExt;
 use super::jws::SigningAlgorithm;
 
 #[derive(Debug, Clone)]
-pub struct JWT {
+pub struct Jwt {
     header: JwsHeader,
     payload: JwtPayload,
     serialized_repr: String,
 }
 
-impl JWT {
+impl Jwt {
     pub fn new(header: JwsHeader, payload: JwtPayload, key: &Jwk) -> Result<Self, JWTError> {
         let signer = key.get_signer()?;
         let result = jwt::encode_with_signer(&payload, &header, &*signer).map_err(JWTError::JoseCreationError)?;
-        Ok(JWT { header, payload, serialized_repr: result })
+        Ok(Jwt { header, payload, serialized_repr: result })
     }
 
     pub fn alg(&self) -> Option<SigningAlgorithm> {
@@ -68,11 +68,11 @@ impl JWT {
         let payload: Map<String, Value> = serde_json::from_slice(&payload_b64)?;
         let payload = JwtPayload::from_map(payload)?;
 
-        Ok(JWT { header, payload, serialized_repr: str_jwt.to_owned() })
+        Ok(Jwt { header, payload, serialized_repr: str_jwt.to_owned() })
     }
 }
 
-impl Serialize for JWT {
+impl Serialize for Jwt {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -81,14 +81,14 @@ impl Serialize for JWT {
     }
 }
 
-impl<'de> Deserialize<'de> for JWT {
+impl<'de> Deserialize<'de> for Jwt {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         struct JWSVisitor;
         impl<'de> Visitor<'de> for JWSVisitor {
-            type Value = JWT;
+            type Value = Jwt;
 
             fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
                 formatter.write_str("an signed jws string")
@@ -98,7 +98,7 @@ impl<'de> Deserialize<'de> for JWT {
             where
                 E: Error,
             {
-                JWT::decode_no_verify(v).map_err(|err| E::custom(err))
+                Jwt::decode_no_verify(v).map_err(|err| E::custom(err))
             }
         }
         deserializer.deserialize_str(JWSVisitor)
