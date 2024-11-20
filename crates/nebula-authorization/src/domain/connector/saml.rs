@@ -125,7 +125,6 @@ impl SAMLConnector {
         let raw_response = STANDARD.decode(response.as_bytes())?;
         let response = String::from_utf8(raw_response)?;
         let assertion = self.service_provider.parse_xml_response(&response, Some(&[request_id]))?;
-
         let user_id = assertion
             .subject
             .ok_or(SAMLHandlerError::SubjectNotFound)?
@@ -133,7 +132,6 @@ impl SAMLConnector {
             .ok_or(SAMLHandlerError::NameIdNotFound)?
             .value;
         let attributes = assertion.attribute_statements.ok_or(SAMLHandlerError::AttributeStatementNotFound)?;
-
         let claims = match self.claims_config {
             ClaimsConfig::Mapping(ref mapping) => mapping
                 .iter()
@@ -142,19 +140,15 @@ impl SAMLConnector {
                     Ok((mapped_key.clone(), value))
                 })
                 .collect::<Result<HashMap<_, _>, SAMLHandlerError>>(),
-            ClaimsConfig::All => attributes
+            ClaimsConfig::All => Ok(attributes
                 .iter()
                 .flat_map(|statement| &statement.attributes)
-                .map(|attribute| {
-                    let key = attribute.name.as_ref().unwrap();
-                    let value = attribute
-                        .values
-                        .first()
-                        .and_then(|value| value.value.clone())
-                        .ok_or(SAMLHandlerError::AttributeNotFound)?;
-                    Ok((key.clone(), value))
+                .filter_map(|attribute| {
+                    let key = attribute.name.as_ref()?;
+                    let value = attribute.values.first().and_then(|value| value.value.clone());
+                    value.map(|value| (key.clone(), value))
                 })
-                .collect::<Result<HashMap<_, _>, SAMLHandlerError>>(),
+                .collect::<HashMap<_, _>>()),
         }?;
 
         Ok(Identity { user_id, claims })
