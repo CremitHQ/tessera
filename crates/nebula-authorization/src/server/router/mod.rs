@@ -11,11 +11,11 @@ use axum::{
     Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
-use josekit::{jws::JwsHeader, jwt::JwtPayload, Map, Value};
+use nebula_token::{jwt::Jwt, JwsHeader, JwtPayload, Map, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{application::Application, domain::token::jwt::Jwt};
+use crate::application::Application;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
@@ -67,7 +67,9 @@ async fn handle_saml_connector_callback(
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateSAMLIdentity)?;
 
     let mut jws_header = JwsHeader::new();
-    jws_header.set_jwk_set_url(format!("{}/jwks", application.base_url));
+    jws_header.set_jwk_set_url(
+        application.base_url.join("/jwks").map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?,
+    );
     jws_header.set_key_id(&application.token_service.jwk_kid);
     jws_header.set_algorithm("ES256");
 
