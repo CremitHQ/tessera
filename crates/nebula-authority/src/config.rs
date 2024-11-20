@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use config::{Config, File, FileFormat};
 use directories::BaseDirs;
 use serde::Deserialize;
+use url::Url;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ApplicationConfig {
@@ -10,16 +11,18 @@ pub(crate) struct ApplicationConfig {
     pub storage: StorageConfig,
     pub backbone: BackboneConfig,
     pub authority: AuthorityConfig,
+    pub jwks_url: Url,
+    pub jwks_refresh_interval: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "lowercase", tag = "type")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
 pub(crate) enum StorageConfig {
     File { path: String },
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "lowercase", tag = "type")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
 pub(crate) enum BackboneConfig {
     Workspace { host: String, workspace_name: String },
 }
