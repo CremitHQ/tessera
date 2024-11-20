@@ -1,5 +1,5 @@
 [package]
-name = "nebula-idp"
+name = "nebula-authorization"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -38,3 +38,4 @@ aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
 ulid = { workspace = true }
 urlencoding = { workspace = true }
+chrono = { workspace = true }

@@ -2402,6 +2402,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "nebula-authorization"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sigv4",
+ "axum",
+ "axum_thiserror",
+ "base64 0.22.1",
+ "bon",
+ "chrono",
+ "clap",
+ "config",
+ "directories",
+ "josekit",
+ "openssl",
+ "rand",
+ "samael",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "ulid",
+ "url",
+ "urlencoding",
+ "validator",
+ "xdg",
+]
+
+[[package]]
 name = "nebula-backbone"
 version = "0.0.1"
 dependencies = [
@@ -2433,42 +2470,6 @@ dependencies = [
  "ulid",
  "url",
  "urlencoding",
- "xdg",
-]
-
-[[package]]
-name = "nebula-idp"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "aws-config",
- "aws-credential-types",
- "aws-sigv4",
- "axum",
- "axum_thiserror",
- "base64 0.22.1",
- "bon",
- "clap",
- "config",
- "directories",
- "josekit",
- "openssl",
- "rand",
- "samael",
- "sea-orm",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "time",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "ulid",
- "url",
- "urlencoding",
- "validator",
  "xdg",
 ]
 
