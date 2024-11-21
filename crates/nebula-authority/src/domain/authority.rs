@@ -15,6 +15,7 @@ use super::{
 
 pub struct Authority {
     pub name: String,
+    pub admin: Vec<String>,
     key_pair_service: Arc<dyn ShieldedKeyPairService + Send + Sync>,
     backbone_service: Arc<dyn BackboneService + Send + Sync>,
 }
@@ -34,7 +35,12 @@ impl Authority {
             }
         };
 
-        Ok(Self { name: config.authority.name.clone(), key_pair_service, backbone_service })
+        Ok(Self {
+            name: config.authority.name.clone(),
+            admin: config.authority.admin.clone(),
+            key_pair_service,
+            backbone_service,
+        })
     }
 
     pub async fn key_pair(&self, workspace_name: &str) -> Result<KeyPair> {

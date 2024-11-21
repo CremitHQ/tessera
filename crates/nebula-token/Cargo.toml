@@ -23,7 +23,7 @@ base64 = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 bon = { workspace = true }
-tower = "0.5"
+tower = { workspace = true }
 url = { workspace = true }
 futures-util = { workspace = true }
 axum_thiserror = { workspace = true }
