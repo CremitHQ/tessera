@@ -34,7 +34,8 @@ impl Application {
                 .idp_issuer(&saml.idp_issuer)
                 .maybe_entity_id(saml.entity_id.as_ref())
                 .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
-                .claims(saml.claims.clone())
+                .attributes_config(saml.attributes.clone())
+                .workspace_config(config.workspace.clone())
                 .build(),
         };
 

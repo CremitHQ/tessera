@@ -3,6 +3,8 @@ use std::task::{Context, Poll};
 use axum::{body::Body, extract::Request, response::IntoResponse};
 use futures_util::future::BoxFuture;
 
+use crate::claim::NebulaClaim;
+
 use super::{error::AuthError, extractor, layer::NebulaAuthLayer};
 
 #[derive(Clone)]
@@ -41,8 +43,15 @@ where
 
             match result {
                 Ok(token) => {
-                    request.extensions_mut().insert(token);
-                    inner.call(request).await
+                    let claim: Result<NebulaClaim, _> = token.payload().try_into().map_err(AuthError::ParseClaim);
+                    match claim {
+                        Ok(claim) => {
+                            request.extensions_mut().insert(claim);
+                            request.extensions_mut().insert(token);
+                            inner.call(request).await
+                        }
+                        Err(err) => Ok(err.into_response()),
+                    }
                 }
                 Err(err) => Ok(err.into_response()),
             }

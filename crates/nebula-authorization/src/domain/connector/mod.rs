@@ -7,5 +7,6 @@ pub mod saml;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Identity {
     pub user_id: String,
+    pub workspace_name: String,
     pub claims: HashMap<String, String>,
 }

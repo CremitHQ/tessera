@@ -73,6 +73,10 @@ impl Jwt {
     pub fn kid(&self) -> Option<&str> {
         self.header.key_id()
     }
+
+    pub fn payload(&self) -> &JwtPayload {
+        &self.payload
+    }
 }
 
 impl Serialize for Jwt {

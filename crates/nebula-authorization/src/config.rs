@@ -13,6 +13,7 @@ pub(crate) struct ApplicationConfig {
     pub database: DatabaseConfig,
     pub upstream_idp: UpstreamIdpConfig,
     pub token: TokenConfig,
+    pub workspace: WorkspaceConfig,
 }
 
 #[derive(Deserialize, Debug)]
@@ -42,12 +43,12 @@ pub struct SAMLConfig {
     pub sso_url: String,
     pub idp_issuer: String,
     pub ca: String,
-    pub claims: ClaimsConfig,
+    pub attributes: AttributesConfig,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ClaimsConfig {
+pub enum AttributesConfig {
     All,
     Mapping(Vec<(String, String)>),
 }
@@ -57,6 +58,23 @@ pub struct TokenConfig {
     pub lifetime: u64,
     pub jwks: Option<JwkSet>,
     pub jwk_kid: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WorkspaceConfig {
+    Static(StaticWorkspaceConfig),
+    Claim(ClaimWorkspaceConfig),
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct StaticWorkspaceConfig {
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ClaimWorkspaceConfig {
+    pub claim: String,
 }
 
 pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {

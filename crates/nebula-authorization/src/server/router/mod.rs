@@ -11,7 +11,11 @@ use axum::{
     Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
-use nebula_token::{jwt::Jwt, JwsHeader, JwtPayload, Map, Value};
+use nebula_token::{
+    claim::{ATTRIBUTES_CLAIM, WORKSPACE_NAME_CLAIM},
+    jwt::Jwt,
+    JwsHeader, JwtPayload, Map, Value,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -76,12 +80,13 @@ async fn handle_saml_connector_callback(
     let mut jwt_payload = JwtPayload::new();
     jwt_payload
         .set_claim(
-            "attributes",
+            ATTRIBUTES_CLAIM,
             Some(Value::Object(identity.claims.into_iter().map(|(k, v)| (k, v.into())).collect::<Map<_, _>>())),
         )
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
     jwt_payload.set_subject(&identity.user_id);
     jwt_payload.set_issuer("nebula-authorization");
+    jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into()));
 
     let now = SystemTime::now();
     let expires_at = now + Duration::from_secs(application.token_service.lifetime);

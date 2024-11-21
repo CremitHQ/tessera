@@ -12,7 +12,7 @@ pub enum AuthError {
 
     #[error("Could not fetch the JWK set. Reason: {0}")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    JwkSetFetchError(#[from] reqwest::Error),
+    FetchJwkSet(#[from] reqwest::Error),
 
     #[error("The 'Authorization' header was not present on a request")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
@@ -32,13 +32,17 @@ pub enum AuthError {
 
     #[error("The token could not be decoded. Reason: {0}")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    JwtDecodeError(#[source] JWTError),
+    DecodeJwt(#[source] JWTError),
 
     #[error("The token could not be verified. Reason: {0}")]
     #[status(StatusCode::UNAUTHORIZED)]
-    JwtVerificationError(#[source] JWTError),
+    VerifyJwt(#[source] JWTError),
+
+    #[error("The token could not be pared as claim. Reason: {0}")]
+    #[status(StatusCode::UNAUTHORIZED)]
+    ParseClaim(#[source] JWTError),
 
     #[error("The token has expired")]
     #[status(StatusCode::UNAUTHORIZED)]
-    JwtExpired,
+    ExpiredJwt,
 }

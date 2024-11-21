@@ -9,7 +9,7 @@ use samael::{
 };
 use thiserror::Error;
 
-use crate::config::ClaimsConfig;
+use crate::config::{AttributesConfig, WorkspaceConfig};
 
 use super::Identity;
 
@@ -23,14 +23,16 @@ pub struct SAMLConnertorConfig {
     #[builder(default = NameIdFormat::PersistentNameIDFormat)]
     name_id_policy_format: NameIdFormat,
     ca: openssl::x509::X509,
-    claims: ClaimsConfig,
+    attributes_config: AttributesConfig,
+    workspace_config: WorkspaceConfig,
 }
 
 pub struct SAMLConnector {
     sso_url: String,
-    pub redirect_uri: String,
+    pub(crate) redirect_uri: String,
     service_provider: ServiceProvider,
-    claims_config: ClaimsConfig,
+    attributes_config: AttributesConfig,
+    workspace_config: WorkspaceConfig,
 }
 
 #[derive(Error, Debug)]
@@ -111,7 +113,8 @@ impl SAMLConnector {
             service_provider,
             sso_url: config.sso_url,
             redirect_uri: config.redirect_uri,
-            claims_config: config.claims,
+            attributes_config: config.attributes_config,
+            workspace_config: config.workspace_config,
         })
     }
 
@@ -132,15 +135,15 @@ impl SAMLConnector {
             .ok_or(SAMLHandlerError::NameIdNotFound)?
             .value;
         let attributes = assertion.attribute_statements.ok_or(SAMLHandlerError::AttributeStatementNotFound)?;
-        let claims = match self.claims_config {
-            ClaimsConfig::Mapping(ref mapping) => mapping
+        let claims = match self.attributes_config {
+            AttributesConfig::Mapping(ref mapping) => mapping
                 .iter()
                 .map(|(key, mapped_key)| {
                     let value = get_attribute(&attributes, key)?;
                     Ok((mapped_key.clone(), value))
                 })
                 .collect::<Result<HashMap<_, _>, SAMLHandlerError>>(),
-            ClaimsConfig::All => Ok(attributes
+            AttributesConfig::All => Ok(attributes
                 .iter()
                 .flat_map(|statement| &statement.attributes)
                 .filter_map(|attribute| {
@@ -150,8 +153,12 @@ impl SAMLConnector {
                 })
                 .collect::<HashMap<_, _>>()),
         }?;
+        let workspace_name = match self.workspace_config {
+            WorkspaceConfig::Static(ref config) => config.name.clone(),
+            WorkspaceConfig::Claim(ref config) => get_attribute(&attributes, &config.claim)?,
+        };
 
-        Ok(Identity { user_id, claims })
+        Ok(Identity { user_id, claims, workspace_name })
     }
 }
 

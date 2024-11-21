@@ -23,11 +23,11 @@ pub struct NebulaAuthLayer {
 impl NebulaAuthLayer {
     pub async fn validate_token(&self, token: &str) -> Result<Jwt, AuthError> {
         let jwks = self.jwk_discovery.jwks().await?;
-        let jwt = Jwt::decode_without_verification(token).map_err(AuthError::JwtDecodeError)?;
+        let jwt = Jwt::decode_without_verification(token).map_err(AuthError::DecodeJwt)?;
         let jwk = jwks.get(jwt.kid().unwrap_or(JWK_SET_DEFAULT_KEY_ID)).ok_or(AuthError::NoJwk)?;
-        jwt.verify(jwk).map_err(AuthError::JwtVerificationError)?;
+        jwt.verify(jwk).map_err(AuthError::VerifyJwt)?;
         match jwt.is_expired() {
-            true => Err(AuthError::JwtExpired),
+            true => Err(AuthError::ExpiredJwt),
             false => Ok(jwt),
         }
     }
