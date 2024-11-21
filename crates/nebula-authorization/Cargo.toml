@@ -35,7 +35,7 @@ sea-orm = { workspace = true, features = ["mock"] }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
-ulid = { workspace = true }
+ulid = { workspace = true, features = ["serde"] }
 urlencoding = { workspace = true }
 chrono = { workspace = true }
 nebula-token = { workspace = true }

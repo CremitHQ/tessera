@@ -14,6 +14,15 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::machine_identity_attribute::Entity")]
+    MachineIdentityAttribute,
+}
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Related<super::machine_identity_attribute::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MachineIdentityAttribute.def()
+    }
+}
