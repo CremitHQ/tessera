@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use nebula_token::claim::Role;
 use serde::{Deserialize, Serialize};
 
 pub mod saml;
@@ -8,5 +9,6 @@ pub mod saml;
 pub struct Identity {
     pub user_id: String,
     pub workspace_name: String,
+    pub role: Role,
     pub claims: HashMap<String, String>,
 }
