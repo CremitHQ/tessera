@@ -24,7 +24,7 @@ pub(crate) enum StorageConfig {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
 pub(crate) enum BackboneConfig {
-    Workspace { host: String, workspace_name: String },
+    Workspace { host: String },
 }
 
 #[derive(Deserialize, Debug)]

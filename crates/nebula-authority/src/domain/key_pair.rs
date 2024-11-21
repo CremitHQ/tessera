@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use nebula_abe::{
     curves::bls24479::Bls24479Curve,
     random::miracl::MiraclRng,
-    schemes::rw15::{AuthorityKeyPair, GlobalParams},
+    schemes::isabella24::{AuthorityKeyPair, GlobalParams},
 };
 use nebula_secret_sharing::shamir::{combine, split, Share};
 use nebula_storage::{

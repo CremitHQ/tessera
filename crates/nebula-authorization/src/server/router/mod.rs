@@ -13,6 +13,7 @@ use axum::{
 use axum_thiserror::ErrorStatus;
 use nebula_token::{
     claim::{ATTRIBUTES_CLAIM, WORKSPACE_NAME_CLAIM},
+    jwk::jwk_set::PublicJwkSet,
     jwt::Jwt,
     JwsHeader, JwtPayload, Map, Value,
 };
@@ -132,5 +133,5 @@ pub struct SAMLConnectorCallbackResponse {
 }
 
 async fn handle_jwks(State(application): State<Arc<Application>>) -> impl IntoResponse {
-    Json(application.token_service.jwks.clone())
+    Json(PublicJwkSet::new(&application.token_service.jwks))
 }

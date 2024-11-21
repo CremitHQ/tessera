@@ -144,6 +144,9 @@ impl PublicJwkSet {
                 if let Some(kid) = it.key_id() {
                     new_key.set_key_id(kid)
                 }
+                if let Some(alg) = it.algorithm() {
+                    new_key.set_algorithm(alg);
+                }
                 new_key
             })
             .collect();
