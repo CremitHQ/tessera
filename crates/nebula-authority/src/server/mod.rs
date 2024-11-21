@@ -18,6 +18,7 @@ mod router;
 
 use crate::{application::Application, config::ApplicationConfig};
 
+static AUTHORITY_ADMINS: OnceLock<Vec<String>> = OnceLock::new();
 pub(super) struct ServerConfig {
     pub port: u16,
 }

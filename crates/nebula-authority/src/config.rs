@@ -30,6 +30,7 @@ pub(crate) enum BackboneConfig {
 #[derive(Deserialize, Debug)]
 pub(crate) struct AuthorityConfig {
     pub name: String,
+    pub admin: Vec<String>,
 }
 
 pub(super) fn load_config(
