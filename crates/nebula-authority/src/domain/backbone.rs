@@ -1,17 +1,17 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use nebula_abe::{curves::bls24479::Bls24479Curve, schemes::isabella24::GlobalParams};
+use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use serde::Deserialize;
 
 #[async_trait]
 pub trait BackboneService {
-    async fn global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bls24479Curve>>;
+    async fn global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>>;
 }
 
 #[async_trait]
 pub trait BackboneClient {
-    async fn get_global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bls24479Curve>>;
+    async fn get_global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>>;
 }
 
 pub struct WorkspaceBackboneClient {
@@ -43,7 +43,7 @@ struct ParameterResponse {
 
 #[async_trait]
 impl BackboneClient for WorkspaceBackboneClient {
-    async fn get_global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bls24479Curve>> {
+    async fn get_global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>> {
         let url = format!("{}/workspaces/{}/parameter", self.host, workspace_name);
         let response = self.client.get(&url).send().await?;
         let parameter: ParameterResponse = response.json().await?;
@@ -71,7 +71,7 @@ impl WorkspaceBackboneService {
 
 #[async_trait]
 impl BackboneService for WorkspaceBackboneService {
-    async fn global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bls24479Curve>> {
+    async fn global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>> {
         self.backbone_client.get_global_params(workspace_name).await
     }
 }
