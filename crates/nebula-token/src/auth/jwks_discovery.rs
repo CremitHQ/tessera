@@ -1,8 +1,8 @@
-use std::{sync::atomic::AtomicBool, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::jwk::jwk_set::JwkSet;
 use reqwest::IntoUrl;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 #[async_trait::async_trait]
 pub trait JwksDiscovery {
@@ -27,12 +27,12 @@ impl JwksDiscovery for StaticJwksDiscovery {
 }
 
 pub struct CachedRemoteJwksDiscovery {
-    jwks: RwLock<JwkSet>,
+    jwks: Arc<RwLock<JwkSet>>,
     client: reqwest::Client,
     jwks_url: url::Url,
     refresh_interval: Duration,
-    expiration: RwLock<Option<std::time::Instant>>,
-    is_refreshing: AtomicBool,
+    expiration: Arc<RwLock<std::time::Instant>>,
+    is_refreshing: Mutex<()>,
 }
 
 impl CachedRemoteJwksDiscovery {
@@ -40,12 +40,12 @@ impl CachedRemoteJwksDiscovery {
         let client = reqwest::Client::new();
         let jwks = fetch_jwks(&client, jwks_url.clone()).await?;
         Ok(Self {
-            jwks: RwLock::new(jwks),
+            jwks: Arc::new(RwLock::new(jwks)),
             client,
             jwks_url,
             refresh_interval,
-            expiration: RwLock::new(None),
-            is_refreshing: AtomicBool::new(false),
+            expiration: Arc::new(RwLock::new(std::time::Instant::now() + refresh_interval)),
+            is_refreshing: Mutex::new(()),
         })
     }
 }
@@ -59,22 +59,28 @@ pub async fn fetch_jwks(client: &reqwest::Client, jwks_url: impl IntoUrl) -> Res
 #[async_trait::async_trait]
 impl JwksDiscovery for CachedRemoteJwksDiscovery {
     async fn jwks(&self) -> Result<JwkSet, super::error::AuthError> {
-        {
-            let expiration = self.expiration.read().await;
-            if let Some(expiration) = *expiration {
-                if expiration > std::time::Instant::now()
-                    || self.is_refreshing.load(std::sync::atomic::Ordering::Acquire)
-                {
-                    return Ok(self.jwks.read().await.clone());
-                }
-            }
-        }
+        let now = std::time::Instant::now();
+        let expiration = self.expiration.read().await;
 
-        self.is_refreshing.store(true, std::sync::atomic::Ordering::Release);
-        let jwks = fetch_jwks(&self.client, self.jwks_url.clone()).await?;
-        *self.jwks.write().await = jwks.clone();
-        *self.expiration.write().await = Some(std::time::Instant::now() + self.refresh_interval);
-        self.is_refreshing.store(false, std::sync::atomic::Ordering::Release);
-        Ok(jwks)
+        if *expiration > now {
+            return Ok(self.jwks.read().await.clone());
+        } else {
+            drop(expiration);
+            if let Ok(_) = self.is_refreshing.try_lock() {
+                let client = self.client.clone();
+                let jwks_url = self.jwks_url.clone();
+                let jwks_write = self.jwks.clone();
+                let expiration_write = self.expiration.clone();
+                let refresh_interval = self.refresh_interval;
+                tokio::spawn(async move {
+                    if let Ok(jwks) = fetch_jwks(&client, jwks_url).await {
+                        *jwks_write.write().await = jwks;
+                        *expiration_write.write().await = std::time::Instant::now() + refresh_interval;
+                    }
+                });
+            }
+
+            return Ok(self.jwks.read().await.clone());
+        }
     }
 }
