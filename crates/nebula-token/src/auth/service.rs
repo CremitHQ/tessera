@@ -1,6 +1,6 @@
 use std::task::{Context, Poll};
 
-use axum::{body::Body, extract::Request, response::IntoResponse, RequestExt};
+use axum::{body::Body, extract::Request, response::IntoResponse};
 use futures_util::future::BoxFuture;
 
 use crate::claim::NebulaClaim;
