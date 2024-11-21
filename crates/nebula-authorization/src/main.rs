@@ -20,9 +20,6 @@ struct Args {
     /// Sets a port to start a backbone server
     #[arg(short, long, value_name = "PORT")]
     pub port: Option<u16>,
-    /// Sets a base url to start a authorization server
-    #[arg(long)]
-    pub base_url: Option<String>,
     /// Sets a database host
     #[arg(long)]
     pub database_host: Option<String>,

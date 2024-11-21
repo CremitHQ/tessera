@@ -1,16 +1,19 @@
 use config::{Config, File, FileFormat};
 use directories::BaseDirs;
+use nebula_token::jwk::jwk_set::JwkSet;
 use serde::Deserialize;
+use url::Url;
 
-use crate::{domain::token::jwk::jwk_set::JwkSet, Args};
+use crate::Args;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ApplicationConfig {
     pub port: u16,
-    pub base_url: String,
+    pub base_url: Url,
     pub database: DatabaseConfig,
     pub upstream_idp: UpstreamIdpConfig,
     pub token: TokenConfig,
+    pub workspace: WorkspaceConfig,
 }
 
 #[derive(Deserialize, Debug)]
@@ -40,12 +43,12 @@ pub struct SAMLConfig {
     pub sso_url: String,
     pub idp_issuer: String,
     pub ca: String,
-    pub claims: ClaimsConfig,
+    pub attributes: AttributesConfig,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ClaimsConfig {
+pub enum AttributesConfig {
     All,
     Mapping(Vec<(String, String)>),
 }
@@ -55,6 +58,23 @@ pub struct TokenConfig {
     pub lifetime: u64,
     pub jwks: Option<JwkSet>,
     pub jwk_kid: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WorkspaceConfig {
+    Static(StaticWorkspaceConfig),
+    Claim(ClaimWorkspaceConfig),
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct StaticWorkspaceConfig {
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ClaimWorkspaceConfig {
+    pub claim: String,
 }
 
 pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {
@@ -73,7 +93,6 @@ pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {
     let config: ApplicationConfig = Config::builder()
         .add_source(File::from(config_file_path).format(FileFormat::Toml))
         .set_override_option("port", args.port.map(|port| port.to_string()))?
-        .set_override_option("base_url", args.base_url)?
         .set_override_option("database.host", args.database_host)?
         .set_override_option("database.port", args.database_port)?
         .set_override_option("database.database_name", args.database_name)?

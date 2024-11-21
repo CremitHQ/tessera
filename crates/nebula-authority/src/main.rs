@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use application::Application;
 use clap::Parser;
 use domain::authority::Authority;
+use nebula_token::auth::jwks_discovery::{fetch_jwks, CachedRemoteJwksDiscovery, JwksDiscovery, StaticJwksDiscovery};
 
 use crate::logger::LoggerConfig;
 
@@ -29,7 +30,18 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let app_config = config::load_config(args.config, args.port)?;
     let authority = Authority::new(&app_config)?;
-    let application = Application::new(authority);
+    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> = if let Some(refresh_interval) =
+        app_config.jwks_refresh_interval
+    {
+        Arc::new(
+            CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?,
+        )
+    } else {
+        let client = reqwest::Client::new();
+        let jwks = fetch_jwks(&client, app_config.jwks_url.clone()).await?;
+        Arc::new(StaticJwksDiscovery::new(jwks))
+    };
+    let application = Application::new(authority, jwks_discovery);
 
     server::run(application, app_config.into()).await?;
     Ok(())

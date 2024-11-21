@@ -11,7 +11,7 @@ use ulid::Ulid;
 use crate::database::parameter;
 use nebula_abe::{
     curves::{bls24479::Bls24479Curve, PairingCurve},
-    schemes::rw15::GlobalParams,
+    schemes::isabella24::GlobalParams,
 };
 
 pub(crate) struct Parameter {
@@ -108,7 +108,7 @@ mod test {
     use chrono::Utc;
     use nebula_abe::{
         curves::{bls24479::Bls24479Curve, PairingCurve},
-        schemes::rw15::GlobalParams,
+        schemes::isabella24::GlobalParams,
     };
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
     use ulid::Ulid;

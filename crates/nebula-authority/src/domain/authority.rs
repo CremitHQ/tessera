@@ -28,8 +28,8 @@ impl Authority {
         };
 
         let backbone_service: Arc<dyn BackboneService + Send + Sync> = match &config.backbone {
-            BackboneConfig::Workspace { workspace_name, host } => {
-                let backbone_client = WorkspaceBackboneClient::new(workspace_name.clone(), host.clone());
+            BackboneConfig::Workspace { host } => {
+                let backbone_client = WorkspaceBackboneClient::new(host.clone());
                 Arc::new(WorkspaceBackboneService::new(backbone_client))
             }
         };
@@ -37,9 +37,9 @@ impl Authority {
         Ok(Self { name: config.authority.name.clone(), key_pair_service, backbone_service })
     }
 
-    pub async fn key_pair(&self) -> Result<KeyPair> {
-        let name = &self.name;
-        let gp = self.backbone_service.global_params().await?;
+    pub async fn key_pair(&self, workspace_name: &str) -> Result<KeyPair> {
+        let gp = self.backbone_service.global_params(workspace_name).await?;
+        let name = &format!("{}-{}", self.name, workspace_name);
         let key_pair = match self.key_pair_service.latest_key_pair(name).await? {
             Some(key_pair) => key_pair,
             None => {
@@ -52,8 +52,8 @@ impl Authority {
         Ok(key_pair)
     }
 
-    pub async fn key_pair_by_version(&self, version: u64) -> Result<KeyPair> {
-        let name = &self.name;
+    pub async fn key_pair_by_version(&self, workspace_name: &str, version: u64) -> Result<KeyPair> {
+        let name = &format!("{}-{}", self.name, workspace_name);
         let key_pair = match self.key_pair_service.key_pair_by_version(name, version).await? {
             Some(key_pair) => key_pair,
             None => {

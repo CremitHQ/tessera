@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-use std::str::FromStr;
+use std::time::SystemTime;
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as base64_engine;
 use base64::Engine;
@@ -13,7 +13,6 @@ use serde_json::{Map, Value};
 
 use super::error::JWTError;
 use super::jwk::jwk_ext::JwkExt;
-use super::jws::SigningAlgorithm;
 
 #[derive(Debug, Clone)]
 pub struct Jwt {
@@ -29,22 +28,12 @@ impl Jwt {
         Ok(Jwt { header, payload, serialized_repr: result })
     }
 
-    pub fn alg(&self) -> Option<SigningAlgorithm> {
-        self.header.algorithm().and_then(|it| SigningAlgorithm::from_str(it).ok())
-    }
-
-    pub fn kid(&self) -> Option<&str> {
-        self.header.key_id()
-    }
-
     pub fn verify(&self, key: &Jwk) -> Result<(), JWTError> {
         let verifier = key.get_verifier().map_err(JWTError::VerifierCreationError)?;
         let jwt_bytes = self.serialized_repr.as_bytes();
         let indexes: Vec<usize> =
             jwt_bytes.iter().enumerate().filter(|(_, b)| **b == b'.').map(|(pos, _)| pos).collect();
-        if indexes.len() != 2 {
-            return Err(JWTError::InvalidJwtFormat(self.serialized_repr.clone()));
-        }
+        debug_assert_eq!(indexes.len(), 2);
 
         let header_and_payload = &jwt_bytes[..indexes[1]];
         let signature = &jwt_bytes[(indexes[1] + 1)..];
@@ -52,7 +41,13 @@ impl Jwt {
         verifier.verify(header_and_payload, &decoded_signature).map_err(JWTError::InvalidSignature)
     }
 
-    pub fn decode_no_verify(input: impl AsRef<str>) -> Result<Self, JWTError> {
+    pub fn decode(input: impl AsRef<str>, key: &Jwk) -> Result<Self, JWTError> {
+        let jwt = Jwt::decode_without_verification(input)?;
+        jwt.verify(key)?;
+        Ok(jwt)
+    }
+
+    pub fn decode_without_verification(input: impl AsRef<str>) -> Result<Self, JWTError> {
         let str_jwt = input.as_ref();
         let parts: Vec<&str> = str_jwt.split('.').collect();
 
@@ -69,6 +64,18 @@ impl Jwt {
         let payload = JwtPayload::from_map(payload)?;
 
         Ok(Jwt { header, payload, serialized_repr: str_jwt.to_owned() })
+    }
+
+    pub fn is_expired(&self) -> bool {
+        self.payload.expires_at().map_or(true, |exp| exp < SystemTime::now())
+    }
+
+    pub fn kid(&self) -> Option<&str> {
+        self.header.key_id()
+    }
+
+    pub fn payload(&self) -> &JwtPayload {
+        &self.payload
     }
 }
 
@@ -98,7 +105,7 @@ impl<'de> Deserialize<'de> for Jwt {
             where
                 E: Error,
             {
-                Jwt::decode_no_verify(v).map_err(|err| E::custom(err))
+                Jwt::decode_without_verification(v).map_err(|err| E::custom(err))
             }
         }
         deserializer.deserialize_str(JWSVisitor)

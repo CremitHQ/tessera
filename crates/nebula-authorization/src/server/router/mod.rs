@@ -11,11 +11,16 @@ use axum::{
     Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
-use josekit::{jws::JwsHeader, jwt::JwtPayload, Map, Value};
+use nebula_token::{
+    claim::{ATTRIBUTES_CLAIM, WORKSPACE_NAME_CLAIM},
+    jwk::jwk_set::PublicJwkSet,
+    jwt::Jwt,
+    JwsHeader, JwtPayload, Map, Value,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{application::Application, domain::token::jwt::Jwt};
+use crate::application::Application;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
@@ -67,19 +72,22 @@ async fn handle_saml_connector_callback(
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateSAMLIdentity)?;
 
     let mut jws_header = JwsHeader::new();
-    jws_header.set_jwk_set_url(format!("{}/jwks", application.base_url));
+    jws_header.set_jwk_set_url(
+        application.base_url.join("/jwks").map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?,
+    );
     jws_header.set_key_id(&application.token_service.jwk_kid);
     jws_header.set_algorithm("ES256");
 
     let mut jwt_payload = JwtPayload::new();
     jwt_payload
         .set_claim(
-            "attributes",
+            ATTRIBUTES_CLAIM,
             Some(Value::Object(identity.claims.into_iter().map(|(k, v)| (k, v.into())).collect::<Map<_, _>>())),
         )
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
     jwt_payload.set_subject(&identity.user_id);
     jwt_payload.set_issuer("nebula-authorization");
+    jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into())).unwrap();
 
     let now = SystemTime::now();
     let expires_at = now + Duration::from_secs(application.token_service.lifetime);
@@ -125,5 +133,5 @@ pub struct SAMLConnectorCallbackResponse {
 }
 
 async fn handle_jwks(State(application): State<Arc<Application>>) -> impl IntoResponse {
-    Json(application.token_service.jwks.clone())
+    Json(PublicJwkSet::new(&application.token_service.jwks))
 }

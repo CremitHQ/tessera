@@ -5,7 +5,6 @@ use tracing::debug;
 
 use crate::{application::Application, config::ApplicationConfig};
 
-//mod response;
 mod router;
 
 pub(super) struct ServerConfig {
@@ -23,7 +22,7 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     let app = Router::new().route("/health", get(|| async { "" })).nest("/", router::router(application.clone()));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
-    debug!("starting idp server on {}", config.port);
+    debug!("starting authz server on {}", config.port);
     axum::serve(listener, app).await?;
     Ok(())
 }

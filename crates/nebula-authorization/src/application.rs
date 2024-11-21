@@ -3,16 +3,15 @@ use std::sync::Arc;
 use crate::{
     config::{ApplicationConfig, UpstreamIdpConfig},
     database::{connect_to_database, AuthMethod},
-    domain::{
-        connector::saml::{SAMLConnector, SAMLConnertorConfig},
-        token::jwk::jwk_set::JwkSet,
-    },
+    domain::connector::saml::{SAMLConnector, SAMLConnertorConfig},
 };
 
+use nebula_token::jwk::jwk_set::{JwkSet, JWK_SET_DEFAULT_KEY_ID};
 use sea_orm::DatabaseConnection;
+use url::Url;
 
 pub struct Application {
-    pub base_url: String,
+    pub base_url: Url,
     pub database_connection: Arc<DatabaseConnection>,
     pub connector: Arc<SAMLConnector>,
     pub token_service: Arc<TokenService>,
@@ -30,12 +29,13 @@ impl Application {
 
         let saml_config = match config.upstream_idp {
             UpstreamIdpConfig::Saml(ref saml) => SAMLConnertorConfig::builder()
-                .redirect_uri(format!("{}/callback/saml", config.base_url))
+                .redirect_uri(config.base_url.join("/callback/saml")?)
                 .sso_url(&saml.sso_url)
                 .idp_issuer(&saml.idp_issuer)
                 .maybe_entity_id(saml.entity_id.as_ref())
                 .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
-                .claims(saml.claims.clone())
+                .attributes_config(saml.attributes.clone())
+                .workspace_config(config.workspace.clone())
                 .build(),
         };
 
@@ -43,8 +43,8 @@ impl Application {
 
         let (jwks, kid) = match (&config.token.jwks, &config.token.jwk_kid) {
             (Some(jwks), Some(kid)) => (jwks.clone(), kid.clone()),
-            (Some(jwks), None) => (jwks.clone(), "default-key".to_string()),
-            _ => (JwkSet::default(), "default-key".to_string()),
+            (Some(jwks), None) => (jwks.clone(), JWK_SET_DEFAULT_KEY_ID.to_string()),
+            _ => (JwkSet::default(), JWK_SET_DEFAULT_KEY_ID.to_string()),
         };
 
         Ok(Self {

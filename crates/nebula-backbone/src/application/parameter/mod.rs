@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use nebula_abe::{curves::bls24479::Bls24479Curve, schemes::rw15::GlobalParams};
+use nebula_abe::{curves::bls24479::Bls24479Curve, schemes::isabella24::GlobalParams};
 use sea_orm::DatabaseConnection;
 
 use crate::{
@@ -81,7 +81,7 @@ mod test {
 
     use nebula_abe::{
         curves::{bls24479::Bls24479Curve, PairingCurve},
-        schemes::rw15::GlobalParams,
+        schemes::isabella24::GlobalParams,
     };
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
 
