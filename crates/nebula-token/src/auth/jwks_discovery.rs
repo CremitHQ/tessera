@@ -66,7 +66,7 @@ impl JwksDiscovery for CachedRemoteJwksDiscovery {
             return Ok(self.jwks.read().await.clone());
         } else {
             drop(expiration);
-            if let Ok(_) = self.is_refreshing.try_lock() {
+            if let Ok(_lock) = self.is_refreshing.try_lock() {
                 let client = self.client.clone();
                 let jwks_url = self.jwks_url.clone();
                 let jwks_write = self.jwks.clone();
