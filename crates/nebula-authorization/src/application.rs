@@ -3,7 +3,10 @@ use std::sync::Arc;
 use crate::{
     config::{ApplicationConfig, UpstreamIdpConfig},
     database::{connect_to_database, AuthMethod},
-    domain::connector::saml::{SAMLConnector, SAMLConnertorConfig},
+    domain::{
+        connector::saml::{SAMLConnector, SAMLConnertorConfig},
+        machine_identity::MachineIdentityService,
+    },
 };
 
 use nebula_token::jwk::jwk_set::{JwkSet, JWK_SET_DEFAULT_KEY_ID};
@@ -15,6 +18,7 @@ pub struct Application {
     pub database_connection: Arc<DatabaseConnection>,
     pub connector: Arc<SAMLConnector>,
     pub token_service: Arc<TokenService>,
+    pub machine_identity_service: Arc<MachineIdentityService>,
 }
 
 pub struct TokenService {
@@ -52,6 +56,7 @@ impl Application {
             database_connection,
             connector: saml_connector,
             token_service: Arc::new(TokenService { lifetime: config.token.lifetime, jwks, jwk_kid: kid }),
+            machine_identity_service: Arc::new(MachineIdentityService {}),
         })
     }
 }

@@ -13,11 +13,13 @@ use aws_sigv4::{
     http_request::{sign, SignableBody, SignableRequest, SigningSettings},
     sign::v4::SigningParams,
 };
-use sea_orm::sqlx::postgres::PgConnectOptions;
+use sea_orm::{sqlx::postgres::PgConnectOptions, ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, DbErr, TryFromU64, TryGetError};
 use ulid::Ulid;
 use url::Url;
 
+pub(crate) mod machine_identity;
+pub(crate) mod machine_identity_attribute;
 pub(crate) mod types;
 
 pub(crate) enum AuthMethod {
@@ -128,7 +130,7 @@ fn reassign_token_periodically_to_database(
     });
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct UlidId(Ulid);
 
 impl UlidId {
@@ -230,6 +232,26 @@ impl sea_orm::sea_query::ValueType for UlidId {
 
     fn column_type() -> sea_orm::prelude::ColumnType {
         sea_orm::prelude::ColumnType::String(sea_orm::sea_query::StringLen::N(26))
+    }
+}
+
+#[async_trait]
+pub trait WorkspaceScopedTransaction {
+    async fn begin_with_workspace_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr>;
+}
+
+#[async_trait]
+impl WorkspaceScopedTransaction for DatabaseConnection {
+    async fn begin_with_workspace_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr> {
+        let transaction = self.begin().await?;
+        transaction
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!("SET LOCAL search_path TO \"{workspace_slug}\", \"public\";"),
+            ))
+            .await?;
+
+        Ok(transaction)
     }
 }
 
