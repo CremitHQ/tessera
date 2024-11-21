@@ -28,10 +28,8 @@ impl From<ApplicationConfig> for ServerConfig {
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
     let application = Arc::new(application);
     let protected_router = Router::new()
-        .nest(
-            "/v1/workspaces/:workspace_name/",
-            router::init::router(application.clone()).route_layer(middleware::from_fn(handle_workspace_name)),
-        )
+        .nest("/v1/workspaces/:workspace_name/", router::init::router(application.clone()))
+        .route_layer(middleware::from_fn(handle_workspace_name))
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery.clone()).build());
 
     let public_router = Router::new()
