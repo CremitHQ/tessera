@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 
 use axum::{
-    extract::{Path, Request, State},
+    extract::{Path, Request},
     middleware::{self, Next},
     response::Response,
     routing::get,
