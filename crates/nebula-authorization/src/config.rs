@@ -44,6 +44,8 @@ pub struct SAMLConfig {
     pub idp_issuer: String,
     pub ca: String,
     pub attributes: AttributesConfig,
+    pub group_attribute: String,
+    pub admin_groups: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]

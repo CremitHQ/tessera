@@ -12,7 +12,7 @@ use axum::{
 };
 use axum_thiserror::ErrorStatus;
 use nebula_token::{
-    claim::{ATTRIBUTES_CLAIM, WORKSPACE_NAME_CLAIM},
+    claim::{ATTRIBUTES_CLAIM, ROLE_CLAIM, WORKSPACE_NAME_CLAIM},
     jwk::jwk_set::PublicJwkSet,
     jwt::Jwt,
     JwsHeader, JwtPayload, Map, Value,
@@ -104,6 +104,7 @@ async fn handle_saml_connector_callback(
     jwt_payload.set_subject(&identity.user_id);
     jwt_payload.set_issuer("nebula-authorization");
     jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into())).unwrap();
+    jwt_payload.set_claim(ROLE_CLAIM, Some(String::from(identity.role).into())).unwrap();
 
     let now = SystemTime::now();
     let expires_at = now + Duration::from_secs(application.token_service.lifetime);

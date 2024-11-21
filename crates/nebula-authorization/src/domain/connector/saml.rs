@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bon::Builder;
+use nebula_token::claim::Role;
 use samael::{
     metadata::{Endpoint, EntityDescriptor, IdpSsoDescriptor, NameIdFormat, HTTP_POST_BINDING, HTTP_REDIRECT_BINDING},
     schema::{AttributeStatement, AuthnRequest},
@@ -25,6 +26,8 @@ pub struct SAMLConnertorConfig {
     ca: openssl::x509::X509,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
+    group_attribute: String,
+    admin_groups: Vec<String>,
 }
 
 pub struct SAMLConnector {
@@ -33,6 +36,8 @@ pub struct SAMLConnector {
     service_provider: ServiceProvider,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
+    group_attribute: String,
+    admin_groups: Vec<String>,
 }
 
 #[derive(Error, Debug)]
@@ -115,6 +120,8 @@ impl SAMLConnector {
             redirect_uri: config.redirect_uri,
             attributes_config: config.attributes_config,
             workspace_config: config.workspace_config,
+            group_attribute: config.group_attribute,
+            admin_groups: config.admin_groups,
         })
     }
 
@@ -158,7 +165,12 @@ impl SAMLConnector {
             WorkspaceConfig::Claim(ref config) => get_attribute(&attributes, &config.claim)?,
         };
 
-        Ok(Identity { user_id, claims, workspace_name })
+        let role = get_all_attribute(&attributes, &self.group_attribute)?
+            .iter()
+            .find_map(|group| if self.admin_groups.contains(group) { Some(Role::Admin) } else { None })
+            .unwrap_or(Role::Member);
+
+        Ok(Identity { user_id, claims, workspace_name, role })
     }
 }
 

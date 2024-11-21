@@ -40,6 +40,8 @@ impl Application {
                 .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
                 .attributes_config(saml.attributes.clone())
                 .workspace_config(config.workspace.clone())
+                .group_attribute(&saml.group_attribute)
+                .admin_groups(saml.admin_groups.clone())
                 .build(),
         };
 
