@@ -86,7 +86,7 @@ async fn handle_saml_connector_callback(
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
     jwt_payload.set_subject(&identity.user_id);
     jwt_payload.set_issuer("nebula-authorization");
-    jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into()));
+    jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into())).unwrap();
 
     let now = SystemTime::now();
     let expires_at = now + Duration::from_secs(application.token_service.lifetime);
