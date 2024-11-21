@@ -20,6 +20,7 @@ use url::Url;
 
 pub(crate) mod machine_identity;
 pub(crate) mod machine_identity_attribute;
+pub(crate) mod machine_identity_token;
 pub(crate) mod types;
 
 pub(crate) enum AuthMethod {

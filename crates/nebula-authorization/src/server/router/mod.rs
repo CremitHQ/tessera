@@ -17,7 +17,7 @@ use nebula_token::{
     jwt::Jwt,
     JwsHeader, JwtPayload, Map, Value,
 };
-use sea_orm::DbErr;
+use sea_orm::{DatabaseTransaction, DbErr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ulid::Ulid;
@@ -25,7 +25,7 @@ use ulid::Ulid;
 use crate::{
     application::Application,
     database::{Persistable, WorkspaceScopedTransaction},
-    domain::machine_identity::{self, MachineIdentity},
+    domain::machine_identity::{self, MachineIdentity, MachineIdentityToken},
 };
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
@@ -42,6 +42,14 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
             get(handle_get_machine_identity)
                 .patch(handle_patch_machine_identity)
                 .delete(handle_delete_machine_identity),
+        )
+        .route(
+            "/workspaces/:workspace_name/machine-identities/:machine_identity_id/tokens",
+            get(handle_get_machine_identity_tokens).post(handle_post_machine_identity_token),
+        )
+        .route(
+            "/workspaces/:workspace_name/machine-identities/:machine_identity_id/tokens/:machine_identity_token_id",
+            get(handle_get_machine_identity_token).delete(handle_delete_machine_identity_token),
         )
         .with_state(application)
 }
@@ -168,6 +176,9 @@ pub struct PostMachineIdentityRequest {
 
 #[derive(Error, Debug, ErrorStatus)]
 enum MachineIdentityError {
+    #[error("machine identity token is not exists")]
+    #[status(StatusCode::NOT_FOUND)]
+    MachineIdentityTokenNotExists { entered_machine_identity_token_id: Ulid },
     #[error("machine identity is not exists")]
     #[status(StatusCode::NOT_FOUND)]
     MachineIdentityNotExists { entered_machine_identity_id: Ulid },
@@ -234,19 +245,25 @@ async fn handle_get_machine_identities(
     Ok(Json(payload))
 }
 
+async fn get_machine_identity(
+    application: &Application,
+    transaction: &DatabaseTransaction,
+    machine_identity_id: &Ulid,
+) -> Result<MachineIdentity, MachineIdentityError> {
+    application.machine_identity_service.get_machine_identity(&transaction, &machine_identity_id).await?.ok_or_else(
+        || MachineIdentityError::MachineIdentityNotExists {
+            entered_machine_identity_id: machine_identity_id.to_owned(),
+        },
+    )
+}
+
 async fn handle_get_machine_identity(
     Path((workspace_name, machine_identity_id)): Path<(String, Ulid)>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, MachineIdentityError> {
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
-    let machine_identity = application
-        .machine_identity_service
-        .get_machine_identity(&transaction, &machine_identity_id)
-        .await?
-        .ok_or_else(|| MachineIdentityError::MachineIdentityNotExists {
-            entered_machine_identity_id: machine_identity_id.to_owned(),
-        })?;
+    let machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
 
     transaction.commit().await?;
 
@@ -267,13 +284,7 @@ async fn handle_patch_machine_identity(
 ) -> Result<impl IntoResponse, MachineIdentityError> {
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
-    let mut machine_identity = application
-        .machine_identity_service
-        .get_machine_identity(&transaction, &machine_identity_id)
-        .await?
-        .ok_or_else(|| MachineIdentityError::MachineIdentityNotExists {
-            entered_machine_identity_id: machine_identity_id.to_owned(),
-        })?;
+    let mut machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
 
     if let Some(attributes) = payload.attributes {
         let attributes: Vec<_> =
@@ -293,13 +304,7 @@ async fn handle_delete_machine_identity(
 ) -> Result<impl IntoResponse, MachineIdentityError> {
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
-    let mut machine_identity = application
-        .machine_identity_service
-        .get_machine_identity(&transaction, &machine_identity_id)
-        .await?
-        .ok_or_else(|| MachineIdentityError::MachineIdentityNotExists {
-            entered_machine_identity_id: machine_identity_id.to_owned(),
-        })?;
+    let mut machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
 
     machine_identity.delete();
     machine_identity.persist(&transaction).await?;
@@ -307,4 +312,93 @@ async fn handle_delete_machine_identity(
     transaction.commit().await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MachineIdentityTokenResponse {
+    pub id: Ulid,
+    pub token: String,
+}
+
+impl From<MachineIdentityToken> for MachineIdentityTokenResponse {
+    fn from(value: MachineIdentityToken) -> Self {
+        Self { id: value.id, token: value.token }
+    }
+}
+
+async fn handle_get_machine_identity_tokens(
+    Path((workspace_name, machine_identity_id)): Path<(String, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, MachineIdentityError> {
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    let machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
+    let tokens =
+        application.machine_identity_service.get_machine_identity_tokens(&transaction, &machine_identity).await?;
+
+    transaction.commit().await?;
+
+    let payload: Vec<_> = tokens.into_iter().map(MachineIdentityTokenResponse::from).collect();
+
+    Ok(Json(payload))
+}
+
+async fn handle_post_machine_identity_token(
+    Path((workspace_name, machine_identity_id)): Path<(String, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, MachineIdentityError> {
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    let machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
+    application.machine_identity_service.create_new_machine_identity_token(&transaction, &machine_identity).await?;
+
+    transaction.commit().await?;
+
+    Ok(StatusCode::CREATED)
+}
+
+async fn handle_get_machine_identity_token(
+    Path((workspace_name, machine_identity_id, machine_identity_token_id)): Path<(String, Ulid, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, MachineIdentityError> {
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    let machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
+
+    let token = application
+        .machine_identity_service
+        .get_machine_identity_token(&transaction, &machine_identity, &machine_identity_token_id)
+        .await?
+        .ok_or_else(|| MachineIdentityError::MachineIdentityTokenNotExists {
+            entered_machine_identity_token_id: machine_identity_token_id.to_owned(),
+        })?;
+
+    transaction.commit().await?;
+
+    let payload = MachineIdentityTokenResponse::from(token);
+
+    Ok(Json(payload))
+}
+
+async fn handle_delete_machine_identity_token(
+    Path((workspace_name, machine_identity_id, machine_identity_token_id)): Path<(String, Ulid, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, MachineIdentityError> {
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    let machine_identity = get_machine_identity(&application, &transaction, &machine_identity_id).await?;
+    let mut token = application
+        .machine_identity_service
+        .get_machine_identity_token(&transaction, &machine_identity, &machine_identity_token_id)
+        .await?
+        .ok_or_else(|| MachineIdentityError::MachineIdentityTokenNotExists {
+            entered_machine_identity_token_id: machine_identity_token_id.to_owned(),
+        })?;
+    token.delete();
+    token.persist(&transaction).await?;
+
+    transaction.commit().await?;
+
+    Ok(StatusCode::CREATED)
 }
