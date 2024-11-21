@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use nebula_abe::{curves::bls24479::Bls24479Curve, schemes::isabella24::GlobalParams};
+use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use sea_orm::DatabaseConnection;
 
 use crate::{
@@ -46,7 +46,7 @@ impl ParameterUseCase for ParameterUseCaseImpl {
 
 pub(crate) struct ParameterData {
     pub version: i32,
-    pub value: GlobalParams<Bls24479Curve>,
+    pub value: GlobalParams<Bn462Curve>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -80,7 +80,7 @@ mod test {
     use std::sync::Arc;
 
     use nebula_abe::{
-        curves::{bls24479::Bls24479Curve, PairingCurve},
+        curves::{bn462::Bn462Curve, PairingCurve},
         schemes::isabella24::GlobalParams,
     };
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
@@ -97,12 +97,12 @@ mod test {
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
-        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
+        let mut rng = <Bn462Curve as PairingCurve>::Rng::new();
         let mut mock_parameter_service = MockParameterService::new();
         mock_parameter_service
             .expect_get()
             .times(1)
-            .returning(move |_| Ok(Parameter { version: 1, value: GlobalParams::<Bls24479Curve>::new(&mut rng) }));
+            .returning(move |_| Ok(Parameter { version: 1, value: GlobalParams::<Bn462Curve>::new(&mut rng) }));
 
         let parameter_usecase = ParameterUseCaseImpl::new(
             workspace_name.clone(),
