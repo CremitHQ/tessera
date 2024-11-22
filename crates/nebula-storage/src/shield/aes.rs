@@ -121,16 +121,18 @@ impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> 
     type Key = <S as Storage>::Value;
     type ZeroizingKey = ZeroizingKey;
 
-    async fn initialize(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError> {
+    async fn is_initialized(&self) -> Result<bool, Self::ShieldError> {
         let shield_key =
             self.inner.get(SHIELD_KEY_PATH).await.map_err(|e| InitializationErrorKind::ReadShieldKey(e.to_string()))?;
+        Ok(shield_key.is_some())
+    }
 
+    async fn initialize(&self, master_key: &Self::Key) -> Result<(), Self::ShieldError> {
         // If shield_key is already set in the storage, we return `Ok(())` to maintain idempotency.
         // This is intentional—no need to throw an error here.
-        if shield_key.is_some() {
+        if self.is_initialized().await? {
             return Ok(());
         }
-
         let key_size = master_key.len();
         if key_size != AES_BLOCK_SIZE {
             return Err(InitializationErrorKind::InvalidKeySize(AES_BLOCK_SIZE, key_size).into());

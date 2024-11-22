@@ -10,13 +10,13 @@ use ulid::Ulid;
 
 use crate::database::parameter;
 use nebula_abe::{
-    curves::{bls24479::Bls24479Curve, PairingCurve},
+    curves::{bn462::Bn462Curve, PairingCurve},
     schemes::isabella24::GlobalParams,
 };
 
 pub(crate) struct Parameter {
     pub version: i32,
-    pub value: GlobalParams<Bls24479Curve>,
+    pub value: GlobalParams<Bn462Curve>,
 }
 
 #[cfg_attr(test, automock)]
@@ -42,12 +42,12 @@ impl ParameterService for PostgresParameterService {
             return Err(Error::ParameterAlreadyCreated(PARAMETER_VERSION));
         }
 
-        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
+        let mut rng = <Bn462Curve as PairingCurve>::Rng::new();
         let mut seed = [0u8; 64];
         OsRng.fill(&mut seed);
         rng.seed(&seed);
 
-        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+        let gp = GlobalParams::<Bn462Curve>::new(&mut rng);
         let value = rmp_serde::to_vec(&gp)?;
         let now = Utc::now();
         parameter::ActiveModel {
@@ -70,7 +70,7 @@ impl ParameterService for PostgresParameterService {
             .await?
             .ok_or(Error::ParameterNotFound)?;
         let value = parameter.value;
-        let gp: GlobalParams<Bls24479Curve> = rmp_serde::from_slice(&value)?;
+        let gp: GlobalParams<Bn462Curve> = rmp_serde::from_slice(&value)?;
         Ok(Parameter { version: PARAMETER_VERSION, value: gp })
     }
 }
@@ -107,7 +107,7 @@ mod test {
 
     use chrono::Utc;
     use nebula_abe::{
-        curves::{bls24479::Bls24479Curve, PairingCurve},
+        curves::{bn462::Bn462Curve, PairingCurve},
         schemes::isabella24::GlobalParams,
     };
     use sea_orm::{DatabaseBackend, DbErr, MockDatabase, TransactionTrait};
@@ -120,8 +120,8 @@ mod test {
     #[tokio::test]
     async fn when_creating_parameter_is_successful_then_parameter_service_returns_ok() {
         use crate::database::parameter::Model;
-        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
-        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+        let mut rng = <Bn462Curve as PairingCurve>::Rng::new();
+        let gp = GlobalParams::<Bn462Curve>::new(&mut rng);
         let value = rmp_serde::to_vec(&gp).expect("serializing global params should be successful");
 
         let now = Utc::now();
@@ -169,8 +169,8 @@ mod test {
     #[tokio::test]
     async fn when_getting_parameter_is_successful_then_parameter_service_returns_ok() {
         use crate::database::parameter::Model;
-        let mut rng = <Bls24479Curve as PairingCurve>::Rng::new();
-        let gp = GlobalParams::<Bls24479Curve>::new(&mut rng);
+        let mut rng = <Bn462Curve as PairingCurve>::Rng::new();
+        let gp = GlobalParams::<Bn462Curve>::new(&mut rng);
         let value = rmp_serde::to_vec(&gp).expect("serializing global params should be successful");
 
         let now = Utc::now();

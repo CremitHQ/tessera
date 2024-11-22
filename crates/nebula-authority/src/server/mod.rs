@@ -35,6 +35,10 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     let application = Arc::new(application);
     let protected_router = Router::new()
         .nest("/v1/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
+        .nest(
+            "/v1/workspaces/:workspace_name/",
+            router::userkey::router(application.clone()).route_layer(middleware::from_fn(check_workspace_name)),
+        )
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery.clone()).build());
 
     let public_router = Router::new()

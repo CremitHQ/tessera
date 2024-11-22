@@ -16,8 +16,8 @@ use super::{
 pub struct Authority {
     pub name: String,
     pub admin: Vec<String>,
+    pub backbone_service: Arc<dyn BackboneService + Send + Sync>,
     key_pair_service: Arc<dyn ShieldedKeyPairService + Send + Sync>,
-    backbone_service: Arc<dyn BackboneService + Send + Sync>,
 }
 
 impl Authority {

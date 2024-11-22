@@ -1,7 +1,7 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use nebula_abe::{
-    curves::bls24479::Bls24479Curve,
+    curves::bn462::Bn462Curve,
     random::miracl::MiraclRng,
     schemes::isabella24::{AuthorityKeyPair, GlobalParams},
 };
@@ -14,7 +14,7 @@ use nebula_storage::{
 use rand::{rngs::OsRng, RngCore as _};
 use zeroize::Zeroizing;
 
-pub type KeyPair = AuthorityKeyPair<Bls24479Curve>;
+pub type KeyPair = AuthorityKeyPair<Bn462Curve>;
 
 const KEY_PAIR_PATH: &str = "/authority/keypair/";
 const KEY_PAIR_VERSION_NAME: &str = "version";
@@ -22,18 +22,18 @@ const KEY_PAIR_VERSION_NAME: &str = "version";
 #[async_trait]
 pub trait KeyPairService {
     #[inline(always)]
-    fn version_path(&self, authority_name: &str) -> String {
-        format!("{}{}/{}", KEY_PAIR_PATH, authority_name, KEY_PAIR_VERSION_NAME)
+    fn version_path(&self, name: &str) -> String {
+        format!("{}{}/{}", KEY_PAIR_PATH, name, KEY_PAIR_VERSION_NAME)
     }
     #[inline(always)]
-    fn key_pair_path(&self, authority_name: &str, version: u64) -> String {
-        format!("{}{}/{}", KEY_PAIR_PATH, authority_name, version)
+    fn key_pair_path(&self, name: &str, version: u64) -> String {
+        format!("{}{}/{}", KEY_PAIR_PATH, name, version)
     }
 
-    async fn generate_key_pair(&self, gp: &GlobalParams<Bls24479Curve>, authority_name: &str) -> Result<KeyPair>;
-    async fn latest_key_pair_version(&self, authority_name: &str) -> Result<Option<u64>>;
-    async fn latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>>;
-    async fn key_pair_by_version(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>>;
+    async fn generate_key_pair(&self, gp: &GlobalParams<Bn462Curve>, name: &str) -> Result<KeyPair>;
+    async fn latest_key_pair_version(&self, name: &str) -> Result<Option<u64>>;
+    async fn latest_key_pair(&self, name: &str) -> Result<Option<KeyPair>>;
+    async fn key_pair_by_version(&self, name: &str, version: u64) -> Result<Option<KeyPair>>;
     async fn store_latest_key_pair(&self, key_pair: &KeyPair) -> Result<()>;
 }
 
@@ -56,18 +56,18 @@ impl<'a> FileKeyPairService<'a> {
 
 #[async_trait]
 impl KeyPairService for FileKeyPairService<'_> {
-    async fn generate_key_pair(&self, gp: &GlobalParams<Bls24479Curve>, authority_name: &str) -> Result<KeyPair> {
+    async fn generate_key_pair(&self, gp: &GlobalParams<Bn462Curve>, name: &str) -> Result<KeyPair> {
         let mut seed = [0u8; 32];
         OsRng.fill_bytes(&mut seed);
         let mut rng = MiraclRng::new();
         rng.seed(&seed);
 
-        let key_pair = KeyPair::new(&mut rng, gp, authority_name);
+        let key_pair = KeyPair::new(&mut rng, gp, name);
         Ok(key_pair)
     }
 
-    async fn latest_key_pair_version(&self, authority_name: &str) -> Result<Option<u64>> {
-        let version_path = self.version_path(authority_name);
+    async fn latest_key_pair_version(&self, name: &str) -> Result<Option<u64>> {
+        let version_path = self.version_path(name);
         let version = self.storage.get(&version_path).await?;
         match version {
             Some(version) => {
@@ -78,21 +78,21 @@ impl KeyPairService for FileKeyPairService<'_> {
         }
     }
 
-    async fn latest_key_pair(&self, authority_name: &str) -> Result<Option<KeyPair>> {
-        let version_path = self.version_path(authority_name);
+    async fn latest_key_pair(&self, name: &str) -> Result<Option<KeyPair>> {
+        let version_path = self.version_path(name);
         let version = self.storage.get(&version_path).await?;
 
         match version {
             Some(version) => {
                 let version: u64 = String::from_utf8(version)?.parse()?;
-                self.key_pair_by_version(authority_name, version).await
+                self.key_pair_by_version(name, version).await
             }
             None => Ok(None),
         }
     }
 
-    async fn key_pair_by_version(&self, authority_name: &str, version: u64) -> Result<Option<KeyPair>> {
-        let key_pair_path = self.key_pair_path(authority_name, version);
+    async fn key_pair_by_version(&self, name: &str, version: u64) -> Result<Option<KeyPair>> {
+        let key_pair_path = self.key_pair_path(name, version);
         let key_pair = self.storage.get(&key_pair_path).await?;
         match key_pair {
             Some(key_pair) => {
@@ -121,6 +121,10 @@ impl KeyPairService for FileKeyPairService<'_> {
 #[async_trait]
 impl ShieldedKeyPairService for FileKeyPairService<'_> {
     async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
+        if self.storage.is_initialized().await? {
+            bail!("shield storage is already initialized");
+        }
+
         let master_key = self.storage.generate_key().await?;
         let shares = Zeroizing::new(split(&master_key, share, threshold));
         self.storage.initialize(&master_key).await?;
