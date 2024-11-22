@@ -5,12 +5,12 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::patch,
-    Extension, Json, Router,
+    Json, Router,
 };
 use axum_thiserror::ErrorStatus;
 
 use nebula_abe::random::miracl::MiraclRng;
-use nebula_token::claim::NebulaClaim;
+
 use rand::{rngs::OsRng, Rng as _};
 use serde::Serialize;
 use thiserror::Error;
