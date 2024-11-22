@@ -28,6 +28,6 @@ base64 = { workspace = true }
 url = { workspace = true, features = ["serde"] }
 # nebula packages
 nebula-abe = { workspace = true, features = ["zeroize"] }
-nebula-storage = { workspace = true }
+nebula-storage = { workspace = true, features = ["zeroize", "shield"] }
 nebula-secret-sharing = { workspace = true }
 nebula-token = { workspace = true }
