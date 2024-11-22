@@ -11,9 +11,13 @@ categories.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
-zeroize.workspace = true
+zeroize = { workspace = true, optional = true }
 tokio.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 
 [dev-dependencies]
+
+[features]
+default = ["zeroize"]
+zeroize = ["dep:zeroize"]
