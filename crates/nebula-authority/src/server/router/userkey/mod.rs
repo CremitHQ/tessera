@@ -27,8 +27,8 @@ async fn handle_get_user_key(
     State(application): State<Arc<Application>>,
     Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, GetUserKeyError> {
-    let key_pair = if let Some(version) = query_params.version {
-        application.authority.key_pair_by_version(&workspace_name, version).await
+    let (key_pair, version) = if let Some(version) = query_params.version {
+        application.authority.key_pair_by_version(&workspace_name, version).await.map(|key_pair| (key_pair, version))
     } else {
         application.authority.key_pair(&workspace_name).await
     }
@@ -57,7 +57,7 @@ async fn handle_get_user_key(
     let user_key = rmp_serde::to_vec(&user_key).map_err(GetUserKeyError::Serialization)?;
     let user_key = STANDARD.encode(&user_key);
 
-    Ok(Json(GetUserKeyResponse { user_key }))
+    Ok(Json(GetUserKeyResponse { user_key, version }))
 }
 
 #[derive(Deserialize)]
@@ -70,6 +70,7 @@ pub struct GetUserKeyQueryParam {
 #[serde(rename_all = "camelCase")]
 pub struct GetUserKeyResponse {
     user_key: String,
+    version: u64,
 }
 
 #[derive(Error, Debug, ErrorStatus)]

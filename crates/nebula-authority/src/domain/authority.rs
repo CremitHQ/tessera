@@ -10,14 +10,13 @@ use crate::config::{ApplicationConfig, BackboneConfig, StorageConfig};
 
 use super::{
     backbone::{BackboneService, WorkspaceBackboneClient, WorkspaceBackboneService},
-    key_pair::{FileKeyPairService, KeyPair, ShieldedKeyPairService},
+    key_pair::{FileKeyPairService, KeyPair, KeyVersion, ShieldedKeyPairService},
 };
 
 pub struct Authority {
     pub name: String,
-    pub admin: Vec<String>,
     pub backbone_service: Arc<dyn BackboneService + Send + Sync>,
-    key_pair_service: Arc<dyn ShieldedKeyPairService + Send + Sync>,
+    pub key_pair_service: Arc<dyn ShieldedKeyPairService + Send + Sync>,
 }
 
 impl Authority {
@@ -35,30 +34,21 @@ impl Authority {
             }
         };
 
-        Ok(Self {
-            name: config.authority.name.clone(),
-            admin: config.authority.admin.clone(),
-            key_pair_service,
-            backbone_service,
-        })
+        Ok(Self { name: config.authority.name.clone(), key_pair_service, backbone_service })
     }
 
-    pub async fn key_pair(&self, workspace_name: &str) -> Result<KeyPair> {
+    pub async fn key_pair(&self, workspace_name: &str) -> Result<(KeyPair, KeyVersion)> {
         let gp = self.backbone_service.global_params(workspace_name).await?;
         let name = &format!("{}-{}", self.name, workspace_name);
         let key_pair = match self.key_pair_service.latest_key_pair(name).await? {
             Some(key_pair) => key_pair,
-            None => {
-                let key_pair = self.key_pair_service.generate_key_pair(&gp, name).await?;
-                self.key_pair_service.store_latest_key_pair(&key_pair).await?;
-                key_pair
-            }
+            None => self.key_pair_service.generate_latest_key_pair(&gp, name).await?,
         };
 
         Ok(key_pair)
     }
 
-    pub async fn key_pair_by_version(&self, workspace_name: &str, version: u64) -> Result<KeyPair> {
+    pub async fn key_pair_by_version(&self, workspace_name: &str, version: KeyVersion) -> Result<KeyPair> {
         let name = &format!("{}-{}", self.name, workspace_name);
         let key_pair = match self.key_pair_service.key_pair_by_version(name, version).await? {
             Some(key_pair) => key_pair,

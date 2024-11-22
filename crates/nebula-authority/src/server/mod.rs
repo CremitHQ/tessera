@@ -22,16 +22,17 @@ use crate::{application::Application, config::ApplicationConfig};
 static AUTHORITY_ADMINS: OnceLock<Vec<String>> = OnceLock::new();
 pub(super) struct ServerConfig {
     pub port: u16,
+    pub admin: Vec<String>,
 }
 
 impl From<ApplicationConfig> for ServerConfig {
     fn from(value: ApplicationConfig) -> Self {
-        Self { port: value.port }
+        Self { port: value.port, admin: value.authority.admin }
     }
 }
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
-    AUTHORITY_ADMINS.get_or_init(|| application.authority.admin.clone());
+    AUTHORITY_ADMINS.get_or_init(|| config.admin.clone());
     let application = Arc::new(application);
     let protected_router = Router::new()
         .nest("/v1/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
