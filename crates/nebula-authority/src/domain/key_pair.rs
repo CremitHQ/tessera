@@ -43,7 +43,7 @@ pub trait KeyPairService {
 
 #[async_trait]
 pub trait ShieldedKeyPairService: KeyPairService {
-    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>>;
+    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Vec<Share>>;
     async fn storage_armor(&self) -> Result<()>;
     async fn storage_disarm(&self, shares: &[Share]) -> Result<()>;
 }
@@ -126,13 +126,13 @@ impl KeyPairService for FileKeyPairService<'_> {
 
 #[async_trait]
 impl ShieldedKeyPairService for FileKeyPairService<'_> {
-    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
+    async fn shield_initialize(&self, share: usize, threshold: usize) -> Result<Vec<Share>> {
         if self.storage.is_initialized().await? {
             bail!("shield storage is already initialized");
         }
 
         let master_key = self.storage.generate_key().await?;
-        let shares = Zeroizing::new(split(&master_key, share, threshold));
+        let shares = split(&master_key, share, threshold);
         self.storage.initialize(&master_key).await?;
 
         self.storage.disarm(&master_key).await?; // Disarm the storage immediately after initialization

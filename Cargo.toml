@@ -70,3 +70,5 @@ futures-util = "0.3"
 axum_thiserror = "0.1"
 axum = "0.7"
 tower = "0.5"
+config = "0.14.0"
+clap = { version = "4.5.19", features = ["cargo", "derive"] }

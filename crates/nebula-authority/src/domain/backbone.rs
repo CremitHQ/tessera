@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use cached::proc_macro::cached;
 use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use serde::Deserialize;
 
@@ -20,8 +21,8 @@ pub struct WorkspaceBackboneClient {
 }
 
 impl WorkspaceBackboneClient {
-    pub fn new(host: String) -> Self {
-        Self { host, client: reqwest::Client::new() }
+    pub fn new(host: &str) -> Self {
+        Self { host: host.to_string(), client: reqwest::Client::new() }
     }
 
     pub fn client(mut self, client: reqwest::Client) -> Self {
@@ -55,23 +56,24 @@ impl BackboneClient for WorkspaceBackboneClient {
 }
 
 pub struct WorkspaceBackboneService {
-    backbone_client: WorkspaceBackboneClient,
+    backbone_host: String,
 }
 
 impl WorkspaceBackboneService {
-    pub fn new(backbone_client: WorkspaceBackboneClient) -> Self {
-        Self { backbone_client }
-    }
-
-    pub fn backbone_client(mut self, backbone_client: WorkspaceBackboneClient) -> Self {
-        self.backbone_client = backbone_client;
-        self
+    pub fn new(backbone_host: &str) -> Self {
+        Self { backbone_host: backbone_host.to_string() }
     }
 }
 
 #[async_trait]
 impl BackboneService for WorkspaceBackboneService {
     async fn global_params(&self, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>> {
-        self.backbone_client.get_global_params(workspace_name).await
+        get_global_params(&self.backbone_host, workspace_name).await
     }
+}
+
+#[cached(size = 32, result = true, key = "String", convert = r#"{ format!("{}{}", host, workspace_name) }"#)]
+async fn get_global_params(host: &str, workspace_name: &str) -> Result<GlobalParams<Bn462Curve>> {
+    let client = WorkspaceBackboneClient::new(host);
+    client.get_global_params(workspace_name).await
 }

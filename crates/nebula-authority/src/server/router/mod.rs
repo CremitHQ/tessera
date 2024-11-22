@@ -1,3 +1,4 @@
+pub mod disarm;
 pub mod init;
 pub mod keypair;
 pub mod pubkey;

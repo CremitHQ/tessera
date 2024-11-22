@@ -37,6 +37,10 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     let protected_router = Router::new()
         .nest("/v1/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
         .nest(
+            "/v1/",
+            router::disarm::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)),
+        )
+        .nest(
             "/v1/workspaces/:workspace_name/",
             router::userkey::router(application.clone()).route_layer(middleware::from_fn(check_workspace_name)),
         )
