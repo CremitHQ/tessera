@@ -1,8 +1,11 @@
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
+
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::gf256::GF256;
 
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct Polynomial {
     pub coefficients: Vec<GF256>,
 }
@@ -24,7 +27,8 @@ impl Polynomial {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Zeroize, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct Share {
     pub x: GF256,
     pub points: Vec<GF256>,

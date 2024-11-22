@@ -2,9 +2,11 @@ use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
-#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Zeroize, Serialize, Deserialize)]
+#[derive(Default, Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "zeroize", derive(Zeroize))]
 pub struct GF256(pub u8);
 
 impl GF256 {
