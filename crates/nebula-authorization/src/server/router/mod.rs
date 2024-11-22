@@ -250,7 +250,7 @@ async fn get_machine_identity(
     transaction: &DatabaseTransaction,
     machine_identity_id: &Ulid,
 ) -> Result<MachineIdentity, MachineIdentityError> {
-    application.machine_identity_service.get_machine_identity(&transaction, &machine_identity_id).await?.ok_or_else(
+    application.machine_identity_service.get_machine_identity(transaction, machine_identity_id).await?.ok_or_else(
         || MachineIdentityError::MachineIdentityNotExists {
             entered_machine_identity_id: machine_identity_id.to_owned(),
         },
