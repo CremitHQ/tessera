@@ -162,10 +162,10 @@ fn lbits(n3: &mut BIG, n: &mut BIG) -> usize {
 }
 
 /* prepare for multi-pairing */
-pub fn initmp() -> [FP48; ecp::ATE_BITS] {
-    let r: [FP48; ecp::ATE_BITS] = [FP48::new_int(1); ecp::ATE_BITS];
-    r
-}
+// pub fn initmp() -> [FP48; ecp::ATE_BITS] {
+//     let r: [FP48; ecp::ATE_BITS] = [FP48::new_int(1); ecp::ATE_BITS];
+//     r
+// }
 
 /* basic Miller loop */
 pub fn miller(r: &mut [FP48]) -> FP48 {

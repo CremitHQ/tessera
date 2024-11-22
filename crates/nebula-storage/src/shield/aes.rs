@@ -7,6 +7,7 @@ use rand::{rngs::OsRng, Rng as _};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;
+#[cfg(feature = "zeroize")]
 use zeroize::ZeroizeOnDrop;
 
 const AES_GCM_VERSION: u8 = 1;
@@ -18,22 +19,24 @@ pub struct AESShieldStorage<S: Storage> {
     shield_key: RwLock<Option<AESShieldKey>>,
 }
 
-#[derive(Serialize, Deserialize, ZeroizeOnDrop)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop))]
 pub struct AESShieldKey {
     version: u8,
-    key: ZeroizingKey,
+    key: ShieldKey,
 }
 
-#[derive(ZeroizeOnDrop, Serialize, Deserialize)]
-pub struct ZeroizingKey(Vec<u8>);
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop))]
+pub struct ShieldKey(Vec<u8>);
 
-impl ZeroizingKey {
+impl ShieldKey {
     pub fn new(key: Vec<u8>) -> Self {
         Self(key)
     }
 }
 
-impl Deref for ZeroizingKey {
+impl Deref for ShieldKey {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -41,7 +44,7 @@ impl Deref for ZeroizingKey {
     }
 }
 
-impl DerefMut for ZeroizingKey {
+impl DerefMut for ShieldKey {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -119,7 +122,7 @@ impl<S: Storage> AESShieldStorage<S> {
 impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> {
     type ShieldError = AESShieldError;
     type Key = <S as Storage>::Value;
-    type ZeroizingKey = ZeroizingKey;
+    type ShieldKey = ShieldKey;
 
     async fn is_initialized(&self) -> Result<bool, Self::ShieldError> {
         let shield_key =
@@ -170,7 +173,7 @@ impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> 
 
         // We manually zeroize `shield_key` to make sure it doesn't linger in memory.
         let shield_key =
-            ZeroizingKey::new(self.decrypt(master_key, &armored_shield_key).map_err(DisarmErrorKind::AESGCMError)?);
+            ShieldKey::new(self.decrypt(master_key, &armored_shield_key).map_err(DisarmErrorKind::AESGCMError)?);
         let shield_key: AESShieldKey =
             rmp_serde::from_slice(&shield_key).map_err(InitializationErrorKind::DeserializeShieldKey)?;
 
@@ -181,10 +184,10 @@ impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> 
         Ok(())
     }
 
-    async fn generate_key(&self) -> Result<ZeroizingKey, Self::ShieldError> {
+    async fn generate_key(&self) -> Result<ShieldKey, Self::ShieldError> {
         let mut buf = vec![0; AES_BLOCK_SIZE];
         OsRng.fill(buf.deref_mut());
-        Ok(ZeroizingKey::new(buf))
+        Ok(ShieldKey::new(buf))
     }
 }
 

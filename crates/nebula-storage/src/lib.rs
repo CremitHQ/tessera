@@ -1,4 +1,6 @@
 pub mod backend;
+
+#[cfg(feature = "shield")]
 pub mod shield;
 
 #[trait_variant::make(Storage: Send)]

@@ -17,8 +17,6 @@
  * limitations under the License.
  */
 
-use serde::{Deserialize, Serialize};
-
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
 use crate::bls24479::ecp;
@@ -26,6 +24,10 @@ use crate::bls24479::fp::FP;
 use crate::bls24479::fp2::FP2;
 use crate::bls24479::fp4::FP4;
 use crate::bls24479::fp8::FP8;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub const ZERO: usize = 0;
 pub const ONE: usize = 1;
@@ -34,7 +36,9 @@ pub const SPARSER: usize = 3;
 pub const SPARSE: usize = 4;
 pub const DENSE: usize = 5;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct FP24 {
     a: FP8,
     b: FP8,
@@ -178,19 +182,19 @@ impl FP24 {
     }
 
     pub fn geta(&mut self) -> FP8 {
-        self.a
+        self.a.clone()
         //        let f = FP8::new_copy(&self.a);
         //        return f;
     }
 
     pub fn getb(&mut self) -> FP8 {
-        self.b
+        self.b.clone()
         //	let f = FP8::new_copy(&self.b);
         //        return f;
     }
 
     pub fn getc(&mut self) -> FP8 {
-        self.c
+        self.c.clone()
         //        let f = FP8::new_copy(&self.c);
         //        return f;
     }

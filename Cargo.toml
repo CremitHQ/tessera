@@ -32,7 +32,7 @@ tracing-subscriber = { version = "0.3.18", features = ["json"] }
 serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
-zeroize = "1.8.1"
+zeroize = { version = "1.8.1", features = ["serde", "zeroize_derive"] }
 nebula-miracl = { path = "crates/nebula-miracl" }
 nebula-policy = { path = "crates/nebula-policy" }
 nebula-abe = { path = "crates/nebula-abe" }

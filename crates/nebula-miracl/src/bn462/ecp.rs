@@ -16,8 +16,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bn462::big;
 use crate::bn462::big::BIG;
@@ -26,7 +28,9 @@ use crate::bn462::fp;
 use crate::bn462::fp::FP;
 use crate::bn462::rom;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop, Zeroize))]
 pub struct ECP {
     x: FP,
     y: FP,

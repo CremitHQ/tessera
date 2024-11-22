@@ -16,7 +16,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bls48556::big;
 use crate::bls48556::big::BIG;
@@ -33,7 +36,9 @@ pub const SPARSER: usize = 3;
 pub const SPARSE: usize = 4;
 pub const DENSE: usize = 5;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct FP48 {
     a: FP16,
     b: FP16,
@@ -177,19 +182,19 @@ impl FP48 {
     }
 
     pub fn geta(&mut self) -> FP16 {
-        self.a
+        self.a.clone()
         //        let f = FP16::new_copy(&self.a);
         //        return f;
     }
 
     pub fn getb(&mut self) -> FP16 {
-        self.b
+        self.b.clone()
         //        let f = FP16::new_copy(&self.b);
         //        return f;
     }
 
     pub fn getc(&mut self) -> FP16 {
-        self.c
+        self.c.clone()
         //        let f = FP16::new_copy(&self.c);
         //        return f;
     }

@@ -14,7 +14,7 @@ sha3 = { workspace = true }
 aes-gcm = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tracing = { workspace = true }
-zeroize = { workspace = true, features = ["zeroize_derive", "serde"] }
+zeroize = { workspace = true, optional = true }
 nebula-miracl = { workspace = true }
 nebula-policy = { workspace = true }
 thiserror = { workspace = true }
@@ -26,3 +26,6 @@ async-trait = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 rand = { workspace = true }
 rstest = { workspace = true }
+
+[features]
+zeroize = ["dep:zeroize", "nebula-miracl/zeroize"]

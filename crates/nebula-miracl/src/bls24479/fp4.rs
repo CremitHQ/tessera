@@ -17,7 +17,10 @@
  * limitations under the License.
  */
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
@@ -28,7 +31,9 @@ use crate::bls24479::fp2::FP2;
 use crate::bls24479::rom;
 use crate::rand::RAND;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct FP4 {
     a: FP2,
     b: FP2,

@@ -175,9 +175,9 @@ fn lbits(n3: &mut BIG, n: &mut BIG) -> usize {
 }
 
 /* prepare for multi-pairing */
-pub fn initmp() -> [FP12; ecp::ATE_BITS] {
-    [FP12::new_int(1); ecp::ATE_BITS]
-}
+// pub fn initmp() -> [FP12; ecp::ATE_BITS] {
+//     [FP12::new_int(1); ecp::ATE_BITS]
+// }
 
 /* basic Miller loop */
 pub fn miller(r: &mut [FP12]) -> FP12 {

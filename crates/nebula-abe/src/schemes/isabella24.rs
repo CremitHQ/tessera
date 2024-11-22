@@ -19,8 +19,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
 };
 use thiserror::Error;
+
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct GlobalParams<T>
@@ -47,9 +51,12 @@ where
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop))]
 pub struct AuthorityKeyPair<T: PairingCurve> {
     pub name: String,
+    #[cfg_attr(feature = "zeroize", zeroize(skip))]
     pub pk: AuthorityPublicKey<T>,
+    #[cfg_attr(feature = "zeroize", zeroize(drop))]
     pub mk: AuthorityMasterKey<T>,
 }
 
@@ -62,6 +69,7 @@ pub struct AuthorityPublicKey<T: PairingCurve> {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop))]
 pub struct AuthorityMasterKey<T: PairingCurve> {
     pub name: String,
     pub beta: T::Field,
@@ -94,16 +102,90 @@ where
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct UserAttributeKey<T: PairingCurve> {
     pub k0: T::G2,
     pub k1: T::G2,
-    pub k2: HashMap<String, T::G1>,
+    pub k2: K2<T>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+pub struct K2<T: PairingCurve>(HashMap<String, T::G1>);
+
+impl<T> Deref for K2<T>
+where
+    T: PairingCurve,
+{
+    type Target = HashMap<String, T::G1>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for K2<T>
+where
+    T: PairingCurve,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl<T: PairingCurve> Zeroize for K2<T> {
+    fn zeroize(&mut self) {
+        self.iter_mut().for_each(|(_, v)| v.zeroize());
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop, Zeroize))]
 pub struct UserSecretKey<T: PairingCurve> {
     pub gid: String,
-    pub inner: HashMap<String, UserAttributeKey<T>>,
+    pub inner: UserAttributeKeys<T>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserAttributeKeys<T: PairingCurve>(HashMap<String, UserAttributeKey<T>>);
+
+impl<T> Deref for UserAttributeKeys<T>
+where
+    T: PairingCurve,
+{
+    type Target = HashMap<String, UserAttributeKey<T>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for UserAttributeKeys<T>
+where
+    T: PairingCurve,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<T> IntoIterator for UserAttributeKeys<T>
+where
+    T: PairingCurve,
+{
+    type Item = (String, UserAttributeKey<T>);
+    type IntoIter = std::collections::hash_map::IntoIter<String, UserAttributeKey<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl<T: PairingCurve> Zeroize for UserAttributeKeys<T> {
+    fn zeroize(&mut self) {
+        self.iter_mut().for_each(|(_, v)| v.zeroize());
+    }
 }
 
 impl<T> UserAttributeKey<T>
@@ -129,7 +211,7 @@ where
             let k = T::hash_to_g1(attribute.as_bytes()).ref_mul(&r);
             k2.insert(attribute, k);
         }
-        Self { k0, k1, k2 }
+        Self { k0, k1, k2: K2(k2) }
     }
 }
 
@@ -148,7 +230,7 @@ where
         let authority_name = mk.name.as_str();
         let attribute_key = UserAttributeKey::new(rng, authority_name, gp, mk, gid, attributes);
         inner.insert(authority_name.to_string(), attribute_key);
-        Self { gid: gid.to_string(), inner }
+        Self { gid: gid.to_string(), inner: UserAttributeKeys(inner) }
     }
 
     pub fn add_attribute_key<S: AsRef<str>>(
@@ -178,13 +260,13 @@ where
 {
     pub fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Result<Self, SumUserSecretKeyError> {
         let first = iter.next().ok_or(SumUserSecretKeyError::Empty)?;
-        let gid = first.gid;
-        let mut inner = first.inner;
+        let gid = first.gid.clone();
+        let mut inner = first.inner.clone();
         for key in iter {
             if key.gid != gid {
-                return Err(SumUserSecretKeyError::GidMismatch(gid, key.gid));
+                return Err(SumUserSecretKeyError::GidMismatch(gid, key.gid.clone()));
             }
-            for (authority_name, attribute_key) in key.inner {
+            for (authority_name, attribute_key) in key.inner.clone() {
                 inner.entry(authority_name).or_insert(attribute_key);
             }
         }
