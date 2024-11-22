@@ -5,12 +5,11 @@ use anyhow::Result;
 use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use nebula_secret_sharing::shamir::Share;
 use nebula_storage::backend::file::FileStorage;
-use zeroize::Zeroizing;
 
 use crate::config::{ApplicationConfig, BackboneConfig, StorageConfig};
 
 use super::{
-    backbone::{BackboneService, WorkspaceBackboneClient, WorkspaceBackboneService},
+    backbone::{BackboneService, WorkspaceBackboneService},
     key_pair::{FileKeyPairService, KeyPair, KeyVersion, ShieldedKeyPairService},
 };
 
@@ -29,10 +28,7 @@ impl Authority {
         };
 
         let backbone_service: Arc<dyn BackboneService + Send + Sync> = match &config.backbone {
-            BackboneConfig::Workspace { host } => {
-                let backbone_client = WorkspaceBackboneClient::new(host.clone());
-                Arc::new(WorkspaceBackboneService::new(backbone_client))
-            }
+            BackboneConfig::Workspace { host } => Arc::new(WorkspaceBackboneService::new(host)),
         };
 
         Ok(Self { name: config.authority.name.clone(), key_pair_service, backbone_service })
@@ -67,7 +63,7 @@ impl Authority {
         Ok(version)
     }
 
-    pub async fn init_key_pair_storage(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
+    pub async fn init_key_pair_storage(&self, share: usize, threshold: usize) -> Result<Vec<Share>> {
         self.key_pair_service.shield_initialize(share, threshold).await
     }
 
