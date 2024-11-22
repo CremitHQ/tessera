@@ -27,7 +27,7 @@ axum_thiserror = { workspace = true }
 base64 = { workspace = true }
 url = { workspace = true, features = ["serde"] }
 # nebula packages
-nebula-abe = { workspace = true }
+nebula-abe = { workspace = true, features = ["zeroize"] }
 nebula-storage = { workspace = true }
 nebula-secret-sharing = { workspace = true }
 nebula-token = { workspace = true }
