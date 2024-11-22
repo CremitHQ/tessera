@@ -39,6 +39,12 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
             "/v1/workspaces/:workspace_name/",
             router::userkey::router(application.clone()).route_layer(middleware::from_fn(check_workspace_name)),
         )
+        .nest(
+            "/v1/workspaces/:workspace_name/",
+            router::keypair::router(application.clone())
+                .route_layer(middleware::from_fn(check_admin_role))
+                .route_layer(middleware::from_fn(check_workspace_name)),
+        )
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery.clone()).build());
 
     let public_router = Router::new()

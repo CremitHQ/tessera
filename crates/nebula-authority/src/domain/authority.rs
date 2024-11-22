@@ -2,6 +2,7 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 
+use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use nebula_secret_sharing::shamir::Share;
 use nebula_storage::backend::file::FileStorage;
 use zeroize::Zeroizing;
@@ -68,6 +69,12 @@ impl Authority {
         };
 
         Ok(key_pair)
+    }
+
+    pub async fn key_pair_rolling(&self, gp: &GlobalParams<Bn462Curve>, workspace_name: &str) -> Result<KeyVersion> {
+        let name = &format!("{}-{}", self.name, workspace_name);
+        let (_, version) = self.key_pair_service.generate_latest_key_pair(gp, name).await?;
+        Ok(version)
     }
 
     pub async fn init_key_pair_storage(&self, share: usize, threshold: usize) -> Result<Zeroizing<Vec<Share>>> {
