@@ -5,14 +5,14 @@ use std::{
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect},
     routing::{get, post},
     Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
 use nebula_token::{
-    claim::{ATTRIBUTES_CLAIM, ROLE_CLAIM, WORKSPACE_NAME_CLAIM},
+    claim::{Role, ATTRIBUTES_CLAIM, ROLE_CLAIM, WORKSPACE_NAME_CLAIM},
     jwk::jwk_set::PublicJwkSet,
     jwt::Jwt,
     JwsHeader, JwtPayload, Map, Value,
@@ -25,12 +25,16 @@ use ulid::Ulid;
 use crate::{
     application::Application,
     database::{Persistable, WorkspaceScopedTransaction},
-    domain::machine_identity::{self, MachineIdentity, MachineIdentityToken},
+    domain::{
+        connector::Identity,
+        machine_identity::{self, MachineIdentity, MachineIdentityToken},
+    },
 };
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/login/:connector", get(handle_connector_login))
+        .route("workspaces/:workspace_name/machine-identities/login", get(handle_machine_identity_login))
         .route("/callback/saml", post(handle_saml_connector_callback))
         .route("/jwks", get(handle_jwks))
         .route(
@@ -52,6 +56,66 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
             get(handle_get_machine_identity_token).delete(handle_delete_machine_identity_token),
         )
         .with_state(application)
+}
+
+async fn handle_machine_identity_login(
+    Path(workspace_name): Path<String>,
+    headers: HeaderMap,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, MachineIdentityLoginError> {
+    let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
+
+    let machine_token = headers
+        .get("token")
+        .ok_or(MachineIdentityLoginError::NoToken)?
+        .to_str()
+        .map_err(|_| MachineIdentityLoginError::InvalidTokenFormat)?;
+    let token = application
+        .machine_identity_service
+        .get_machine_identity_by_token(&transaction, machine_token)
+        .await
+        .map_err(|_| MachineIdentityLoginError::FailedToGetMachineIdentityToken)?
+        .ok_or(MachineIdentityLoginError::InvalidToken)?;
+
+    transaction.commit().await?;
+
+    let identity = Identity::new(token.id.into(), workspace_name, Role::Member, token.attributes.into_iter().collect());
+    let jwt =
+        application.token_service.create_jwt(&identity).map_err(|_| MachineIdentityLoginError::FailedToCreateJWT)?;
+
+    Ok(Json(MachineIdentityLoginResponse { access_token: jwt }))
+}
+
+#[derive(Error, Debug, ErrorStatus)]
+pub enum MachineIdentityLoginError {
+    #[error("there is no token in the header")]
+    #[status(StatusCode::BAD_REQUEST)]
+    NoToken,
+
+    #[error("invalid token format")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    InvalidTokenFormat,
+
+    #[error("failed to get machine identity token")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    FailedToGetMachineIdentityToken,
+
+    #[error("invalid token")]
+    #[status(StatusCode::UNAUTHORIZED)]
+    InvalidToken,
+
+    #[error("Error occurrred by database")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    DatabaseError(#[from] DbErr),
+
+    #[error("failed to create a JWT")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    FailedToCreateJWT,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MachineIdentityLoginResponse {
+    pub access_token: Jwt,
 }
 
 async fn handle_connector_login(
@@ -95,40 +159,8 @@ async fn handle_saml_connector_callback(
         .identity(&payload.saml_response, &payload.relay_state)
         .map_err(|_| SAMLConnectorCallbackError::FailedToCreateSAMLIdentity)?;
 
-    let mut jws_header = JwsHeader::new();
-    jws_header.set_jwk_set_url(
-        application.base_url.join("/jwks").map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?,
-    );
-    jws_header.set_key_id(&application.token_service.jwk_kid);
-    jws_header.set_algorithm("ES256");
-
-    let mut jwt_payload = JwtPayload::new();
-    jwt_payload
-        .set_claim(
-            ATTRIBUTES_CLAIM,
-            Some(Value::Object(identity.claims.into_iter().map(|(k, v)| (k, v.into())).collect::<Map<_, _>>())),
-        )
-        .map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
-    jwt_payload.set_subject(&identity.user_id);
-    jwt_payload.set_issuer("nebula-authorization");
-    jwt_payload.set_claim(WORKSPACE_NAME_CLAIM, Some(identity.workspace_name.into())).unwrap();
-    jwt_payload.set_claim(ROLE_CLAIM, Some(String::from(identity.role).into())).unwrap();
-
-    let now = SystemTime::now();
-    let expires_at = now + Duration::from_secs(application.token_service.lifetime);
-    jwt_payload.set_expires_at(&expires_at);
-    jwt_payload.set_issued_at(&now);
-
-    let jwt = Jwt::new(
-        jws_header,
-        jwt_payload,
-        application
-            .token_service
-            .jwks
-            .get(&application.token_service.jwk_kid)
-            .ok_or(SAMLConnectorCallbackError::FailedToCreateJWT)?,
-    )
-    .map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
+    let jwt =
+        application.token_service.create_jwt(&identity).map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
     Ok(Json(SAMLConnectorCallbackResponse { access_token: jwt }))
 }
 

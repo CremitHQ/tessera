@@ -6,25 +6,18 @@ use crate::{
     domain::{
         connector::saml::{SAMLConnector, SAMLConnertorConfig},
         machine_identity::MachineIdentityService,
+        token::TokenService,
     },
 };
 
 use nebula_token::jwk::jwk_set::{JwkSet, JWK_SET_DEFAULT_KEY_ID};
 use sea_orm::DatabaseConnection;
-use url::Url;
 
 pub struct Application {
-    pub base_url: Url,
     pub database_connection: Arc<DatabaseConnection>,
     pub connector: Arc<SAMLConnector>,
     pub token_service: Arc<TokenService>,
     pub machine_identity_service: Arc<MachineIdentityService>,
-}
-
-pub struct TokenService {
-    pub lifetime: u64,
-    pub jwks: JwkSet,
-    pub jwk_kid: String,
 }
 
 impl Application {
@@ -54,10 +47,9 @@ impl Application {
         };
 
         Ok(Self {
-            base_url: config.base_url.clone(),
             database_connection,
             connector: saml_connector,
-            token_service: Arc::new(TokenService { lifetime: config.token.lifetime, jwks, jwk_kid: kid }),
+            token_service: Arc::new(TokenService::new(config.base_url.clone(), config.token.lifetime, jwks, kid)),
             machine_identity_service: Arc::new(MachineIdentityService {}),
         })
     }
