@@ -24,7 +24,6 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
 async fn handle_key_pair_rolling(
     Path(workspace_name): Path<String>,
     State(application): State<Arc<Application>>,
-    Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, KeyPairRollingError> {
     let gp = application
         .authority
