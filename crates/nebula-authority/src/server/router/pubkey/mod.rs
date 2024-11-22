@@ -23,8 +23,8 @@ async fn handle_get_public_key(
     Query(query_params): Query<GetPublicKeyQueryParam>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, GetPublicKeyError> {
-    let key_pair = if let Some(version) = query_params.version {
-        application.authority.key_pair_by_version(&workspace_name, version).await
+    let (key_pair, version) = if let Some(version) = query_params.version {
+        application.authority.key_pair_by_version(&workspace_name, version).await.map(|key_pair| (key_pair, version))
     } else {
         application.authority.key_pair(&workspace_name).await
     }
@@ -33,7 +33,7 @@ async fn handle_get_public_key(
     let public_key = rmp_serde::to_vec(&key_pair.pk).map_err(GetPublicKeyError::Serialization)?;
     let public_key = STANDARD.encode(&public_key);
 
-    Ok(Json(GetPublicKeyResponse { public_key }))
+    Ok(Json(GetPublicKeyResponse { public_key, version }))
 }
 
 #[derive(Deserialize)]
@@ -46,6 +46,7 @@ pub struct GetPublicKeyQueryParam {
 #[serde(rename_all = "camelCase")]
 pub struct GetPublicKeyResponse {
     public_key: String,
+    version: u64,
 }
 
 #[derive(Error, Debug, ErrorStatus)]

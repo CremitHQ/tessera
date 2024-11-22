@@ -5,6 +5,7 @@ use axum_thiserror::ErrorStatus;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Deserialize;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 use crate::application::Application;
 
@@ -21,12 +22,17 @@ async fn handle_initializing_authority(
         .init_key_pair_storage(share as usize, threshold as usize)
         .await
         .map_err(|_| InitAuthorityError::KeyPairInitialization)?;
-    let shares = shares
-        .iter()
-        .map(|share| rmp_serde::to_vec(&share))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(InitAuthorityError::Serialization)?;
-    let shares = shares.iter().map(|share| STANDARD.encode(share)).collect::<Vec<_>>();
+
+    let shares = Zeroizing::new(
+        shares
+            .iter()
+            .map(|share| {
+                let share = Zeroizing::new(rmp_serde::to_vec(&share)?);
+                Ok(Zeroizing::new(STANDARD.encode(&share)))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(InitAuthorityError::Serialization)?,
+    );
     Ok(Json(shares))
 }
 
