@@ -17,7 +17,10 @@
  * limitations under the License.
  */
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bn462::big;
 use crate::bn462::big::BIG;
@@ -28,7 +31,9 @@ use crate::bn462::rom;
 
 use crate::rand::RAND;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop, Zeroize))]
 pub struct FP2 {
     a: FP,
     b: FP,
@@ -180,13 +185,13 @@ impl FP2 {
     /* extract a */
     #[allow(non_snake_case)]
     pub fn getA(&mut self) -> FP {
-        self.a
+        self.a.clone()
     }
 
     /* extract b */
     #[allow(non_snake_case)]
     pub fn getB(&mut self) -> FP {
-        self.b
+        self.b.clone()
     }
 
     /* extract a */

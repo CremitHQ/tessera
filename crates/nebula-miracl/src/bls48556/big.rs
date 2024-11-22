@@ -16,7 +16,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::arch;
 use crate::arch::Chunk;
@@ -37,7 +40,9 @@ pub const HMASK: Chunk = (1 << HBITS) - 1;
 pub const NEXCESS: isize = 1 << ((arch::CHUNK) - BASEBITS - 1);
 pub const BIGBITS: usize = MODBYTES * 8;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct BIG {
     pub w: [Chunk; NLEN],
 }

@@ -9,7 +9,11 @@ repository.workspace = true
 doctest = false
 
 [dependencies]
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"], optional = true }
+zeroize = { workspace = true, optional = true }
 
 [features]
 std = []
+default = ["serde"]
+serde = ["dep:serde"]
+zeroize = ["dep:zeroize"]

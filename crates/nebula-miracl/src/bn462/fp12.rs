@@ -17,7 +17,10 @@
  * limitations under the License.
  */
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bn462::big;
 use crate::bn462::big::BIG;
@@ -34,7 +37,9 @@ pub const SPARSER: usize = 3;
 pub const SPARSE: usize = 4;
 pub const DENSE: usize = 5;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop, Zeroize))]
 pub struct FP12 {
     a: FP4,
     b: FP4,
@@ -179,19 +184,19 @@ impl FP12 {
     }
 
     pub fn geta(&mut self) -> FP4 {
-        self.a
+        self.a.clone()
         //        let f = FP4::new_copy(&self.a);
         //        return f;
     }
 
     pub fn getb(&mut self) -> FP4 {
-        self.b
+        self.b.clone()
         //        let f = FP4::new_copy(&self.b);
         //        return f;
     }
 
     pub fn getc(&mut self) -> FP4 {
-        self.c
+        self.c.clone()
         //        let f = FP4::new_copy(&self.c);
         //        return f;
     }

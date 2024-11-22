@@ -16,9 +16,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-use serde::Deserialize;
-use serde::Serialize;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::bls24479::big;
 use crate::bls24479::big::BIG;
@@ -30,7 +31,9 @@ use crate::bls24479::fp2::FP2;
 use crate::bls24479::fp4::FP4;
 use crate::bls24479::rom;
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct ECP4 {
     x: FP4,
     y: FP4,

@@ -17,7 +17,10 @@
  * limitations under the License.
  */
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::arch;
 use crate::arch::Chunk;
@@ -28,7 +31,9 @@ use crate::bn462::rom;
 
 use crate::rand::RAND;
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "zeroize", derive(ZeroizeOnDrop, Zeroize))]
 pub struct FP {
     pub x: BIG,
     pub xes: i32,
