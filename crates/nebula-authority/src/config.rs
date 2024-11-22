@@ -13,6 +13,7 @@ pub(crate) struct ApplicationConfig {
     pub authority: AuthorityConfig,
     pub jwks_url: Url,
     pub jwks_refresh_interval: Option<u64>,
+    pub disarm_key_shares: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug)]

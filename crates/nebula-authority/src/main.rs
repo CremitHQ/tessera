@@ -1,8 +1,10 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use application::Application;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use clap::Parser;
 use domain::authority::Authority;
+use nebula_secret_sharing::shamir::Share;
 use nebula_token::auth::jwks_discovery::{fetch_jwks, CachedRemoteJwksDiscovery, JwksDiscovery, StaticJwksDiscovery};
 
 use crate::logger::LoggerConfig;
@@ -42,6 +44,18 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(StaticJwksDiscovery::new(jwks))
     };
     let application = Application::new(authority, jwks_discovery);
+    if let Some(key_shares) = &app_config.disarm_key_shares {
+        let key_shares = key_shares
+            .iter()
+            .map(|s| {
+                STANDARD
+                    .decode(s.as_bytes())
+                    .map_err(|e| anyhow::anyhow!(e))
+                    .and_then(|decoded| rmp_serde::from_slice(&decoded).map_err(|e| anyhow::anyhow!(e)))
+            })
+            .collect::<Result<Vec<Share>, _>>()?;
+        application.authority.disarm_key_pair_storage(&key_shares).await?;
+    }
 
     server::run(application, app_config.into()).await?;
     Ok(())
