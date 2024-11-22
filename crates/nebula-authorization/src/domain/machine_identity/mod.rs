@@ -2,11 +2,12 @@ use std::collections::HashSet;
 
 use axum::async_trait;
 use chrono::Utc;
+use rand::{distributions::Alphanumeric, Rng};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, LoaderTrait, QueryFilter, Set};
 use thiserror::Error;
 use ulid::Ulid;
 
-use crate::database::{machine_identity, machine_identity_attribute, Persistable, UlidId};
+use crate::database::{machine_identity, machine_identity_attribute, machine_identity_token, Persistable, UlidId};
 
 pub struct MachineIdentity {
     pub id: Ulid,
@@ -15,6 +16,7 @@ pub struct MachineIdentity {
     updated_attributes: Option<Vec<(String, String)>>,
     deleted: bool,
 }
+
 impl MachineIdentity {
     pub(crate) fn update_attributes(&mut self, attributes: &[(&str, &str)]) {
         let current_attributes: HashSet<(&str, &str)> =
@@ -44,6 +46,7 @@ impl Persistable for MachineIdentity {
                 .exec(transaction)
                 .await?;
             machine_identity::Entity::delete_by_id(UlidId::new(self.id)).exec(transaction).await?;
+            return Ok(());
         }
 
         if let Some(updated_attributes) = self.updated_attributes {
@@ -65,6 +68,37 @@ impl Persistable for MachineIdentity {
 
                 machine_identity_attribute::Entity::insert_many(attributes_active_models).exec(transaction).await?;
             }
+        }
+
+        Ok(())
+    }
+}
+
+pub struct MachineIdentityToken {
+    pub id: Ulid,
+    pub token: String,
+    deleted: bool,
+}
+
+impl From<machine_identity_token::Model> for MachineIdentityToken {
+    fn from(value: machine_identity_token::Model) -> Self {
+        Self { id: value.id.inner(), token: value.token, deleted: false }
+    }
+}
+
+impl MachineIdentityToken {
+    pub fn delete(&mut self) {
+        self.deleted = true
+    }
+}
+
+#[async_trait]
+impl Persistable for MachineIdentityToken {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            machine_identity_token::Entity::delete_by_id(UlidId::new(self.id)).exec(transaction).await?;
         }
 
         Ok(())
@@ -154,6 +188,59 @@ impl MachineIdentityService {
 
         Ok(Some((machine_identity, attributes).into()))
     }
+
+    pub async fn get_machine_identity_tokens(
+        &self,
+        transaction: &DatabaseTransaction,
+        machine_identity: &MachineIdentity,
+    ) -> Result<Vec<MachineIdentityToken>> {
+        let tokens = machine_identity_token::Entity::find()
+            .filter(machine_identity_token::Column::MachineIdentityId.eq(UlidId::new(machine_identity.id)))
+            .all(transaction)
+            .await?;
+
+        Ok(tokens.into_iter().map(MachineIdentityToken::from).collect())
+    }
+
+    pub async fn create_new_machine_identity_token(
+        &self,
+        transaction: &DatabaseTransaction,
+        machine_identity: &MachineIdentity,
+    ) -> Result<()> {
+        let now = Utc::now();
+
+        machine_identity_token::ActiveModel {
+            id: Set(UlidId::new(Ulid::new())),
+            machine_identity_id: Set(UlidId::new(machine_identity.id)),
+            token: Set(create_new_machine_identity_token()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_machine_identity_token(
+        &self,
+        transaction: &DatabaseTransaction,
+        machine_identity: &MachineIdentity,
+        machine_identity_token_id: &Ulid,
+    ) -> Result<Option<MachineIdentityToken>> {
+        let token = machine_identity_token::Entity::find_by_id(UlidId::new(machine_identity_token_id.to_owned()))
+            .filter(machine_identity_token::Column::MachineIdentityId.eq(UlidId::new(machine_identity.id)))
+            .one(transaction)
+            .await?;
+
+        Ok(token.map(MachineIdentityToken::from))
+    }
+}
+
+// example: nmit_n12Aj0aa6ZkaA4RBp1fhYJcOTJnLHxAM
+fn create_new_machine_identity_token() -> String {
+    let random_part: String = rand::thread_rng().sample_iter(&Alphanumeric).take(32).map(char::from).collect();
+    format!("nmit_{random_part}")
 }
 
 #[derive(Error, Debug)]
