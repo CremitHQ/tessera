@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::sync::Arc;
 
 use axum::{
     extract::{Path, State},
@@ -11,12 +8,7 @@ use axum::{
     Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
-use nebula_token::{
-    claim::{Role, ATTRIBUTES_CLAIM, ROLE_CLAIM, WORKSPACE_NAME_CLAIM},
-    jwk::jwk_set::PublicJwkSet,
-    jwt::Jwt,
-    JwsHeader, JwtPayload, Map, Value,
-};
+use nebula_token::{claim::Role, jwk::jwk_set::PublicJwkSet, jwt::Jwt};
 use sea_orm::{DatabaseTransaction, DbErr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

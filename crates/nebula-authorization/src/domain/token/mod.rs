@@ -18,8 +18,8 @@ pub struct TokenService {
     pub jwk_kid: String,
 }
 
-const DEFAULT_ALGORITHM: &'static str = "ES256";
-const ISSUER: &'static str = "nebula-authorization";
+const DEFAULT_ALGORITHM: &str = "ES256";
+const ISSUER: &str = "nebula-authorization";
 
 impl TokenService {
     pub fn new(base_url: Url, lifetime: u64, jwks: JwkSet, jwk_kid: String) -> Self {

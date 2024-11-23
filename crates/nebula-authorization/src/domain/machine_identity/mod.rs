@@ -12,8 +12,6 @@ use ulid::Ulid;
 
 use crate::database::{machine_identity, machine_identity_attribute, machine_identity_token, Persistable, UlidId};
 
-use super::connector::Identity;
-
 pub struct MachineIdentity {
     pub id: Ulid,
     pub label: String,
