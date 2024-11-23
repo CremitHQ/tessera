@@ -3,7 +3,10 @@ use std::collections::HashSet;
 use axum::async_trait;
 use chrono::Utc;
 use rand::{distributions::Alphanumeric, Rng};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, LoaderTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, LoaderTrait, QueryFilter, QuerySelect as _,
+    QueryTrait as _, Set,
+};
 use thiserror::Error;
 use ulid::Ulid;
 
@@ -234,6 +237,37 @@ impl MachineIdentityService {
             .await?;
 
         Ok(token.map(MachineIdentityToken::from))
+    }
+
+    pub async fn get_machine_identity_by_token(
+        &self,
+        transaction: &DatabaseTransaction,
+        token: &str,
+    ) -> Result<Option<MachineIdentity>> {
+        let machine_identity = if let Some(machine_identity) = machine_identity::Entity::find()
+            .filter(
+                machine_identity::Column::Id.in_subquery(
+                    machine_identity_token::Entity::find()
+                        .select_only()
+                        .column(machine_identity_token::Column::MachineIdentityId)
+                        .filter(machine_identity_token::Column::Token.eq(token))
+                        .into_query(),
+                ),
+            )
+            .one(transaction)
+            .await?
+        {
+            machine_identity
+        } else {
+            return Ok(None);
+        };
+
+        let attributes = machine_identity_attribute::Entity::find()
+            .filter(machine_identity_attribute::Column::MachineIdentityId.eq(machine_identity.id))
+            .all(transaction)
+            .await?;
+
+        Ok(Some((machine_identity, attributes).into()))
     }
 }
 
