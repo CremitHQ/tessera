@@ -10,6 +10,7 @@ pub(super) struct PostPathRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct PatchPathRequest {
     pub path: Option<String>,
     pub applied_policies: Option<Vec<AppliedPolicy>>,
