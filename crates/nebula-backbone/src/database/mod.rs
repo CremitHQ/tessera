@@ -21,9 +21,12 @@ use sea_orm::{
 use ulid::Ulid;
 use url::Url;
 
+pub use migration::migrate;
+
 pub(crate) mod applied_path_policy;
 pub(crate) mod applied_path_policy_allowed_action;
 pub(crate) mod applied_policy;
+mod migration;
 pub(crate) mod parameter;
 pub(crate) mod path;
 pub(crate) mod policy;

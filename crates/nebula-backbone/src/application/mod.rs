@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::{
     config::ApplicationConfig,
-    database::{connect_to_database, AuthMethod},
+    database::{self, connect_to_database, AuthMethod},
     domain::{
         parameter::{ParameterService, PostgresParameterService},
         policy::{PolicyService, PostgresPolicyService},
@@ -97,6 +97,8 @@ impl ApplicationWithWorkspace {
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
+    database::migrate(database_connection.as_ref()).await?;
+
     let workspace_service = Arc::new(WorkspaceServiceImpl::new());
     let secret_service = Arc::new(PostgresSecretService {});
     let parameter_service = Arc::new(PostgresParameterService);
