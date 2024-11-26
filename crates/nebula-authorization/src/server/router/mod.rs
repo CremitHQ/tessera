@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Redirect},
-    routing::{get, post},
+    middleware::{self, Next},
+    response::{IntoResponse, Redirect, Response},
+    routing::{delete, get, patch, post},
     Extension, Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
 use nebula_token::{
+    auth::{jwks_discovery::StaticJwksDiscovery, layer::NebulaAuthLayer},
     claim::{NebulaClaim, Role},
     jwk::jwk_set::PublicJwkSet,
     jwt::Jwt,
@@ -28,31 +30,109 @@ use crate::{
 };
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
+    let public_router = Router::new()
         .route("/login/:connector", get(handle_connector_login))
-        .route("workspaces/:workspace_name/machine-identities/login", get(handle_machine_identity_login))
+        .route("/workspaces/:workspace_name/machine-identities/login", get(handle_machine_identity_login))
         .route("/callback/saml", post(handle_saml_connector_callback))
         .route("/jwks", get(handle_jwks))
+        .with_state(application.clone());
+
+    let private_router = Router::new()
         .route(
             "/workspaces/:workspace_name/machine-identities",
             get(handle_get_machine_identities).post(handle_post_machine_identity),
         )
+        .route("/workspaces/:workspace_name/machine-identities/:machine_identity_id", get(handle_get_machine_identity))
         .route(
             "/workspaces/:workspace_name/machine-identities/:machine_identity_id",
-            get(handle_get_machine_identity)
-                .patch(handle_patch_machine_identity)
-                .delete(handle_delete_machine_identity),
+            patch(handle_patch_machine_identity).route_layer(middleware::from_fn(check_admin_role)),
+        )
+        .route(
+            "/workspaces/:workspace_name/machine-identities/:machine_identity_id",
+            delete(handle_delete_machine_identity).route_layer(middleware::from_fn_with_state(
+                application.clone(),
+                check_machine_identity_owner_or_admin_role,
+            )),
         )
         .route(
             "/workspaces/:workspace_name/machine-identities/:machine_identity_id/tokens",
-            get(handle_get_machine_identity_tokens).post(handle_post_machine_identity_token),
+            get(handle_get_machine_identity_tokens).post(handle_post_machine_identity_token).route_layer(
+                middleware::from_fn_with_state(application.clone(), check_machine_identity_owner_or_admin_role),
+            ),
         )
         .route(
             "/workspaces/:workspace_name/machine-identities/:machine_identity_id/tokens/:machine_identity_token_id",
-            get(handle_get_machine_identity_token).delete(handle_delete_machine_identity_token),
+            get(handle_get_machine_identity_token).delete(handle_delete_machine_identity_token).route_layer(
+                middleware::from_fn_with_state(application.clone(), check_machine_identity_owner_or_admin_role),
+            ),
         )
-        .with_state(application)
+        .route_layer(middleware::from_fn(check_workspace_name))
+        .layer(
+            NebulaAuthLayer::builder()
+                .jwk_discovery(Arc::new(StaticJwksDiscovery::new(application.token_service.jwks.clone())))
+                .build(),
+        )
+        .with_state(application);
+
+    Router::new().merge(public_router).merge(private_router)
 }
+
+pub(crate) async fn check_workspace_name(
+    Path(workspace_name): Path<String>,
+    Extension(claim): Extension<NebulaClaim>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if workspace_name == claim.workspace_name {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+pub(crate) async fn check_admin_role(
+    Extension(claim): Extension<NebulaClaim>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if claim.role == Role::Admin {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+pub(crate) async fn check_machine_identity_owner_or_admin_role(
+    Path((_, machine_identity_id)): Path<(String, Ulid)>,
+    Extension(claim): Extension<NebulaClaim>,
+    State(application): State<Arc<Application>>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if claim.role == Role::Admin {
+        return Ok(next.run(req).await);
+    }
+
+    let transaction = application
+        .database_connection
+        .begin_with_workspace_scope(&claim.workspace_name)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let machine_identity = application
+        .machine_identity_service
+        .get_machine_identity(&transaction, &machine_identity_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    if machine_identity.owner_gid == claim.gid {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+const TOKEN_HEADER_NAME: &str = "token";
 
 async fn handle_machine_identity_login(
     Path(workspace_name): Path<String>,
@@ -62,7 +142,7 @@ async fn handle_machine_identity_login(
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
     let machine_token = headers
-        .get("token")
+        .get(TOKEN_HEADER_NAME)
         .ok_or(MachineIdentityLoginError::NoToken)?
         .to_str()
         .map_err(|_| MachineIdentityLoginError::InvalidTokenFormat)?;
