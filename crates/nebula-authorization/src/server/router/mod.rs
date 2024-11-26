@@ -196,7 +196,6 @@ pub struct Attribute {
 #[serde(rename_all = "camelCase")]
 pub struct PostMachineIdentityRequest {
     label: String,
-    attributes: Vec<Attribute>,
 }
 
 #[derive(Error, Debug, ErrorStatus)]
@@ -225,12 +224,9 @@ async fn handle_post_machine_identity(
     State(application): State<Arc<Application>>,
     Json(payload): Json<PostMachineIdentityRequest>,
 ) -> Result<impl IntoResponse, MachineIdentityError> {
-    let attributes: Vec<_> =
-        payload.attributes.iter().map(|attribute| (attribute.key.as_str(), attribute.value.as_str())).collect();
-
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
-    application.machine_identity_service.register_machine_identity(&transaction, &payload.label, &attributes).await?;
+    application.machine_identity_service.register_machine_identity(&transaction, &payload.label).await?;
 
     transaction.commit().await?;
 

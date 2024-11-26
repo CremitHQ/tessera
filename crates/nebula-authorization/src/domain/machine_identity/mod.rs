@@ -131,12 +131,7 @@ impl From<(machine_identity::Model, Vec<machine_identity_attribute::Model>)> for
 }
 
 impl MachineIdentityService {
-    pub async fn register_machine_identity(
-        &self,
-        transaction: &DatabaseTransaction,
-        label: &str,
-        attributes: &[(&str, &str)],
-    ) -> Result<()> {
+    pub async fn register_machine_identity(&self, transaction: &DatabaseTransaction, label: &str) -> Result<()> {
         let machine_identity_id = UlidId::new(Ulid::new());
         let now = Utc::now();
         machine_identity::ActiveModel {
@@ -147,20 +142,6 @@ impl MachineIdentityService {
         }
         .insert(transaction)
         .await?;
-
-        if !attributes.is_empty() {
-            let attributes_active_models =
-                attributes.iter().map(|(key, value)| machine_identity_attribute::ActiveModel {
-                    id: Set(UlidId::new(Ulid::new())),
-                    machine_identity_id: Set(machine_identity_id),
-                    key: Set(key.to_string()),
-                    value: Set(value.to_string()),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                });
-
-            machine_identity_attribute::Entity::insert_many(attributes_active_models).exec(transaction).await?;
-        }
 
         Ok(())
     }
