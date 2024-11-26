@@ -8,6 +8,7 @@ use super::UlidId;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: UlidId,
+    pub owner_gid: String,
     pub label: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
