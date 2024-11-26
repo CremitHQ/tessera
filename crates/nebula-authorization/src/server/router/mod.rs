@@ -5,10 +5,14 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect},
     routing::{get, post},
-    Form, Json, Router,
+    Extension, Form, Json, Router,
 };
 use axum_thiserror::ErrorStatus;
-use nebula_token::{claim::Role, jwk::jwk_set::PublicJwkSet, jwt::Jwt};
+use nebula_token::{
+    claim::{NebulaClaim, Role},
+    jwk::jwk_set::PublicJwkSet,
+    jwt::Jwt,
+};
 use sea_orm::{DatabaseTransaction, DbErr};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -222,11 +226,12 @@ impl From<machine_identity::Error> for MachineIdentityError {
 async fn handle_post_machine_identity(
     Path(workspace_name): Path<String>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
     Json(payload): Json<PostMachineIdentityRequest>,
 ) -> Result<impl IntoResponse, MachineIdentityError> {
     let transaction = application.database_connection.begin_with_workspace_scope(&workspace_name).await?;
 
-    application.machine_identity_service.register_machine_identity(&transaction, &payload.label).await?;
+    application.machine_identity_service.register_machine_identity(&transaction, &claim, &payload.label).await?;
 
     transaction.commit().await?;
 

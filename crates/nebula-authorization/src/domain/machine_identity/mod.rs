@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use axum::async_trait;
 use chrono::Utc;
+use nebula_token::claim::NebulaClaim;
 use rand::{distributions::Alphanumeric, Rng};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbErr, EntityTrait, LoaderTrait, QueryFilter, QuerySelect as _,
@@ -131,11 +132,17 @@ impl From<(machine_identity::Model, Vec<machine_identity_attribute::Model>)> for
 }
 
 impl MachineIdentityService {
-    pub async fn register_machine_identity(&self, transaction: &DatabaseTransaction, label: &str) -> Result<()> {
+    pub async fn register_machine_identity(
+        &self,
+        transaction: &DatabaseTransaction,
+        owner_claim: &NebulaClaim,
+        label: &str,
+    ) -> Result<()> {
         let machine_identity_id = UlidId::new(Ulid::new());
         let now = Utc::now();
         machine_identity::ActiveModel {
             id: Set(machine_identity_id),
+            owner_gid: Set(owner_claim.gid.to_owned()),
             label: Set(label.to_owned()),
             created_at: Set(now),
             updated_at: Set(now),
