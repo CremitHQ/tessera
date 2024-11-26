@@ -15,6 +15,7 @@ use crate::database::{machine_identity, machine_identity_attribute, machine_iden
 
 pub struct MachineIdentity {
     pub id: Ulid,
+    pub owner_gid: String,
     pub label: String,
     pub attributes: Vec<(String, String)>,
     updated_attributes: Option<Vec<(String, String)>>,
@@ -121,6 +122,7 @@ impl From<(machine_identity::Model, Vec<machine_identity_attribute::Model>)> for
         Self {
             id: machine_identity_model.id.inner(),
             label: machine_identity_model.label,
+            owner_gid: machine_identity_model.owner_gid,
             attributes: machine_identity_attribute_models
                 .into_iter()
                 .map(|attribute| (attribute.key, attribute.value))
