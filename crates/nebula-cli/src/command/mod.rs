@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use auth::AuthCommand;
-use clap::{command, Args, Parser, Subcommand};
+use clap::{command, Parser};
 
 pub mod auth;
 
