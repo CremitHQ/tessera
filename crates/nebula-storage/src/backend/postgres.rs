@@ -1,61 +1,18 @@
 use std::collections::HashSet;
-use std::{path::PathBuf, time::Duration};
 
-use crate::Storage;
-use bon::Builder;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::Row;
 use thiserror::Error;
+
+use crate::Storage;
 
 pub struct PostgresStorage {
     pool: sqlx::PgPool,
     table_name: String,
 }
 
-#[derive(Builder)]
-pub struct PostgresStorageOptions {
-    #[builder(into)]
-    host: String,
-    port: u16,
-    #[builder(into)]
-    username: String,
-    #[builder(into)]
-    password: String,
-    #[builder(into)]
-    database: String,
-    #[builder(into, default = "kv_store")]
-    table_name: String,
-    #[builder(into)]
-    tls_ca_cert: Option<PathBuf>,
-    #[builder(default = 5)]
-    max_connections: u32,
-    #[builder(default = 1)]
-    min_connections: u32,
-    #[builder(default = Duration::from_secs(10 * 60))]
-    idle_timeout: Duration,
-}
-
 impl PostgresStorage {
-    pub async fn new(options: PostgresStorageOptions) -> Result<Self, PostgresStorageError> {
-        let mut connection_options = PgConnectOptions::new()
-            .host(&options.host)
-            .port(options.port)
-            .username(&options.username)
-            .password(&options.password)
-            .database(&options.database);
-
-        if let Some(tls_ca_cert) = options.tls_ca_cert {
-            connection_options = connection_options.ssl_root_cert(tls_ca_cert);
-        }
-
-        let pool = PgPoolOptions::new()
-            .max_connections(options.max_connections)
-            .min_connections(options.min_connections)
-            .idle_timeout(options.idle_timeout)
-            .connect_with(connection_options)
-            .await?;
-
-        let table_name = quote_ident(&options.table_name);
+    pub async fn new(pool: sqlx::PgPool, table_name: &str) -> Result<Self, PostgresStorageError> {
+        let table_name = quote_ident(table_name);
 
         sqlx::query(&format!(
             r#"CREATE TABLE IF NOT EXISTS {table_name} (

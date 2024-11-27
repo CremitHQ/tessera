@@ -2509,6 +2509,9 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
+ "aws-config",
+ "aws-credential-types",
+ "aws-sigv4",
  "axum",
  "axum_thiserror",
  "base64 0.22.1",
@@ -2523,12 +2526,14 @@ dependencies = [
  "rand",
  "reqwest",
  "rmp-serde",
+ "sea-orm",
  "serde",
  "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "url",
+ "urlencoding",
  "zeroize",
 ]
 

@@ -20,6 +20,22 @@ pub(crate) struct ApplicationConfig {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
 pub(crate) enum StorageConfig {
     File { path: String },
+    Postgres(PostgresConfig),
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PostgresConfig {
+    pub host: String,
+    pub port: u16,
+    pub database_name: String,
+    pub auth: PostgresAuthMethod,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
+pub(crate) enum PostgresAuthMethod {
+    Credential { username: String, password: Option<String> },
+    RdsIamAuth { username: String },
 }
 
 #[derive(Deserialize, Debug)]

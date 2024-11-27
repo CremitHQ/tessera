@@ -11,6 +11,7 @@ use crate::logger::LoggerConfig;
 
 mod application;
 mod config;
+mod database;
 mod domain;
 mod logger;
 mod server;
@@ -31,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
     logger::init_logger(LoggerConfig::default());
     let args = Args::parse();
     let app_config = config::load_config(args.config, args.port)?;
-    let authority = Authority::new(&app_config)?;
+    let authority = Authority::new(&app_config).await?;
     let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> = if let Some(refresh_interval) =
         app_config.jwks_refresh_interval
     {

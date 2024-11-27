@@ -4,13 +4,17 @@ use anyhow::Result;
 
 use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use nebula_secret_sharing::shamir::Share;
-use nebula_storage::backend::file::FileStorage;
+use nebula_storage::backend::{file::FileStorage, postgres::PostgresStorage};
+use sea_orm::DatabaseConnection;
 
-use crate::config::{ApplicationConfig, BackboneConfig, StorageConfig};
+use crate::{
+    config::{ApplicationConfig, BackboneConfig, PostgresAuthMethod, PostgresConfig, StorageConfig},
+    database::{connect_to_database, AuthMethod},
+};
 
 use super::{
     backbone::{BackboneService, WorkspaceBackboneService},
-    key_pair::{FileKeyPairService, KeyPair, KeyVersion, ShieldedKeyPairService},
+    key_pair::{FileKeyPairService, KeyPair, KeyVersion, PostgresKeyPairService, ShieldedKeyPairService},
 };
 
 pub struct Authority {
@@ -20,10 +24,17 @@ pub struct Authority {
 }
 
 impl Authority {
-    pub fn new(config: &ApplicationConfig) -> Result<Self> {
+    pub async fn new(config: &ApplicationConfig) -> Result<Self> {
         let key_pair_service: Arc<dyn ShieldedKeyPairService + Send + Sync> = match &config.storage {
             StorageConfig::File { path } => {
                 Arc::new(FileKeyPairService::new(FileStorage::new(PathBuf::from_str(path)?)))
+            }
+            StorageConfig::Postgres(auth_method) => {
+                let database = init_database_connection(auth_method).await?;
+                Arc::new(PostgresKeyPairService::new(
+                    PostgresStorage::new(database.get_postgres_connection_pool().clone(), "nebula_key_pair_storage")
+                        .await?,
+                ))
             }
         };
 
@@ -73,5 +84,25 @@ impl Authority {
 
     pub async fn disarm_key_pair_storage(&self, shares: &[Share]) -> Result<()> {
         self.key_pair_service.storage_disarm(shares).await
+    }
+}
+
+async fn init_database_connection(config: &PostgresConfig) -> Result<Arc<DatabaseConnection>> {
+    let database_host = &config.host;
+    let database_port = config.port;
+    let database_name = &config.database_name;
+    let auth_method = create_database_auth_method(config);
+
+    connect_to_database(database_host, database_port, database_name, &auth_method).await
+}
+
+fn create_database_auth_method(config: &PostgresConfig) -> AuthMethod {
+    match &config.auth {
+        PostgresAuthMethod::Credential { username, password } => {
+            AuthMethod::Credential { username: username.to_owned(), password: password.to_owned() }
+        }
+        PostgresAuthMethod::RdsIamAuth { username } => {
+            AuthMethod::RdsIamAuth { host: config.host.to_owned(), port: config.port, username: username.to_owned() }
+        }
     }
 }

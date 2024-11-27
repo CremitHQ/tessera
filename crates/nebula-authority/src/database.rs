@@ -1,27 +1,17 @@
 use std::{
-    borrow::Borrow,
-    fmt::Display,
-    ops::Deref,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use async_trait::async_trait;
 use aws_config::BehaviorVersion;
 use aws_credential_types::provider::ProvideCredentials;
 use aws_sigv4::{
     http_request::{sign, SignableBody, SignableRequest, SigningSettings},
     sign::v4::SigningParams,
 };
-use sea_orm::{sqlx::postgres::PgConnectOptions, ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, DbErr, TryFromU64, TryGetError};
-use ulid::Ulid;
+use sea_orm::sqlx::postgres::PgConnectOptions;
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use url::Url;
-
-pub(crate) mod machine_identity;
-pub(crate) mod machine_identity_attribute;
-pub(crate) mod machine_identity_token;
-pub(crate) mod types;
 
 pub(crate) enum AuthMethod {
     Credential { username: String, password: Option<String> },
@@ -129,136 +119,4 @@ fn reassign_token_periodically_to_database(
             }
         }
     });
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub struct UlidId(Ulid);
-
-impl UlidId {
-    pub fn new(ulid: Ulid) -> Self {
-        Self(ulid)
-    }
-
-    pub fn inner(self) -> Ulid {
-        self.0
-    }
-}
-
-impl From<Ulid> for UlidId {
-    fn from(value: Ulid) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<&Ulid> for UlidId {
-    fn from(value: &Ulid) -> Self {
-        Self::new(value.to_owned())
-    }
-}
-
-impl AsRef<Ulid> for UlidId {
-    fn as_ref(&self) -> &Ulid {
-        &self.0
-    }
-}
-
-impl Borrow<Ulid> for UlidId {
-    fn borrow(&self) -> &Ulid {
-        self.as_ref()
-    }
-}
-
-impl Display for UlidId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl Deref for UlidId {
-    type Target = Ulid;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-impl From<UlidId> for sea_orm::Value {
-    fn from(value: UlidId) -> Self {
-        Self::String(Some(Box::new(value.to_string())))
-    }
-}
-
-impl sea_orm::TryGetable for UlidId {
-    fn try_get_by<I: sea_orm::ColIdx>(
-        res: &sea_orm::prelude::QueryResult,
-        index: I,
-    ) -> Result<Self, sea_orm::TryGetError> {
-        let val = String::try_get_by(res, index)?;
-
-        Ulid::from_string(&val)
-            .map(Self::from)
-            .map_err(|e| TryGetError::DbErr(DbErr::TryIntoErr { from: "String", into: "Ulid", source: Box::new(e) }))
-    }
-}
-
-impl TryFromU64 for UlidId {
-    fn try_from_u64(n: u64) -> Result<Self, DbErr> {
-        let val = String::try_from_u64(n)?;
-        Ulid::from_string(&val).map(Self::from).map_err(|e| DbErr::TryIntoErr {
-            from: "u64",
-            into: "Ulid",
-            source: Box::new(e),
-        })
-    }
-}
-
-impl sea_orm::sea_query::ValueType for UlidId {
-    fn try_from(v: sea_orm::prelude::Value) -> Result<Self, sea_orm::sea_query::ValueTypeErr> {
-        match v {
-            sea_orm::Value::String(v) => {
-                let v = v.ok_or(sea_orm::sea_query::ValueTypeErr)?;
-                Ulid::from_string(&v).map(Self::from).map_err(|_| sea_orm::sea_query::ValueTypeErr)
-            }
-            _ => Err(sea_orm::sea_query::ValueTypeErr),
-        }
-    }
-
-    fn type_name() -> String {
-        "Ulid".to_owned()
-    }
-
-    fn array_type() -> sea_orm::sea_query::ArrayType {
-        sea_orm::sea_query::ArrayType::String
-    }
-
-    fn column_type() -> sea_orm::prelude::ColumnType {
-        sea_orm::prelude::ColumnType::String(sea_orm::sea_query::StringLen::N(26))
-    }
-}
-
-#[async_trait]
-pub trait WorkspaceScopedTransaction {
-    async fn begin_with_workspace_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr>;
-}
-
-#[async_trait]
-impl WorkspaceScopedTransaction for DatabaseConnection {
-    async fn begin_with_workspace_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr> {
-        let transaction = self.begin().await?;
-        transaction
-            .execute(Statement::from_string(
-                DatabaseBackend::Postgres,
-                format!("SET LOCAL search_path TO \"{workspace_slug}\", \"public\";"),
-            ))
-            .await?;
-
-        Ok(transaction)
-    }
-}
-
-#[async_trait]
-pub(crate) trait Persistable {
-    type Error;
-
-    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error>;
 }
