@@ -40,8 +40,8 @@ pub enum UpstreamIdpConfig {
 #[derive(Deserialize, Debug)]
 pub struct SAMLConfig {
     pub entity_id: Option<String>,
-    pub sso_url: String,
-    pub idp_issuer: String,
+    pub sso_url: Option<String>,
+    pub idp_issuer: Option<String>,
     pub ca: String,
     pub attributes: AttributesConfig,
     pub group_attribute: String,
