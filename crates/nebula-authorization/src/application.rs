@@ -27,8 +27,8 @@ impl Application {
         let saml_config = match config.upstream_idp {
             UpstreamIdpConfig::Saml(ref saml) => SAMLConnertorConfig::builder()
                 .redirect_uri(config.base_url.join("/callback/saml")?)
-                .sso_url(&saml.sso_url)
-                .idp_issuer(&saml.idp_issuer)
+                .maybe_sso_url(saml.sso_url.as_ref())
+                .maybe_idp_issuer(saml.idp_issuer.as_ref())
                 .maybe_entity_id(saml.entity_id.as_ref())
                 .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
                 .attributes_config(saml.attributes.clone())

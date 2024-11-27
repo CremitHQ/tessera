@@ -19,8 +19,8 @@ use super::Identity;
 pub struct SAMLConnertorConfig {
     entity_id: Option<String>,
     redirect_uri: String,
-    idp_issuer: String,
-    sso_url: String,
+    idp_issuer: Option<String>,
+    sso_url: Option<String>,
     #[builder(default = NameIdFormat::PersistentNameIDFormat)]
     name_id_policy_format: NameIdFormat,
     ca: openssl::x509::X509,
@@ -31,7 +31,7 @@ pub struct SAMLConnertorConfig {
 }
 
 pub struct SAMLConnector {
-    sso_url: String,
+    sso_url: Option<String>,
     pub(crate) redirect_uri: String,
     service_provider: ServiceProvider,
     attributes_config: AttributesConfig,
@@ -42,6 +42,9 @@ pub struct SAMLConnector {
 
 #[derive(Error, Debug)]
 pub enum SAMLHandlerError {
+    #[error("sso url not found")]
+    SSOLocationNotFound,
+
     #[error(transparent)]
     DecodeBase64(#[from] base64::DecodeError),
 
@@ -72,23 +75,30 @@ pub enum SAMLHandlerError {
 
 impl SAMLConnector {
     pub fn new(config: SAMLConnertorConfig) -> Result<Self, SAMLHandlerError> {
+        let single_sign_on_services = match config.sso_url {
+            Some(ref sso_url) => {
+                vec![
+                    Endpoint {
+                        binding: HTTP_POST_BINDING.to_string(),
+                        location: sso_url.clone(),
+                        response_location: None,
+                    },
+                    Endpoint {
+                        binding: HTTP_REDIRECT_BINDING.to_string(),
+                        location: sso_url.clone(),
+                        response_location: None,
+                    },
+                ]
+            }
+            None => vec![],
+        };
+
         let service_provider = ServiceProviderBuilder::default()
             .entity_id(config.entity_id)
             .idp_metadata(EntityDescriptor {
-                entity_id: Some(config.idp_issuer),
+                entity_id: config.idp_issuer,
                 idp_sso_descriptors: Some(vec![IdpSsoDescriptor {
-                    single_sign_on_services: vec![
-                        Endpoint {
-                            binding: HTTP_POST_BINDING.to_string(),
-                            location: config.sso_url.clone(),
-                            response_location: None,
-                        },
-                        Endpoint {
-                            binding: HTTP_REDIRECT_BINDING.to_string(),
-                            location: config.sso_url.clone(),
-                            response_location: None,
-                        },
-                    ],
+                    single_sign_on_services,
                     id: None,
                     valid_until: None,
                     cache_duration: None,
@@ -126,9 +136,13 @@ impl SAMLConnector {
     }
 
     pub fn authentication_request(&self) -> Result<AuthnRequest, SAMLHandlerError> {
-        self.service_provider
-            .make_authentication_request(&self.sso_url)
-            .map_err(|_| SAMLHandlerError::MakeSAMLAuthRequest)
+        match self.sso_url {
+            Some(ref sso_url) => self
+                .service_provider
+                .make_authentication_request(sso_url)
+                .map_err(|_| SAMLHandlerError::MakeSAMLAuthRequest),
+            None => Err(SAMLHandlerError::SSOLocationNotFound),
+        }
     }
 
     pub fn identity(&self, response: &str, request_id: &str) -> Result<Identity, SAMLHandlerError> {
