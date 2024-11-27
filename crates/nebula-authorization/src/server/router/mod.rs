@@ -190,6 +190,7 @@ pub enum MachineIdentityLoginError {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MachineIdentityLoginResponse {
     pub access_token: Jwt,
 }
