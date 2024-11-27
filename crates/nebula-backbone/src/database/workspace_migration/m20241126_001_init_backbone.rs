@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use regex::bytes;
 use sea_orm_migration::{prelude::*, schema::*};
 
 #[derive(DeriveIden)]

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use parameter::{ParameterUseCase, ParameterUseCaseImpl};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::{
     config::ApplicationConfig,
@@ -98,6 +98,14 @@ impl ApplicationWithWorkspace {
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
     database::migrate(database_connection.as_ref()).await?;
+    database::migrate_all_workspaces(
+        &database_connection.begin().await?,
+        &config.database.host,
+        config.database.port,
+        &config.database.database_name,
+        &create_database_auth_method(config),
+    )
+    .await?;
 
     let workspace_service = Arc::new(WorkspaceServiceImpl::new());
     let secret_service = Arc::new(PostgresSecretService {});

@@ -36,6 +36,7 @@ base64 = { workspace = true }
 rmp-serde = { workspace = true }
 nebula-policy.workspace = true
 sea-orm-migration.workspace = true
+futures-util.workspace = true
 
 [dev-dependencies]
 mockall = { workspace = true }
