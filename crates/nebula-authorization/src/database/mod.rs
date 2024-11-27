@@ -82,7 +82,7 @@ pub async fn connect_to_database(
 ) -> anyhow::Result<Arc<DatabaseConnection>> {
     let mut options = match auth {
         AuthMethod::Credential { username, password } => {
-            let mut conn_str = Url::parse(&format!("postgres://{host}:5432/{database_name}?sslmode=Prefer"))?;
+            let mut conn_str = Url::parse(&format!("postgres://{host}:{port}/{database_name}?sslmode=Prefer"))?;
             conn_str.set_username(username).unwrap();
             conn_str.set_password(password.as_deref()).unwrap();
             ConnectOptions::new(conn_str)
