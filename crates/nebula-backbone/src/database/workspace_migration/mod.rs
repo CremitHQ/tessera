@@ -37,6 +37,22 @@ pub async fn migrate_all_workspaces(
     Ok(())
 }
 
+#[cfg(test)]
+pub async fn migrate_workspace(
+    _workspace_slug: &str,
+    _host: &str,
+    _port: u16,
+    _database_name: &str,
+    _auth: &AuthMethod,
+) -> anyhow::Result<()> {
+    use tracing::debug;
+
+    debug!("workspace migration not supported in test environment");
+
+    Ok(())
+}
+
+#[cfg(not(test))]
 pub async fn migrate_workspace(
     workspace_slug: &str,
     host: &str,

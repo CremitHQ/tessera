@@ -43,6 +43,7 @@ pub enum Parameter {
 }
 
 #[derive(DeriveIden)]
+#[allow(clippy::enum_variant_names)]
 pub enum Path {
     Table,
     Id,

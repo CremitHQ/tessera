@@ -107,7 +107,12 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     )
     .await?;
 
-    let workspace_service = Arc::new(WorkspaceServiceImpl::new());
+    let workspace_service = Arc::new(WorkspaceServiceImpl::new(
+        config.database.host.to_owned(),
+        config.database.port,
+        config.database.database_name.to_owned(),
+        create_database_auth_method(config),
+    ));
     let secret_service = Arc::new(PostgresSecretService {});
     let parameter_service = Arc::new(PostgresParameterService);
     let policy_service = Arc::new(PostgresPolicyService {});
