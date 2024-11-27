@@ -6,15 +6,16 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-
+RUN apt-get update
+RUN apt-get install -y libxmlsec1-dev libclang-dev
 COPY --from=planner /app/recipe.json recipe.json
 
-RUN cargo chef cook --package nebula-backbone --release --recipe-path recipe.json
+RUN cargo chef cook --package nebula-authorization --release --recipe-path recipe.json
 
 COPY . .
 
 
-RUN cargo build --release --package nebula-backbone
+RUN cargo build --release --package nebula-authorization
 
 FROM debian:bookworm-slim as runtime
 WORKDIR /app
@@ -22,10 +23,10 @@ WORKDIR /app
 RUN apt-get update
 RUN apt-get install ca-certificates -y
 RUN update-ca-certificates
-RUN apt install -y build-essential pkg-config libclang-dev \
+RUN apt install -y build-essential pkg-config libclang-dev libxml2-dev libxmlsec1-dev libssl-dev \
     && apt-get -y autoremove \
     && apt-get clean autoclean \
     && rm -fr /var/lib/apt/lists/{apt,dpkg,cache,log} /tmp/* /var/tmp/*
 
-COPY --from=builder /app/target/release/nebula-backbone /usr/local/bin/nebula-backbone
-CMD ["nebula-backbone"]
+COPY --from=builder /app/target/release/nebula-authorization /usr/local/bin/nebula-authorization
+CMD ["nebula-authorization"]
