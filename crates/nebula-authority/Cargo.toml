@@ -30,6 +30,11 @@ cached = { version = "0.54", features = [
     "async",
     "async_tokio_rt_multi_thread",
 ] }
+sea-orm = { workspace = true, features = ["mock"] }
+aws-config = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sigv4 = { workspace = true }
+urlencoding = { workspace = true }
 # nebula packages
 nebula-abe = { workspace = true, features = ["zeroize"] }
 nebula-storage = { workspace = true, features = ["zeroize", "shield"] }
