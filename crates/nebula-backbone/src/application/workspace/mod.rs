@@ -48,7 +48,7 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()> {
         let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
 
-        self.workspace_service.create(&transaction, &cmd.name).await?;
+        self.workspace_service.create(&self.database_connection, &transaction, &cmd.name).await?;
 
         transaction.commit().await.map_err(anyhow::Error::from)?;
 

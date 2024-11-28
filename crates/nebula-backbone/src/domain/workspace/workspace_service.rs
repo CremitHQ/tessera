@@ -8,8 +8,8 @@ use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseTransaction, DbErr, EntityTrait,
-    PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction, DbErr,
+    EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement, TransactionTrait,
 };
 use tracing::info;
 use ulid::Ulid;
@@ -19,7 +19,12 @@ use ulid::Ulid;
 pub(crate) trait WorkspaceService {
     async fn get_all(&self, transaction: &DatabaseTransaction) -> Result<Vec<Workspace>>;
     async fn get_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<Option<Workspace>>;
-    async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()>;
+    async fn create(
+        &self,
+        connection: &DatabaseConnection,
+        transaction: &DatabaseTransaction,
+        name: &str,
+    ) -> Result<()>;
 }
 
 pub(crate) struct WorkspaceServiceImpl {
@@ -64,7 +69,12 @@ impl WorkspaceService for WorkspaceServiceImpl {
         Ok(workspace_model.map(Workspace::from))
     }
 
-    async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
+    async fn create(
+        &self,
+        connection: &DatabaseConnection,
+        transaction: &DatabaseTransaction,
+        name: &str,
+    ) -> Result<()> {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
 
@@ -83,9 +93,16 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .insert(transaction)
         .await?;
 
-        transaction
-            .execute(Statement::from_string(DatabaseBackend::Postgres, format!("CREATE SCHEMA \"{name}\"")))
+        dbg!("1");
+
+        connection
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
+            ))
             .await?;
+
+        dbg!("2");
 
         migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
             .await?;
@@ -158,7 +175,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
+        let result = workspace_service.create(&mock_connection, &transaction, WORKSPACE_NAME).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -182,7 +199,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
+        let result = workspace_service.create(&mock_connection, &transaction, WORKSPACE_NAME).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
@@ -205,7 +222,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = workspace_service.create(&transaction, WORKSPACE_NAME).await;
+        let result = workspace_service.create(&mock_connection, &transaction, WORKSPACE_NAME).await;
 
         transaction.commit().await.expect("commiting transaction should be successful");
 
