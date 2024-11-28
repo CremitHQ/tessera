@@ -20,6 +20,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Workspace::Table)
+                    .if_not_exists()
                     .col(char_len(Workspace::Id, 26).primary_key())
                     .col(string_len_uniq(Workspace::Name, 50))
                     .col(timestamp_with_time_zone(Workspace::CreatedAt))
@@ -30,6 +31,6 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager.drop_table(Table::drop().table(Workspace::Table).take()).await
+        manager.drop_table(Table::drop().table(Workspace::Table).if_exists().take()).await
     }
 }

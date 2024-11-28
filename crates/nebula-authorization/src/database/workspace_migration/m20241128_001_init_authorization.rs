@@ -42,6 +42,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(MachineIdentity::Table)
+                    .if_not_exists()
                     .col(char_len(MachineIdentity::Id, 26).primary_key())
                     .col(string_len(MachineIdentity::Label, 255))
                     .col(string_len(MachineIdentity::OwnerGid, 255))
@@ -54,6 +55,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(MachineIdentity::Table)
+                    .if_not_exists()
                     .name("idx_machine_identity_owner_gid")
                     .col(MachineIdentity::OwnerGid)
                     .take(),
@@ -64,6 +66,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(MachineIdentityAttribute::Table)
+                    .if_not_exists()
                     .col(char_len(MachineIdentityAttribute::Id, 26).primary_key())
                     .col(char_len(MachineIdentityAttribute::MachineIdentityId, 26))
                     .col(string_len(MachineIdentityAttribute::Key, 255))
@@ -77,6 +80,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(MachineIdentityAttribute::Table)
+                    .if_not_exists()
                     .name("idx_machine_identity_attribute_machine_identity_id")
                     .col(MachineIdentityAttribute::MachineIdentityId)
                     .take(),
@@ -87,6 +91,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(MachineIdentityToken::Table)
+                    .if_not_exists()
                     .col(char_len(MachineIdentityToken::Id, 26).primary_key())
                     .col(char_len(MachineIdentityToken::MachineIdentityId, 26))
                     .col(string_len(MachineIdentityToken::Token, 255))
@@ -99,6 +104,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(MachineIdentityToken::Table)
+                    .if_not_exists()
                     .name("idx_machine_identity_token_machine_identity_id")
                     .col(MachineIdentityToken::MachineIdentityId)
                     .take(),
@@ -109,7 +115,7 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager.drop_table(Table::drop().table(MachineIdentity::Table).take()).await?;
+        manager.drop_table(Table::drop().table(MachineIdentity::Table).if_exists().take()).await?;
 
         Ok(())
     }

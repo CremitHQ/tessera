@@ -92,6 +92,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(AppliedPathPolicy::Table)
+                    .if_not_exists()
                     .col(char_len(AppliedPathPolicy::Id, 26).primary_key())
                     .col(char_len(AppliedPathPolicy::PathId, 26))
                     .col(text(AppliedPathPolicy::Expression))
@@ -104,6 +105,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(AppliedPathPolicyAllowedAction::Table)
+                    .if_not_exists()
                     .col(char_len(AppliedPathPolicyAllowedAction::Id, 26).primary_key())
                     .col(char_len(AppliedPathPolicyAllowedAction::AppliedPathPolicyId, 26))
                     .col(string_len(AppliedPathPolicyAllowedAction::Action, 50))
@@ -116,6 +118,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(AppliedPathPolicyAllowedAction::Table)
+                    .if_not_exists()
                     .name("idx_applied_path_policy_allowed_action_applied_path_policy_id")
                     .col(AppliedPathPolicyAllowedAction::AppliedPathPolicyId)
                     .take(),
@@ -125,6 +128,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(AppliedPolicy::Table)
+                    .if_not_exists()
                     .col(char_len(AppliedPolicy::Id, 26).primary_key())
                     .col(char_len(AppliedPolicy::SecretMetadataId, 26))
                     .col(string_len(AppliedPolicy::Type, 50))
@@ -138,6 +142,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(AppliedPolicy::Table)
+                    .if_not_exists()
                     .name("idx_applied_policy_secret_metadata_id")
                     .col(AppliedPolicy::SecretMetadataId)
                     .take(),
@@ -147,6 +152,7 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(AppliedPolicy::Table)
+                    .if_not_exists()
                     .name("idx_applied_policy_policy_id")
                     .col(AppliedPolicy::PolicyId)
                     .take(),
@@ -156,6 +162,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Parameter::Table)
+                    .if_not_exists()
                     .col(char_len(Parameter::Id, 26).primary_key())
                     .col(integer(Parameter::Version))
                     .col(blob(Parameter::Value))
@@ -168,6 +175,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Path::Table)
+                    .if_not_exists()
                     .col(char_len(Path::Id, 26).primary_key())
                     .col(text(Path::Path))
                     .col(timestamp_with_time_zone(Path::CreatedAt))
@@ -179,6 +187,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Policy::Table)
+                    .if_not_exists()
                     .col(char_len(Policy::Id, 26).primary_key())
                     .col(string_len(Policy::Name, 100))
                     .col(text(Policy::Expression))
@@ -191,6 +200,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(SecretMetadata::Table)
+                    .if_not_exists()
                     .col(char_len(SecretMetadata::Id, 26).primary_key())
                     .col(string_len(SecretMetadata::Key, 100))
                     .col(string_len(SecretMetadata::Path, 100))
@@ -203,6 +213,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(SecretValue::Table)
+                    .if_not_exists()
                     .col(char_len(SecretValue::Id, 26).primary_key())
                     .col(string_len(SecretValue::Identifier, 10485760))
                     .col(blob(SecretValue::Cipher))
@@ -216,7 +227,7 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager.drop_table(Table::drop().table(AppliedPathPolicy::Table).take()).await?;
+        manager.drop_table(Table::drop().table(AppliedPathPolicy::Table).if_exists().take()).await?;
 
         Ok(())
     }
