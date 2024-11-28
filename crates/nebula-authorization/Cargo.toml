@@ -39,3 +39,5 @@ ulid = { workspace = true, features = ["serde"] }
 urlencoding = { workspace = true }
 chrono = { workspace = true }
 nebula-token = { workspace = true }
+sea-orm-migration.workspace = true
+futures-util.workspace = true

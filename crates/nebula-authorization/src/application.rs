@@ -2,27 +2,37 @@ use std::sync::Arc;
 
 use crate::{
     config::{ApplicationConfig, UpstreamIdpConfig},
-    database::{connect_to_database, AuthMethod},
+    database::{self, connect_to_database, AuthMethod},
     domain::{
         connector::saml::{SAMLConnector, SAMLConnertorConfig},
         machine_identity::MachineIdentityService,
         token::TokenService,
+        workspace::WorkspaceService,
     },
 };
 
 use nebula_token::jwk::jwk_set::{JwkSet, JWK_SET_DEFAULT_KEY_ID};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 pub struct Application {
     pub database_connection: Arc<DatabaseConnection>,
     pub connector: Arc<SAMLConnector>,
     pub token_service: Arc<TokenService>,
     pub machine_identity_service: Arc<MachineIdentityService>,
+    pub workspace_service: Arc<WorkspaceService>,
 }
 
 impl Application {
     pub async fn new(config: &ApplicationConfig) -> anyhow::Result<Self> {
         let database_connection = init_database_connection(config).await?;
+        database::migrate_all_workspaces(
+            &database_connection.begin().await?,
+            &config.database.host,
+            config.database.port,
+            &config.database.database_name,
+            &create_database_auth_method(config),
+        )
+        .await?;
 
         let saml_config = match config.upstream_idp {
             UpstreamIdpConfig::Saml(ref saml) => SAMLConnertorConfig::builder()
@@ -47,10 +57,17 @@ impl Application {
         };
 
         Ok(Self {
-            database_connection,
+            database_connection: database_connection.clone(),
             connector: saml_connector,
             token_service: Arc::new(TokenService::new(config.base_url.clone(), config.token.lifetime, jwks, kid)),
             machine_identity_service: Arc::new(MachineIdentityService {}),
+            workspace_service: Arc::new(WorkspaceService::new(
+                database_connection.clone(),
+                config.database.host.to_owned(),
+                config.database.port,
+                config.database.database_name.to_owned(),
+                create_database_auth_method(config),
+            )),
         })
     }
 }

@@ -18,10 +18,14 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection, DatabaseTransaction,
 use ulid::Ulid;
 use url::Url;
 
+pub use workspace_migration::{migrate_all_workspaces, migrate_workspace};
+
 pub(crate) mod machine_identity;
 pub(crate) mod machine_identity_attribute;
 pub(crate) mod machine_identity_token;
 pub(crate) mod types;
+pub(crate) mod workspace;
+mod workspace_migration;
 
 pub(crate) enum AuthMethod {
     Credential { username: String, password: Option<String> },
@@ -80,6 +84,16 @@ pub async fn connect_to_database(
     database_name: &str,
     auth: &AuthMethod,
 ) -> anyhow::Result<Arc<DatabaseConnection>> {
+    connect_to_database_with_search_path(host, port, database_name, auth, None).await
+}
+
+async fn connect_to_database_with_search_path(
+    host: &str,
+    port: u16,
+    database_name: &str,
+    auth: &AuthMethod,
+    search_path: Option<&str>,
+) -> anyhow::Result<Arc<DatabaseConnection>> {
     let mut options = match auth {
         AuthMethod::Credential { username, password } => {
             let mut conn_str = Url::parse(&format!("postgres://{host}:{port}/{database_name}?sslmode=Prefer"))?;
@@ -95,6 +109,10 @@ pub async fn connect_to_database(
             ConnectOptions::new(conn_str)
         }
     };
+
+    if let Some(search_path) = search_path {
+        options.set_schema_search_path(search_path);
+    }
 
     options.sqlx_logging_level(tracing::log::LevelFilter::Debug);
 
