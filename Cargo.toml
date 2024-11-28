@@ -72,3 +72,4 @@ axum = "0.7"
 tower = "0.5"
 config = "0.14.0"
 clap = { version = "4.5.19", features = ["cargo", "derive"] }
+sea-orm-migration = { version = "1.1.1", features = ["runtime-tokio-native-tls"] }
