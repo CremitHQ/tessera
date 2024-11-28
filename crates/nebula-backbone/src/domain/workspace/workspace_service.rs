@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::Error;
 use crate::{
     database::{migrate_workspace, AuthMethod},
@@ -8,8 +10,8 @@ use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseTransaction, DbErr, EntityTrait,
-    PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction, DbErr,
+    EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement,
 };
 use tracing::info;
 use ulid::Ulid;
@@ -23,6 +25,7 @@ pub(crate) trait WorkspaceService {
 }
 
 pub(crate) struct WorkspaceServiceImpl {
+    connection: Arc<DatabaseConnection>,
     database_host: String,
     database_port: u16,
     database_name: String,
@@ -31,12 +34,13 @@ pub(crate) struct WorkspaceServiceImpl {
 
 impl WorkspaceServiceImpl {
     pub(crate) fn new(
+        connection: Arc<DatabaseConnection>,
         database_host: String,
         database_port: u16,
         database_name: String,
         database_auth: AuthMethod,
     ) -> Self {
-        Self { database_host, database_port, database_name, database_auth }
+        Self { connection, database_host, database_port, database_name, database_auth }
     }
 
     async fn exists_by_name(&self, transaction: &DatabaseTransaction, name: &str) -> Result<bool> {
@@ -83,8 +87,11 @@ impl WorkspaceService for WorkspaceServiceImpl {
         .insert(transaction)
         .await?;
 
-        transaction
-            .execute(Statement::from_string(DatabaseBackend::Postgres, format!("CREATE SCHEMA \"{name}\"")))
+        self.connection
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
+            ))
             .await?;
 
         migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
@@ -150,6 +157,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -174,6 +182,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -197,6 +206,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -228,6 +238,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -249,6 +260,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -272,6 +284,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -294,6 +307,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),
@@ -324,6 +338,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let workspace_service = WorkspaceServiceImpl::new(
+            mock_connection.clone(),
             "mock.database.host".to_owned(),
             5432,
             "postgres".to_owned(),

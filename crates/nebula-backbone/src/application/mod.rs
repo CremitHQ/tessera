@@ -108,6 +108,7 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     .await?;
 
     let workspace_service = Arc::new(WorkspaceServiceImpl::new(
+        database_connection.clone(),
         config.database.host.to_owned(),
         config.database.port,
         config.database.database_name.to_owned(),
