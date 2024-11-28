@@ -7,6 +7,7 @@ use crate::{
     config::ApplicationConfig,
     database::{self, connect_to_database, AuthMethod},
     domain::{
+        authority::{AuthorityService, PostgresAuthorityService},
         parameter::{ParameterService, PostgresParameterService},
         policy::{PolicyService, PostgresPolicyService},
         secret::{PostgresSecretService, SecretService},
@@ -17,11 +18,13 @@ use crate::{
 use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
 use self::{
+    authority::{AuthorityUseCase, AuthorityUseCaseImpl},
     path::{PathUseCase, PathUseCaseImpl},
     policy::{PolicyUseCase, PolicyUseCaseImpl},
     secret::{SecretUseCase, SecretUseCaseImpl},
 };
 
+pub(crate) mod authority;
 pub(crate) mod parameter;
 pub(crate) mod path;
 pub(crate) mod policy;
@@ -34,6 +37,7 @@ pub(crate) struct Application {
     secret_service: Arc<dyn SecretService + Sync + Send>,
     parameter_service: Arc<dyn ParameterService + Sync + Send>,
     policy_service: Arc<dyn PolicyService + Sync + Send>,
+    authority_service: Arc<dyn AuthorityService + Sync + Send>,
 }
 
 impl Application {
@@ -48,6 +52,7 @@ impl Application {
             secret_service: self.secret_service.clone(),
             parameter_service: self.parameter_service.clone(),
             policy_service: self.policy_service.clone(),
+            authority_service: self.authority_service.clone(),
         }
     }
 }
@@ -58,6 +63,7 @@ pub(crate) struct ApplicationWithWorkspace {
     secret_service: Arc<dyn SecretService + Sync + Send>,
     parameter_service: Arc<dyn ParameterService + Sync + Send>,
     policy_service: Arc<dyn PolicyService + Sync + Send>,
+    authority_service: Arc<dyn AuthorityService + Sync + Send>,
 }
 
 impl ApplicationWithWorkspace {
@@ -93,6 +99,14 @@ impl ApplicationWithWorkspace {
             self.secret_service.clone(),
         )
     }
+
+    pub fn authority(&self) -> impl AuthorityUseCase {
+        AuthorityUseCaseImpl::new(
+            self.workspace_name.to_owned(),
+            self.database_connection.clone(),
+            self.authority_service.clone(),
+        )
+    }
 }
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
@@ -117,8 +131,16 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     let secret_service = Arc::new(PostgresSecretService {});
     let parameter_service = Arc::new(PostgresParameterService);
     let policy_service = Arc::new(PostgresPolicyService {});
+    let authority_service = Arc::new(PostgresAuthorityService {});
 
-    Ok(Application { database_connection, workspace_service, secret_service, parameter_service, policy_service })
+    Ok(Application {
+        database_connection,
+        workspace_service,
+        secret_service,
+        parameter_service,
+        policy_service,
+        authority_service,
+    })
 }
 
 async fn init_database_connection(config: &ApplicationConfig) -> anyhow::Result<Arc<DatabaseConnection>> {
