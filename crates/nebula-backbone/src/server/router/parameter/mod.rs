@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{
-    debug_handler,
     extract::{Path, State},
     response::IntoResponse,
     routing::get,
@@ -20,10 +19,21 @@ use self::response::ParameterResponse;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/workspaces/:workspace_name/parameter", get(handle_get_parameter)).with_state(application)
+    Router::new()
+        .route("/workspaces/:workspace_name/parameter", get(handle_get_parameter).post(handle_post_parameter))
+        .with_state(application)
 }
 
-#[debug_handler]
+async fn handle_post_parameter(
+    Path(workspace_name): Path<String>,
+    State(application): State<Arc<Application>>,
+) -> Result<impl IntoResponse, application::parameter::Error> {
+    let parameter = application.with_workspace(&workspace_name).parameter().create().await?;
+    let response: ParameterResponse = parameter.try_into()?;
+
+    Ok(Json(response))
+}
+
 async fn handle_get_parameter(
     Path(workspace_name): Path<String>,
     State(application): State<Arc<Application>>,

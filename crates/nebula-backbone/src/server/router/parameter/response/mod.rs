@@ -22,6 +22,14 @@ impl IntoResponse for application::parameter::Error {
                 )
                     .into_response()
             }
+            application::parameter::Error::CreateParameterFailed(error) => {
+                error!("Failed to create parameter: {}", error);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    error_payload("CREATE_PARAMETER_FAILED", "Failed to create parameter"),
+                )
+                    .into_response()
+            }
             application::parameter::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
         }
     }
