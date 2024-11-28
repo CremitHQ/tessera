@@ -35,17 +35,26 @@ impl Application {
         .await?;
 
         let saml_config = match config.upstream_idp {
-            UpstreamIdpConfig::Saml(ref saml) => SAMLConnertorConfig::builder()
-                .redirect_uri(config.base_url.join("/callback/saml")?)
-                .maybe_sso_url(saml.sso_url.as_ref())
-                .maybe_idp_issuer(saml.idp_issuer.as_ref())
-                .entity_id(&saml.entity_id)
-                .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
-                .attributes_config(saml.attributes.clone())
-                .workspace_config(config.workspace.clone())
-                .group_attribute(&saml.group_attribute)
-                .admin_groups(saml.admin_groups.clone())
-                .build(),
+            UpstreamIdpConfig::Saml(ref saml) => {
+                let redirect_uri = if let Some(ref path_prefix) = config.path_prefix {
+                    let path_prefix = format!("{}/", path_prefix.trim_matches('/'));
+                    config.base_url.join(&path_prefix)?.join("callback/saml")?
+                } else {
+                    config.base_url.join("callback/saml")?
+                };
+
+                SAMLConnertorConfig::builder()
+                    .redirect_uri(redirect_uri)
+                    .maybe_sso_url(saml.sso_url.as_ref())
+                    .maybe_idp_issuer(saml.idp_issuer.as_ref())
+                    .entity_id(&saml.entity_id)
+                    .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
+                    .attributes_config(saml.attributes.clone())
+                    .workspace_config(config.workspace.clone())
+                    .group_attribute(&saml.group_attribute)
+                    .admin_groups(saml.admin_groups.clone())
+                    .build()
+            }
         };
 
         let saml_connector = Arc::new(SAMLConnector::new(saml_config)?);

@@ -21,10 +21,13 @@ impl From<ApplicationConfig> for ServerConfig {
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
     let application = Arc::new(application);
     let app = Router::new().route("/health", get(|| async { "" }));
-    let app = app.nest(
-        if let Some(ref path_prefix) = config.path_prefix { path_prefix } else { "/" },
-        router::router(application.clone()),
-    );
+    let path_prefix = if let Some(ref path_prefix) = config.path_prefix {
+        let path_prefix = format!("/{}/", path_prefix.trim_matches('/'));
+        path_prefix
+    } else {
+        "/".to_string()
+    };
+    let app = app.nest(&path_prefix, router::router(application.clone()));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     debug!("starting authz server on {}", config.port);

@@ -53,6 +53,7 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
 
     let app = Router::new().route("/health", get(|| async { "OK" }));
     let app = if let Some(path_prefix) = config.path_prefix {
+        let path_prefix = format!("/{}/", path_prefix.trim_matches('/'));
         app.nest(&path_prefix, protected_router).nest(&path_prefix, public_router)
     } else {
         app.merge(protected_router).merge(public_router)
