@@ -23,11 +23,12 @@ static AUTHORITY_ADMINS: OnceLock<Vec<String>> = OnceLock::new();
 pub(super) struct ServerConfig {
     pub port: u16,
     pub admin: Vec<String>,
+    pub path_prefix: Option<String>,
 }
 
 impl From<ApplicationConfig> for ServerConfig {
     fn from(value: ApplicationConfig) -> Self {
-        Self { port: value.port, admin: value.authority.admin }
+        Self { port: value.port, admin: value.authority.admin, path_prefix: value.path_prefix }
     }
 }
 
@@ -35,28 +36,27 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     AUTHORITY_ADMINS.get_or_init(|| config.admin.clone());
     let application = Arc::new(application);
     let protected_router = Router::new()
-        .nest("/v1/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
+        .nest("/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
+        .nest("/", router::disarm::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
         .nest(
-            "/v1/",
-            router::disarm::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)),
-        )
-        .nest(
-            "/v1/workspaces/:workspace_name/",
+            "/workspaces/:workspace_name/",
             router::userkey::router(application.clone()).route_layer(middleware::from_fn(check_workspace_name)),
         )
         .nest(
-            "/v1/workspaces/:workspace_name/",
+            "/workspaces/:workspace_name/",
             router::keypair::router(application.clone())
                 .route_layer(middleware::from_fn(check_admin_role))
                 .route_layer(middleware::from_fn(check_workspace_name)),
         )
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery.clone()).build());
+    let public_router = Router::new().nest("/workspaces/:workspace_name/", router::pubkey::router(application.clone()));
 
-    let public_router = Router::new()
-        .route("/health", get(|| async { "OK" }))
-        .nest("/v1/workspaces/:workspace_name/", router::pubkey::router(application.clone()));
-
-    let app = Router::new().merge(protected_router).merge(public_router);
+    let app = Router::new().route("/health", get(|| async { "OK" }));
+    let app = if let Some(path_prefix) = config.path_prefix {
+        app.nest(&path_prefix, protected_router).nest(&path_prefix, public_router)
+    } else {
+        app.merge(protected_router).merge(public_router)
+    };
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     debug!("starting authority server on {}", config.port);

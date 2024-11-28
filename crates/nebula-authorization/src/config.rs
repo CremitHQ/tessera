@@ -14,6 +14,7 @@ pub(crate) struct ApplicationConfig {
     pub upstream_idp: UpstreamIdpConfig,
     pub token: TokenConfig,
     pub workspace: WorkspaceConfig,
+    pub path_prefix: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -39,7 +40,7 @@ pub enum UpstreamIdpConfig {
 
 #[derive(Deserialize, Debug)]
 pub struct SAMLConfig {
-    pub entity_id: Option<String>,
+    pub entity_id: String,
     pub sso_url: Option<String>,
     pub idp_issuer: Option<String>,
     pub ca: String,

@@ -14,6 +14,7 @@ pub(crate) struct ApplicationConfig {
     pub jwks_url: Url,
     pub jwks_refresh_interval: Option<u64>,
     pub disarm_key_shares: Option<Vec<String>>,
+    pub path_prefix: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -32,7 +33,7 @@ pub struct PostgresConfig {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "method")]
 pub(crate) enum PostgresAuthMethod {
     Credential { username: String, password: Option<String> },
     RdsIamAuth { username: String },

@@ -17,7 +17,7 @@ use super::Identity;
 #[derive(Builder)]
 #[builder(on(String, into))]
 pub struct SAMLConnertorConfig {
-    entity_id: Option<String>,
+    entity_id: String,
     redirect_uri: String,
     idp_issuer: Option<String>,
     sso_url: Option<String>,
