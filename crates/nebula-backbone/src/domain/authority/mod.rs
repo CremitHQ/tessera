@@ -6,9 +6,24 @@ use sea_orm::{
 };
 use ulid::Ulid;
 
+pub struct Authority {
+    pub id: Ulid,
+    pub name: String,
+    pub host: String,
+    pub public_key: Option<String>,
+}
+
+impl From<authority::Model> for Authority {
+    fn from(value: authority::Model) -> Self {
+        Self { id: value.id.inner(), name: value.name, host: value.host, public_key: value.public_key }
+    }
+}
+
 #[async_trait]
 pub trait AuthorityService {
     async fn register_authority(&self, transaction: &DatabaseTransaction, name: &str, host: &str) -> Result<()>;
+    async fn get_authorities(&self, transaction: &DatabaseTransaction) -> Result<Vec<Authority>>;
+    async fn get_authority(&self, transaction: &DatabaseTransaction, authority_id: &Ulid) -> Result<Option<Authority>>;
 }
 
 pub struct PostgresAuthorityService {}
@@ -32,7 +47,16 @@ impl AuthorityService for PostgresAuthorityService {
         }
         .insert(transaction)
         .await?;
-        todo!()
+
+        Ok(())
+    }
+
+    async fn get_authorities(&self, transaction: &DatabaseTransaction) -> Result<Vec<Authority>> {
+        Ok(authority::Entity::find().all(transaction).await?.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_authority(&self, transaction: &DatabaseTransaction, authority_id: &Ulid) -> Result<Option<Authority>> {
+        Ok(authority::Entity::find_by_id(UlidId::new(authority_id.to_owned())).one(transaction).await?.map(Into::into))
     }
 }
 
