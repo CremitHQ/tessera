@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use sqlx::Row;
+use sqlx::{Executor, Row};
 use thiserror::Error;
 
 use crate::Storage;
@@ -13,14 +13,15 @@ pub struct PostgresStorage {
 impl PostgresStorage {
     pub async fn new(pool: sqlx::PgPool, table_name: &str) -> Result<Self, PostgresStorageError> {
         let table_name = quote_ident(table_name);
-
-        sqlx::query(&format!(
-            r#"CREATE TABLE IF NOT EXISTS {table_name} (
+        pool.execute(
+            format!(
+                r#"CREATE TABLE IF NOT EXISTS {table_name} (
                   key         TEXT COLLATE "C" PRIMARY KEY,
-                  value       BYTEA,
-                );"#
-        ))
-        .execute(&pool)
+                  value       BYTEA
+                )"#
+            )
+            .as_str(),
+        )
         .await?;
 
         Ok(PostgresStorage { pool, table_name })
@@ -58,7 +59,7 @@ impl Storage for PostgresStorage {
 
         sqlx::query(&format!(
             r#"INSERT INTO {table_name} (key, value) VALUES ($1, $2)
-               ON CONFLICT (key) DO UPDATE SET value = $2;"#
+               ON CONFLICT (key) DO UPDATE SET value = $2"#
         ))
         .bind(key)
         .bind(value)
@@ -70,7 +71,7 @@ impl Storage for PostgresStorage {
     async fn delete(&self, key: &Self::Key) -> Result<(), Self::StorageError> {
         let table_name = &self.table_name;
 
-        sqlx::query(&format!(r#"DELETE FROM {table_name} WHERE key = $1;"#)).bind(key).execute(&self.pool).await?;
+        sqlx::query(&format!(r#"DELETE FROM {table_name} WHERE key = $1"#)).bind(key).execute(&self.pool).await?;
         Ok(())
     }
 
