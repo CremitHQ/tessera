@@ -15,7 +15,7 @@ use nebula_token::{
     jwk::jwk_set::PublicJwkSet,
     jwt::Jwt,
 };
-use sea_orm::{DatabaseTransaction, DbErr};
+use sea_orm::{DatabaseTransaction, DbErr, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ulid::Ulid;
@@ -24,6 +24,7 @@ use crate::{
     application::Application,
     database::{Persistable, WorkspaceScopedTransaction},
     domain::{
+        self,
         connector::Identity,
         machine_identity::{self, MachineIdentity, MachineIdentityToken},
     },
@@ -31,6 +32,7 @@ use crate::{
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     let public_router = Router::new()
+        .route("/workspaces", post(handle_post_workspace))
         .route("/login/:connector", get(handle_connector_login))
         .route("/workspaces/:workspace_name/machine-identities/login", get(handle_machine_identity_login))
         .route("/callback/saml", post(handle_saml_connector_callback))
@@ -193,6 +195,47 @@ pub enum MachineIdentityLoginError {
 #[serde(rename_all = "camelCase")]
 pub struct MachineIdentityLoginResponse {
     pub access_token: Jwt,
+}
+
+#[derive(Error, Debug, ErrorStatus)]
+enum WorkspaceError {
+    #[error("Workspace name is already in used")]
+    #[status(StatusCode::CONFLICT)]
+    WorkspaceNameConflicted,
+    #[error("Unhandled error is occurred")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    UnhandledError(#[from] anyhow::Error),
+    #[error("Error occurrred by database")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    DatabaseError(#[from] DbErr),
+}
+
+impl From<domain::workspace::Error> for WorkspaceError {
+    fn from(value: domain::workspace::Error) -> Self {
+        match value {
+            domain::workspace::Error::WorkspaceNameConflicted => Self::WorkspaceNameConflicted,
+            domain::workspace::Error::Anyhow(e) => e.into(),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PostWorkspaceRequest {
+    pub name: String,
+}
+
+async fn handle_post_workspace(
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PostWorkspaceRequest>,
+) -> Result<impl IntoResponse, WorkspaceError> {
+    let transaction = application.database_connection.begin().await?;
+
+    application.workspace_service.create(&transaction, &payload.name).await?;
+
+    transaction.commit().await?;
+
+    Ok(StatusCode::CREATED)
 }
 
 async fn handle_connector_login(
