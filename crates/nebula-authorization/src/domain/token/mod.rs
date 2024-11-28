@@ -28,7 +28,7 @@ impl TokenService {
 
     pub fn create_jwt(&self, identity: &Identity) -> Result<Jwt> {
         let mut jws_header = JwsHeader::new();
-        jws_header.set_jwk_set_url(self.base_url.join("/jwks").expect("failed to create jwks url"));
+        jws_header.set_jwk_set_url(self.base_url.join("jwks").expect("failed to create jwks url"));
         jws_header.set_key_id(&self.jwk_kid);
         jws_header.set_algorithm(DEFAULT_ALGORITHM);
 
