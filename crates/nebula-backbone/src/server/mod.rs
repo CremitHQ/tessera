@@ -23,10 +23,11 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     let app = Router::new()
         .route("/health", get(|| async { "" }))
         .nest("/workspaces", router::workspace::router(application.clone()))
-        .nest("/", router::secret::router(application.clone()))
-        .nest("/", router::parameter::router(application.clone()))
-        .nest("/", router::policy::router(application.clone()))
-        .nest("/", router::path::router(application.clone()));
+        .merge(router::secret::router(application.clone()))
+        .merge(router::parameter::router(application.clone()))
+        .merge(router::policy::router(application.clone()))
+        .merge(router::path::router(application.clone()))
+        .merge(router::authority::router(application.clone()));
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     debug!("starting backbone server on {}", config.port);
     axum::serve(listener, app).await?;

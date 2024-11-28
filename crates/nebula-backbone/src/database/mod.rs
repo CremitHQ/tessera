@@ -27,6 +27,7 @@ pub use workspace_migration::{migrate_all_workspaces, migrate_workspace};
 pub(crate) mod applied_path_policy;
 pub(crate) mod applied_path_policy_allowed_action;
 pub(crate) mod applied_policy;
+pub(crate) mod authority;
 mod migration;
 pub(crate) mod parameter;
 pub(crate) mod path;
