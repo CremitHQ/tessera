@@ -19,7 +19,10 @@ use crate::{
     server::response::handle_internal_server_error,
 };
 
-use self::{request::PostAuthorityRequest, response::AuthorityResponse};
+use self::{
+    request::{PatchAuthorityRequest, PostAuthorityRequest},
+    response::AuthorityResponse,
+};
 
 mod request;
 mod response;
@@ -27,7 +30,10 @@ mod response;
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new()
         .route("/workspaces/:workspace_name/authorities", get(handle_get_authorities).post(handle_post_authority))
-        .route("/workspaces/:workspace_name/authorities/:authority_id", get(handle_get_authority))
+        .route(
+            "/workspaces/:workspace_name/authorities/:authority_id",
+            get(handle_get_authority).patch(handle_patch_authority).delete(handle_delete_authority),
+        )
         .with_state(application)
 }
 
@@ -83,4 +89,29 @@ async fn handle_get_authority(
     let payload = AuthorityResponse::from(authority);
 
     Ok(Json(payload))
+}
+
+#[debug_handler]
+async fn handle_patch_authority(
+    Path((workspace_name, authority_id)): Path<(String, Ulid)>,
+    State(application): State<Arc<Application>>,
+    Json(payload): Json<PatchAuthorityRequest>,
+) -> application::authority::Result<impl IntoResponse> {
+    application
+        .with_workspace(&workspace_name)
+        .authority()
+        .update_authority(&authority_id, payload.name.as_deref(), payload.public_key.as_deref())
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[debug_handler]
+async fn handle_delete_authority(
+    Path((workspace_name, authority_id)): Path<(String, Ulid)>,
+    State(application): State<Arc<Application>>,
+) -> application::authority::Result<impl IntoResponse> {
+    application.with_workspace(&workspace_name).authority().delete_authority(&authority_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
