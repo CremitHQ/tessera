@@ -14,7 +14,6 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 clap = { workspace = true }
 axum = { workspace = true }
-directories = { workspace = true }
 config = { workspace = true }
 serde = { workspace = true }
 zeroize = { workspace = true }
@@ -40,3 +39,4 @@ nebula-abe = { workspace = true, features = ["zeroize"] }
 nebula-storage = { workspace = true, features = ["zeroize", "shield"] }
 nebula-secret-sharing = { workspace = true }
 nebula-token = { workspace = true }
+nebula-config-path = { workspace = true }

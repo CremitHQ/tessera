@@ -14,10 +14,8 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 clap = { workspace = true }
 axum = { workspace = true }
-xdg = "2.5.2"
 config = { workspace = true }
 serde = { workspace = true }
-directories = { workspace = true }
 axum_thiserror = { workspace = true }
 thiserror = { workspace = true }
 validator.workspace = true
@@ -41,3 +39,4 @@ chrono = { workspace = true }
 nebula-token = { workspace = true }
 sea-orm-migration.workspace = true
 futures-util.workspace = true
+nebula-config-path = { workspace = true }

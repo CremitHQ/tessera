@@ -20,3 +20,4 @@ async-trait = { workspace = true }
 iocraft = "0.4"
 clap = { workspace = true, features = ["cargo", "env", "derive"] }
 reqwest = { workspace = true, features = ["json"] }
+nebula-config-path = { workspace = true }
