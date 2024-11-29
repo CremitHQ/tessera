@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::{DatabaseConnection, DbErr};
+use sea_orm::{DatabaseConnection, DatabaseTransaction, DbErr};
 use ulid::Ulid;
 
 use crate::{
-    database::OrganizationScopedTransaction,
-    domain::{self, authority::AuthorityService},
+    database::{OrganizationScopedTransaction, Persistable},
+    domain::{
+        self,
+        authority::{Authority, AuthorityService},
+    },
 };
 
 pub struct AuthorityData {
@@ -27,6 +30,13 @@ pub trait AuthorityUseCase {
     async fn register_authority(&self, name: &str, host: &str) -> Result<()>;
     async fn get_authorities(&self) -> Result<Vec<AuthorityData>>;
     async fn get_authority(&self, authority_id: &Ulid) -> Result<AuthorityData>;
+    async fn update_authority(
+        &self,
+        authority_id: &Ulid,
+        new_name: Option<&str>,
+        new_public_key: Option<&str>,
+    ) -> Result<()>;
+    async fn delete_authority(&self, authority_id: &Ulid) -> Result<()>;
 }
 
 pub struct AuthorityUseCaseImpl {
@@ -42,6 +52,13 @@ impl AuthorityUseCaseImpl {
         authority_service: Arc<dyn AuthorityService + Sync + Send>,
     ) -> Self {
         Self { workspace_name, database_connection, authority_service }
+    }
+
+    async fn get_authority_model(&self, transaction: &DatabaseTransaction, authority_id: &Ulid) -> Result<Authority> {
+        self.authority_service
+            .get_authority(transaction, authority_id)
+            .await?
+            .ok_or_else(|| Error::AuthorityNotExists { entered_authority_id: authority_id.to_owned() })
     }
 }
 
@@ -64,14 +81,44 @@ impl AuthorityUseCase for AuthorityUseCaseImpl {
 
     async fn get_authority(&self, authority_id: &Ulid) -> Result<AuthorityData> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        let authority = self
-            .authority_service
-            .get_authority(&transaction, authority_id)
-            .await?
-            .ok_or_else(|| Error::AuthorityNotExists { entered_authority_id: authority_id.to_owned() })?;
+        let authority = self.get_authority_model(&transaction, authority_id).await?;
         transaction.commit().await?;
 
         Ok(authority.into())
+    }
+
+    async fn update_authority(
+        &self,
+        authority_id: &Ulid,
+        new_name: Option<&str>,
+        new_public_key: Option<&str>,
+    ) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut authority = self.get_authority_model(&transaction, authority_id).await?;
+        if let Some(new_name) = new_name {
+            authority.update_name(new_name)
+        }
+        if let Some(new_public_key) = new_public_key {
+            authority.update_public_key(new_public_key)
+        }
+        authority.persist(&transaction).await?;
+
+        transaction.commit().await?;
+
+        Ok(())
+    }
+
+    async fn delete_authority(&self, authority_id: &Ulid) -> Result<()> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+
+        let mut authority = self.get_authority_model(&transaction, authority_id).await?;
+        authority.delete();
+        authority.persist(&transaction).await?;
+
+        transaction.commit().await?;
+
+        Ok(())
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::database::{authority, UlidId};
+use crate::database::{authority, Persistable, UlidId};
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{
@@ -11,11 +11,74 @@ pub struct Authority {
     pub name: String,
     pub host: String,
     pub public_key: Option<String>,
+    updated_name: Option<String>,
+    updated_public_key: Option<String>,
+    deleted: bool,
 }
 
 impl From<authority::Model> for Authority {
     fn from(value: authority::Model) -> Self {
-        Self { id: value.id.inner(), name: value.name, host: value.host, public_key: value.public_key }
+        Self {
+            id: value.id.inner(),
+            name: value.name,
+            host: value.host,
+            public_key: value.public_key,
+            updated_name: None,
+            updated_public_key: None,
+            deleted: false,
+        }
+    }
+}
+
+impl Authority {
+    pub fn delete(&mut self) {
+        self.deleted = false;
+    }
+
+    pub fn update_name(&mut self, new_name: &str) {
+        if self.name == new_name {
+            return;
+        }
+
+        self.updated_name = Some(new_name.to_owned());
+    }
+
+    pub fn update_public_key(&mut self, new_public_key: &str) {
+        if self.public_key.as_deref() == Some(new_public_key) {
+            return;
+        }
+
+        self.updated_public_key = Some(new_public_key.to_owned())
+    }
+}
+
+#[async_trait]
+impl Persistable for Authority {
+    type Error = Error;
+
+    async fn persist(self, transaction: &DatabaseTransaction) -> std::result::Result<(), Self::Error> {
+        if self.deleted {
+            authority::Entity::delete_by_id(UlidId::new(self.id)).exec(transaction).await?;
+            return Ok(());
+        }
+
+        let name_setter = self.updated_name.map(Set).unwrap_or_default();
+        let public_key_setter =
+            self.updated_public_key.map(|updated_public_key| Set(Some(updated_public_key))).unwrap_or_default();
+
+        let mut active_model =
+            authority::ActiveModel { name: name_setter, public_key: public_key_setter, ..Default::default() };
+
+        if active_model.is_changed() {
+            active_model.updated_at = Set(Utc::now());
+            authority::Entity::update_many()
+                .filter(authority::Column::Id.eq(UlidId::new(self.id)))
+                .set(active_model)
+                .exec(transaction)
+                .await?;
+        }
+
+        Ok(())
     }
 }
 
