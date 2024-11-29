@@ -2,15 +2,31 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
+use ulid::Ulid;
 
 use crate::{
     database::OrganizationScopedTransaction,
     domain::{self, authority::AuthorityService},
 };
 
+pub struct AuthorityData {
+    pub id: Ulid,
+    pub name: String,
+    pub host: String,
+    pub public_key: Option<String>,
+}
+
+impl From<domain::authority::Authority> for AuthorityData {
+    fn from(value: domain::authority::Authority) -> Self {
+        Self { id: value.id, name: value.name, host: value.host, public_key: value.public_key }
+    }
+}
+
 #[async_trait]
 pub trait AuthorityUseCase {
     async fn register_authority(&self, name: &str, host: &str) -> Result<()>;
+    async fn get_authorities(&self) -> Result<Vec<AuthorityData>>;
+    async fn get_authority(&self, authority_id: &Ulid) -> Result<AuthorityData>;
 }
 
 pub struct AuthorityUseCaseImpl {
@@ -37,10 +53,32 @@ impl AuthorityUseCase for AuthorityUseCaseImpl {
         transaction.commit().await?;
         Ok(())
     }
+
+    async fn get_authorities(&self) -> Result<Vec<AuthorityData>> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let authorities = self.authority_service.get_authorities(&transaction).await?;
+        transaction.commit().await?;
+
+        Ok(authorities.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_authority(&self, authority_id: &Ulid) -> Result<AuthorityData> {
+        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let authority = self
+            .authority_service
+            .get_authority(&transaction, authority_id)
+            .await?
+            .ok_or_else(|| Error::AuthorityNotExists { entered_authority_id: authority_id.to_owned() })?;
+        transaction.commit().await?;
+
+        Ok(authority.into())
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Authority({entered_authority_id}) is not exists")]
+    AuthorityNotExists { entered_authority_id: Ulid },
     #[error("Authority name is already in use")]
     NameAlreadyInUse { entered_authority_name: String },
     #[error(transparent)]

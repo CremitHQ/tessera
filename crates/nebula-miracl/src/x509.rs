@@ -58,7 +58,6 @@ pub const USE_NIST384: usize = 10;
 /**< For the NIST 384-bit standard curve - WEIERSTRASS only */
 pub const USE_NIST521: usize = 12;
 /**< For the NIST 521-bit standard curve - WEIERSTRASS only */
-
 const ANY: u8 = 0x00;
 const SEQ: u8 = 0x30;
 const OID: u8 = 0x006;

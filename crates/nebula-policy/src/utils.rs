@@ -14,7 +14,7 @@ pub fn remove_index(node: &str) -> String {
 
 #[inline]
 pub fn contains(data: &[String], value: &str) -> bool {
-    return data.iter().any(|x| x == value);
+    data.iter().any(|x| x == value)
 }
 
 pub fn is_subset(subset: &[&str], attr: &[&str]) -> bool {
