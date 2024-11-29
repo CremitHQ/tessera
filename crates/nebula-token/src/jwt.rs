@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for Jwt {
         D: Deserializer<'de>,
     {
         struct JWSVisitor;
-        impl<'de> Visitor<'de> for JWSVisitor {
+        impl Visitor<'_> for JWSVisitor {
             type Value = Jwt;
 
             fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
