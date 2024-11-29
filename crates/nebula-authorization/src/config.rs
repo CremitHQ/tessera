@@ -1,5 +1,5 @@
 use config::{Config, File, FileFormat};
-use directories::BaseDirs;
+use nebula_config_path::config_dir;
 use nebula_token::jwk::jwk_set::JwkSet;
 use serde::Deserialize;
 use url::Url;
@@ -84,8 +84,7 @@ pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {
     let config_file_path = if let Some(path_override) = args.config {
         path_override
     } else {
-        let base_dirs = BaseDirs::new().expect("Failed to get base directories");
-        let user_config_dir = base_dirs.config_dir();
+        let user_config_dir = config_dir().expect("Failed to get config directory");
         let nebula_config_dir = user_config_dir.join("nebula");
         if !nebula_config_dir.exists() {
             std::fs::create_dir_all(&nebula_config_dir)?;

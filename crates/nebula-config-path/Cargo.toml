@@ -1,0 +1,17 @@
+[package]
+name = "nebula-config-path"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = [
+    "knownfolders",
+    "objbase",
+    "shlobj",
+    "winbase",
+    "winerror",
+] }
