@@ -14,6 +14,7 @@ use nebula_token::{
     claim::{NebulaClaim, Role},
 };
 use reqwest::StatusCode;
+use serde::Deserialize;
 use tower_http::cors::AllowOrigin;
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
@@ -97,8 +98,13 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     Ok(())
 }
 
+#[derive(Deserialize)]
+pub(crate) struct WorkspaceParams {
+    pub workspace_name: String,
+}
+
 pub(crate) async fn check_workspace_name(
-    Path(workspace_name): Path<String>,
+    Path(WorkspaceParams { workspace_name }): Path<WorkspaceParams>,
     Extension(claim): Extension<NebulaClaim>,
     req: Request,
     next: Next,
