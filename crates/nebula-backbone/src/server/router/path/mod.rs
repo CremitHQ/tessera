@@ -4,14 +4,15 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     http::StatusCode,
+    middleware,
     response::IntoResponse,
-    routing::get,
+    routing::{delete, get, post},
     Json, Router,
 };
 
 use crate::{
     application::{self, path::PathUseCase, Application},
-    server::router::path::request::PatchPathRequest,
+    server::{check_admin_role, check_member_role, check_workspace_name, router::path::request::PatchPathRequest},
 };
 
 use self::request::PostPathRequest;
@@ -21,13 +22,17 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
-        .route("/workspaces/:workspace_name/paths", get(handle_get_paths).post(handle_post_path))
-        .route(
-            "/workspaces/:workspace_name/paths/*path",
-            get(handle_get_path).delete(handle_delete_path).patch(handle_patch_path),
-        )
-        .with_state(application)
+    let member_router = Router::new()
+        .route("/workspaces/:workspace_name/paths", get(handle_get_paths))
+        .route("/workspaces/:workspace_name/paths/*path", get(handle_get_path))
+        .route_layer(middleware::from_fn(check_member_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+    let admin_router = Router::new()
+        .route("/workspaces/:workspace_name/paths", post(handle_post_path))
+        .route("/workspaces/:workspace_name/paths/*path", delete(handle_delete_path).patch(handle_patch_path))
+        .route_layer(middleware::from_fn(check_admin_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+    Router::new().merge(member_router).merge(admin_router).with_state(application)
 }
 
 #[debug_handler]

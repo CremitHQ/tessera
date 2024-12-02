@@ -3,10 +3,13 @@ use std::path::Path;
 use crate::Args;
 use config::{Config, File, FileFormat};
 use serde::Deserialize;
+use url::Url;
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct ApplicationConfig {
     pub port: u16,
+    pub jwks_url: Url,
+    pub jwks_refresh_interval: Option<u64>,
     pub database: DatabaseConfig,
 }
 

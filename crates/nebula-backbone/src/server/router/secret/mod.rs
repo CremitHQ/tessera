@@ -4,6 +4,7 @@ use axum::{
     debug_handler,
     extract::{Path, Query, State},
     http::StatusCode,
+    middleware,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -11,10 +12,13 @@ use axum::{
 use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::Deserialize;
 
-use crate::application::{
-    self,
-    secret::{SecretData, SecretRegisterCommand, SecretUpdate, SecretUseCase},
-    Application,
+use crate::{
+    application::{
+        self,
+        secret::{SecretData, SecretRegisterCommand, SecretUpdate, SecretUseCase},
+        Application,
+    },
+    server::{check_member_role, check_workspace_name},
 };
 
 use self::{
@@ -32,6 +36,8 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
             "/workspaces/:workspace_name/secrets/*secret_identifier",
             get(handle_get_secret).delete(handle_delete_secret).patch(handle_patch_secret),
         )
+        .route_layer(middleware::from_fn(check_member_role))
+        .route_layer(middleware::from_fn(check_workspace_name))
         .with_state(application)
 }
 

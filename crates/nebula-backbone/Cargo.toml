@@ -23,7 +23,7 @@ aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
 ulid = { workspace = true, features = ["serde"] }
-url = { workspace = true }
+url = { workspace = true, features = ["serde"] }
 urlencoding = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
@@ -37,6 +37,8 @@ rmp-serde = { workspace = true }
 nebula-policy.workspace = true
 sea-orm-migration.workspace = true
 futures-util.workspace = true
+nebula-token = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
 mockall = { workspace = true }

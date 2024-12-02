@@ -4,8 +4,9 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     http::StatusCode,
+    middleware,
     response::IntoResponse,
-    routing::get,
+    routing::{get, patch, post},
     Json, Router,
 };
 use ulid::Ulid;
@@ -16,7 +17,7 @@ use crate::{
         authority::{AuthorityData, AuthorityUseCase},
         Application,
     },
-    server::response::handle_internal_server_error,
+    server::{check_admin_role, check_member_role, check_workspace_name, response::handle_internal_server_error},
 };
 
 use self::{
@@ -28,13 +29,21 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
-        .route("/workspaces/:workspace_name/authorities", get(handle_get_authorities).post(handle_post_authority))
+    let member_router = Router::new()
+        .route("/workspaces/:workspace_name/authorities", get(handle_get_authorities))
+        .route("/workspaces/:workspace_name/authorities/:authority_id", get(handle_get_authority))
+        .route_layer(middleware::from_fn(check_member_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+    let admin_router = Router::new()
+        .route("/workspaces/:workspace_name/authorities", post(handle_post_authority))
         .route(
             "/workspaces/:workspace_name/authorities/:authority_id",
-            get(handle_get_authority).patch(handle_patch_authority).delete(handle_delete_authority),
+            patch(handle_patch_authority).delete(handle_delete_authority),
         )
-        .with_state(application)
+        .route_layer(middleware::from_fn(check_admin_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+
+    Router::new().merge(member_router).merge(admin_router).with_state(application)
 }
 
 impl IntoResponse for application::authority::Error {
