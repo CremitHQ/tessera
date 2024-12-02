@@ -544,11 +544,9 @@ pub(crate) struct PostgresSecretService {}
 
 #[async_trait]
 impl SecretService for PostgresSecretService {
-    async fn list_secret(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>> {
-        let metadata = secret_metadata::Entity::find()
-            .filter(secret_metadata::Column::Path.like(format!("{path_prefix}%")))
-            .all(transaction)
-            .await?;
+    async fn list_secret(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Vec<SecretEntry>> {
+        let metadata =
+            secret_metadata::Entity::find().filter(secret_metadata::Column::Path.eq(path)).all(transaction).await?;
         let applied_policies = metadata.load_many(applied_policy::Entity, transaction).await?;
         let mut ciphers: HashMap<String, Vec<u8>> = secret_value::Entity::find()
             .filter(
