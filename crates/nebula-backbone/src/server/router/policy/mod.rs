@@ -4,13 +4,17 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     http::StatusCode,
+    middleware,
     response::IntoResponse,
-    routing::get,
+    routing::{get, patch, post},
     Json, Router,
 };
 use ulid::Ulid;
 
-use crate::application::{self, policy::PolicyUseCase, Application};
+use crate::{
+    application::{self, policy::PolicyUseCase, Application},
+    server::{check_admin_role, check_member_role, check_workspace_name},
+};
 
 use self::response::PolicyResponse;
 
@@ -18,13 +22,21 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
-        .route("/workspaces/:workspace_name/policies", get(handle_get_policies).post(handle_post_policy))
+    let member_router = Router::new()
+        .route("/workspaces/:workspace_name/policies", get(handle_get_policies))
+        .route("/workspaces/:workspace_name/policies/:policy_id", get(handle_get_policy))
+        .route_layer(middleware::from_fn(check_member_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+    let admin_router = Router::new()
+        .route("/workspaces/:workspace_name/policies", post(handle_post_policy))
         .route(
             "/workspaces/:workspace_name/policies/:policy_id",
-            get(handle_get_policy).patch(handle_patch_policy).delete(handle_delete_policy),
+            patch(handle_patch_policy).delete(handle_delete_policy),
         )
-        .with_state(application)
+        .route_layer(middleware::from_fn(check_admin_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+
+    Router::new().merge(member_router).merge(admin_router).with_state(application)
 }
 
 #[debug_handler]

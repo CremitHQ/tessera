@@ -4,8 +4,9 @@ use axum::{
     debug_handler,
     extract::{Path, State},
     http::StatusCode,
+    middleware,
     response::IntoResponse,
-    routing::{delete, post},
+    routing::{delete, get},
     Json, Router,
 };
 
@@ -14,7 +15,7 @@ use crate::{
         workspace::{self, command::CreatingWorkspaceCommand, data::WorkspaceData, WorkspaceUseCase},
         Application,
     },
-    server::response::handle_internal_server_error,
+    server::{check_admin_role, check_workspace_name, response::handle_internal_server_error},
 };
 
 use self::{request::PostWorkspaceRequest, response::GetWorkspacesResponse};
@@ -23,10 +24,12 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    Router::new()
-        .route("/", post(handle_post_workspace).get(handle_get_workspaces))
+    let public_routers = Router::new().route("/", get(handle_get_workspaces).post(handle_post_workspace));
+    let admin_routers = Router::new()
         .route("/:workspace_name", delete(handle_delete_workspace))
-        .with_state(application)
+        .route_layer(middleware::from_fn(check_admin_role))
+        .route_layer(middleware::from_fn(check_workspace_name));
+    Router::new().merge(public_routers).merge(admin_routers).with_state(application)
 }
 
 #[debug_handler]

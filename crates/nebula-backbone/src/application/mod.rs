@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
+use nebula_token::auth::jwks_discovery::{fetch_jwks, CachedRemoteJwksDiscovery, JwksDiscovery, StaticJwksDiscovery};
 use parameter::{ParameterUseCase, ParameterUseCaseImpl};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
@@ -38,6 +39,7 @@ pub(crate) struct Application {
     parameter_service: Arc<dyn ParameterService + Sync + Send>,
     policy_service: Arc<dyn PolicyService + Sync + Send>,
     authority_service: Arc<dyn AuthorityService + Sync + Send>,
+    jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync>,
 }
 
 impl Application {
@@ -54,6 +56,10 @@ impl Application {
             policy_service: self.policy_service.clone(),
             authority_service: self.authority_service.clone(),
         }
+    }
+
+    pub fn jwks_discovery(&self) -> Arc<dyn JwksDiscovery + Sync + Send> {
+        self.jwks_discovery.clone()
     }
 }
 
@@ -111,6 +117,17 @@ impl ApplicationWithWorkspace {
 
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
+
+    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> = if let Some(refresh_interval) =
+        config.jwks_refresh_interval
+    {
+        Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?)
+    } else {
+        let client = reqwest::Client::new();
+        let jwks = fetch_jwks(&client, config.jwks_url.clone()).await?;
+        Arc::new(StaticJwksDiscovery::new(jwks))
+    };
+
     database::migrate(database_connection.as_ref()).await?;
     database::migrate_all_workspaces(
         &database_connection.begin().await?,
@@ -140,6 +157,7 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
         parameter_service,
         policy_service,
         authority_service,
+        jwks_discovery,
     })
 }
 
