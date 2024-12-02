@@ -79,8 +79,13 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     Router::new().merge(public_router).merge(private_router)
 }
 
+#[derive(Deserialize)]
+pub(crate) struct WorkspaceParams {
+    pub workspace_name: String,
+}
+
 pub(crate) async fn check_workspace_name(
-    Path(workspace_name): Path<String>,
+    Path(WorkspaceParams { workspace_name }): Path<WorkspaceParams>,
     Extension(claim): Extension<NebulaClaim>,
     req: Request,
     next: Next,
