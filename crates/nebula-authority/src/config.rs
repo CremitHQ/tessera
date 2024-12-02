@@ -15,6 +15,7 @@ pub(crate) struct ApplicationConfig {
     pub jwks_refresh_interval: Option<u64>,
     pub disarm_key_shares: Option<Vec<String>>,
     pub path_prefix: Option<String>,
+    pub cors: Option<CorsConfig>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -49,6 +50,13 @@ pub(crate) enum BackboneConfig {
 pub(crate) struct AuthorityConfig {
     pub name: String,
     pub admin: Vec<String>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type", content = "domains")]
+pub(crate) enum CorsConfig {
+    AllowAll,
+    AllowList(Vec<String>),
 }
 
 pub(super) fn load_config(

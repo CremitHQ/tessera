@@ -11,6 +11,7 @@ pub(crate) struct ApplicationConfig {
     pub jwks_url: Url,
     pub jwks_refresh_interval: Option<u64>,
     pub database: DatabaseConfig,
+    pub cors: Option<CorsConfig>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -26,6 +27,13 @@ pub struct DatabaseConfig {
 pub enum DatabaseAuthConfig {
     Credential { username: String, password: Option<String> },
     RdsIamAuth { username: String },
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type", content = "domains")]
+pub(crate) enum CorsConfig {
+    AllowAll,
+    AllowList(Vec<String>),
 }
 
 pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {

@@ -15,6 +15,7 @@ pub(crate) struct ApplicationConfig {
     pub token: TokenConfig,
     pub workspace: WorkspaceConfig,
     pub path_prefix: Option<String>,
+    pub cors: Option<CorsConfig>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -78,6 +79,13 @@ pub struct StaticWorkspaceConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct ClaimWorkspaceConfig {
     pub claim: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type", content = "domains")]
+pub(crate) enum CorsConfig {
+    AllowAll,
+    AllowList(Vec<String>),
 }
 
 pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {

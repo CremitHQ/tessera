@@ -34,6 +34,7 @@ aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
 aws-sigv4 = { workspace = true }
 urlencoding = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
 # nebula packages
 nebula-abe = { workspace = true, features = ["zeroize"] }
 nebula-storage = { workspace = true, features = ["zeroize", "shield"] }
