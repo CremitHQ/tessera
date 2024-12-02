@@ -1,13 +1,15 @@
 use anyhow::Result;
 use clap::Parser as _;
-use command::{Cli, RunCommand};
+use command::Cli;
 
+mod api;
 mod command;
+mod config;
+mod utils;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
-    cli.run().await?;
+    smol::block_on(async move { cli.run().await })?;
 
     Ok(())
 }

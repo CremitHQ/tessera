@@ -8,16 +8,19 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-directories = { workspace = true }
 thiserror = { workspace = true }
 validator.workspace = true
 async-trait = { workspace = true }
-iocraft = "0.4"
 clap = { workspace = true, features = ["cargo", "env", "derive"] }
 reqwest = { workspace = true, features = ["json"] }
+config = { workspace = true }
+url = { workspace = true, features = ["serde"] }
+toml = "0.8"
+smol = "2"
+inquire = "0.7.5"
+# nebula crates
 nebula-config-path = { workspace = true }
