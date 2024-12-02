@@ -15,6 +15,7 @@ use reqwest::{
     header::{AUTHORIZATION, CONTENT_TYPE, LINK},
     StatusCode,
 };
+use serde::Deserialize;
 use tower_http::cors::AllowOrigin;
 use tower_http::cors::Any;
 use tower_http::cors::CorsLayer;
@@ -105,8 +106,14 @@ pub(crate) async fn check_member_role(
     }
 }
 
+#[derive(Deserialize)]
+pub(crate) struct WorkspaceParams {
+    pub workspace_name: String,
+}
+
 pub(crate) async fn check_workspace_name(
-    Path(workspace_name): Path<String>,
+    Path(WorkspaceParams { workspace_name }): Path<WorkspaceParams>,
+
     Extension(claim): Extension<NebulaClaim>,
     req: Request,
     next: Next,
