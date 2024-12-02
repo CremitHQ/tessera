@@ -39,7 +39,14 @@ impl TryFrom<&JwtPayload> for NebulaClaim {
         Ok(NebulaClaim {
             gid,
             workspace_name,
-            attributes: attributes.into_iter().map(|(k, v)| (k, v.to_string())).collect(),
+            attributes: attributes
+                .into_iter()
+                .map(|(k, v)| {
+                    let v = v.as_str()?.to_string();
+                    Some((k, v))
+                })
+                .collect::<Option<_>>()
+                .ok_or(JWTError::InvalidJwtFormat("attributes is not a map of strings".to_string()))?,
             role,
         })
     }
