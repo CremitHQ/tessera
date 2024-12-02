@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE, LINK};
-use axum::http::HeaderValue;
 use axum::{routing::get, Router};
 use tower_http::cors::AllowOrigin;
 use tower_http::cors::Any;
