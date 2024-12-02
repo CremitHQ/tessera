@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use axum::http::HeaderValue;
 use axum::{
     extract::{Path, Request},
     http::header::{AUTHORIZATION, CONTENT_TYPE, LINK},

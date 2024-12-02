@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, Request},
-    http::HeaderValue,
     middleware::Next,
     response::Response,
     routing::get,
