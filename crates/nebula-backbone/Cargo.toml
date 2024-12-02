@@ -39,6 +39,7 @@ sea-orm-migration.workspace = true
 futures-util.workspace = true
 nebula-token = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
+tower-http = { workspace = true, features = ["cors"] }
 
 [dev-dependencies]
 mockall = { workspace = true }

@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 
 use axum::{
     extract::{Path, Request},
+    http::header::{AUTHORIZATION, CONTENT_TYPE, LINK},
     middleware::{self, Next},
     response::Response,
     routing::get,
@@ -13,10 +14,14 @@ use nebula_token::{
     claim::{NebulaClaim, Role},
 };
 use reqwest::StatusCode;
+use tower_http::cors::AllowOrigin;
+use tower_http::cors::Any;
+use tower_http::cors::CorsLayer;
 use tracing::debug;
 
 mod router;
 
+use crate::config::CorsConfig;
 use crate::{application::Application, config::ApplicationConfig};
 
 static AUTHORITY_ADMINS: OnceLock<Vec<String>> = OnceLock::new();
@@ -24,16 +29,18 @@ pub(super) struct ServerConfig {
     pub port: u16,
     pub admin: Vec<String>,
     pub path_prefix: Option<String>,
+    pub cors: Option<CorsConfig>,
 }
 
 impl From<ApplicationConfig> for ServerConfig {
     fn from(value: ApplicationConfig) -> Self {
-        Self { port: value.port, admin: value.authority.admin, path_prefix: value.path_prefix }
+        Self { port: value.port, admin: value.authority.admin, path_prefix: value.path_prefix, cors: value.cors }
     }
 }
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
     AUTHORITY_ADMINS.get_or_init(|| config.admin.clone());
+
     let application = Arc::new(application);
     let protected_router = Router::new()
         .nest("/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
@@ -57,6 +64,31 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
         app.nest(&path_prefix, protected_router).nest(&path_prefix, public_router)
     } else {
         app.merge(protected_router).merge(public_router)
+    };
+
+    let app = if let Some(cors) = config.cors {
+        let cors = CorsLayer::new()
+            .allow_methods(Any)
+            .allow_origin(match cors {
+                CorsConfig::AllowAll => AllowOrigin::any(),
+                CorsConfig::AllowList(allow_origins) => AllowOrigin::predicate(move |value, _| {
+                    let value = value.as_bytes();
+                    allow_origins.iter().any(|origin| {
+                        let split_byte_wildcard = origin.split('*').map(|s| s.as_bytes()).collect::<Vec<_>>();
+                        if split_byte_wildcard.len() == 2 {
+                            let (prefix, suffix) = (split_byte_wildcard[0], split_byte_wildcard[1]);
+                            value.starts_with(prefix) && value.ends_with(suffix)
+                        } else {
+                            origin.as_bytes() == value
+                        }
+                    })
+                }),
+            })
+            .allow_headers([AUTHORIZATION, CONTENT_TYPE, LINK])
+            .expose_headers([LINK]);
+        app.layer(cors)
+    } else {
+        app
     };
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
