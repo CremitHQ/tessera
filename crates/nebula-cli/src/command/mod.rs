@@ -1,10 +1,14 @@
+use access_condition::AccessConditionCommand;
 use async_trait::async_trait;
 use clap::{command, Args, Parser};
 use config::ConfigCommand;
 use login::LoginCommand;
+use secret::SecretCommand;
 
+pub mod access_condition;
 pub mod config;
 pub mod login;
+pub mod secret;
 
 #[derive(Args, Debug)]
 pub struct GlobalArgs {
@@ -40,6 +44,10 @@ pub enum CliCommand {
     Login(LoginCommand),
     #[clap(subcommand)]
     Config(ConfigCommand),
+    #[clap(subcommand)]
+    Secret(SecretCommand),
+    #[clap(subcommand)]
+    AccessCondition(AccessConditionCommand),
 }
 
 #[async_trait]
@@ -51,6 +59,12 @@ impl RunCommand for CliCommand {
             }
             CliCommand::Login(ref login) => {
                 login.run(args).await?;
+            }
+            CliCommand::Secret(ref secret) => {
+                secret.run(args).await?;
+            }
+            CliCommand::AccessCondition(ref access_condition) => {
+                access_condition.run(args).await?;
             }
         }
         Ok(())
