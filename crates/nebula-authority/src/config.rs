@@ -43,7 +43,7 @@ pub(crate) enum PostgresAuthMethod {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
 pub(crate) enum BackboneConfig {
-    Workspace { host: String },
+    Workspace { host: Url },
 }
 
 #[derive(Deserialize, Debug)]
