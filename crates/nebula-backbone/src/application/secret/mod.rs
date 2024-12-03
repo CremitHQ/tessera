@@ -143,6 +143,8 @@ pub(crate) enum Error {
     PolicyNotExists { entered_policy_id: Ulid },
     #[error("Path({entered_path}) is not registered")]
     PathNotExists { entered_path: String },
+    #[error("Access denied")]
+    AccessDenied,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -169,6 +171,8 @@ impl From<domain::secret::Error> for Error {
             domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::PathDuplicated { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::PathIsInUse { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::InvalidPathPolicy => Self::Anyhow(value.into()),
+            domain::secret::Error::AccessDenied => Self::AccessDenied,
         }
     }
 }
@@ -207,6 +211,7 @@ pub(crate) struct SecretRegisterCommand {
 mod test {
     use std::{str::FromStr, sync::Arc};
 
+    use nebula_token::claim::NebulaClaim;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 

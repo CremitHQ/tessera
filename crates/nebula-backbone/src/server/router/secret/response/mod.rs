@@ -23,6 +23,7 @@ impl IntoResponse for application::secret::Error {
             application::secret::Error::IdentifierConflicted { entered_identifier } => {
                 SecretIdentifierConlictedErrorResponse { entered_secret_identifier: entered_identifier }.into_response()
             }
+            application::secret::Error::AccessDenied => StatusCode::FORBIDDEN.into_response(),
         }
     }
 }

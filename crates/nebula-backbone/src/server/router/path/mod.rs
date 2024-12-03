@@ -6,13 +6,14 @@ use axum::{
     http::StatusCode,
     middleware,
     response::IntoResponse,
-    routing::{delete, get, post},
-    Json, Router,
+    routing::get,
+    Extension, Json, Router,
 };
+use nebula_token::claim::NebulaClaim;
 
 use crate::{
     application::{self, path::PathUseCase, Application},
-    server::{check_admin_role, check_member_role, check_workspace_name, router::path::request::PatchPathRequest},
+    server::{check_workspace_name, router::path::request::PatchPathRequest},
 };
 
 use self::request::PostPathRequest;
@@ -22,28 +23,26 @@ mod request;
 mod response;
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    let member_router = Router::new()
-        .route("/workspaces/:workspace_name/paths", get(handle_get_paths))
-        .route("/workspaces/:workspace_name/paths/*path", get(handle_get_path))
-        .route_layer(middleware::from_fn(check_member_role))
-        .route_layer(middleware::from_fn(check_workspace_name));
-    let admin_router = Router::new()
-        .route("/workspaces/:workspace_name/paths", post(handle_post_path))
-        .route("/workspaces/:workspace_name/paths/*path", delete(handle_delete_path).patch(handle_patch_path))
-        .route_layer(middleware::from_fn(check_admin_role))
-        .route_layer(middleware::from_fn(check_workspace_name));
-    Router::new().merge(member_router).merge(admin_router).with_state(application)
+    Router::new()
+        .route("/workspaces/:workspace_name/paths", get(handle_get_paths).post(handle_post_path))
+        .route(
+            "/workspaces/:workspace_name/paths/*path",
+            get(handle_get_path).delete(handle_delete_path).patch(handle_patch_path),
+        )
+        .route_layer(middleware::from_fn(check_workspace_name))
+        .with_state(application)
 }
 
 #[debug_handler]
 async fn handle_post_path(
     Path(workspace_name): Path<String>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
     Json(payload): Json<PostPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
     let policies: Vec<_> =
         payload.applied_policies.into_iter().map(crate::domain::secret::AppliedPolicy::from).collect();
-    application.with_workspace(&workspace_name).path().register(&payload.path, &policies).await?;
+    application.with_workspace(&workspace_name).path().register(&payload.path, &policies, &claim).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -62,8 +61,9 @@ async fn handle_get_paths(
 async fn handle_delete_path(
     Path((workspace_name, path)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, application::path::Error> {
-    application.with_workspace(&workspace_name).path().delete(&normalize_path(path)).await?;
+    application.with_workspace(&workspace_name).path().delete(&normalize_path(path), &claim).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -72,6 +72,7 @@ async fn handle_delete_path(
 async fn handle_patch_path(
     Path((workspace_name, path)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
     Json(payload): Json<PatchPathRequest>,
 ) -> Result<impl IntoResponse, application::path::Error> {
     let new_policies: Option<Vec<_>> =
@@ -79,7 +80,7 @@ async fn handle_patch_path(
     application
         .with_workspace(&workspace_name)
         .path()
-        .update(&normalize_path(path), payload.path.as_deref(), new_policies.as_deref())
+        .update(&normalize_path(path), payload.path.as_deref(), new_policies.as_deref(), &claim)
         .await?;
 
     Ok(StatusCode::NO_CONTENT)

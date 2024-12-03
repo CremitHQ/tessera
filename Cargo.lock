@@ -2822,6 +2822,8 @@ dependencies = [
  "nebula-abe",
  "nebula-policy",
  "nebula-token",
+ "pest",
+ "pest_derive",
  "rand",
  "regex",
  "reqwest",

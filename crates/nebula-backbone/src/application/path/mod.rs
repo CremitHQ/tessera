@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nebula_token::claim::NebulaClaim;
 use sea_orm::DatabaseConnection;
 
 use crate::{
@@ -16,9 +17,15 @@ pub(crate) struct PathData {
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
-    async fn register(&self, path: &str, policies: &[AppliedPolicy]) -> Result<()>;
-    async fn delete(&self, path: &str) -> Result<()>;
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()>;
+    async fn register(&self, path: &str, policies: &[AppliedPolicy], claim: &NebulaClaim) -> Result<()>;
+    async fn delete(&self, path: &str, claim: &NebulaClaim) -> Result<()>;
+    async fn update(
+        &self,
+        path: &str,
+        new_path: Option<&str>,
+        new_policies: Option<&[AppliedPolicy]>,
+        claim: &NebulaClaim,
+    ) -> Result<()>;
     async fn get(&self, path: &str) -> Result<PathData>;
 }
 
@@ -48,14 +55,14 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(paths.into_iter().map(PathData::from).collect())
     }
 
-    async fn register(&self, path: &str, policies: &[AppliedPolicy]) -> Result<()> {
+    async fn register(&self, path: &str, policies: &[AppliedPolicy], claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        self.secret_service.register_path(&transaction, path, policies).await?;
+        self.secret_service.register_path(&transaction, path, policies, claim).await?;
         transaction.commit().await?;
         Ok(())
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
+    async fn delete(&self, path: &str, claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -63,14 +70,20 @@ impl PathUseCase for PathUseCaseImpl {
             .await?
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
-        path.delete();
+        path.delete(&transaction, claim).await?;
         path.persist(&transaction).await?;
 
         transaction.commit().await?;
         Ok(())
     }
 
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()> {
+    async fn update(
+        &self,
+        path: &str,
+        new_path: Option<&str>,
+        new_policies: Option<&[AppliedPolicy]>,
+        claim: &NebulaClaim,
+    ) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -79,10 +92,10 @@ impl PathUseCase for PathUseCaseImpl {
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
         if let Some(new_path) = new_path {
-            path.update_path(new_path)?;
+            path.update_path(&transaction, new_path, claim).await?;
         }
         if let Some(new_policies) = new_policies {
-            path.update_policies(new_policies);
+            path.update_policies(&transaction, new_policies, claim).await?;
         }
 
         path.persist(&transaction).await?;
@@ -122,12 +135,17 @@ pub(crate) enum Error {
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
+    #[error("Invalid path policy expression is entered")]
+    InvalidPathPolicy,
+    #[error("Access denied")]
+    AccessDenied,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
 
 impl From<secret::Error> for Error {
     fn from(value: secret::Error) -> Self {
+        dbg!(&value);
         match value {
             secret::Error::InvalidSecretIdentifier { .. } => Self::Anyhow(value.into()),
             secret::Error::SecretNotExists => Self::Anyhow(value.into()),
@@ -138,6 +156,8 @@ impl From<secret::Error> for Error {
             secret::Error::ParentPathNotExists { entered_path } => Self::ParentPathNotExists { entered_path },
             secret::Error::PathDuplicated { entered_path } => Self::PathDuplicated { entered_path },
             secret::Error::PathIsInUse { entered_path } => Self::PathIsInUse { entered_path },
+            secret::Error::InvalidPathPolicy => Self::InvalidPathPolicy,
+            secret::Error::AccessDenied => Self::AccessDenied,
         }
     }
 }

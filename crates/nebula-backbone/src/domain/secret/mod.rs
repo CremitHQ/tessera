@@ -5,6 +5,7 @@ use chrono::Utc;
 use lazy_static::lazy_static;
 #[cfg(test)]
 use mockall::automock;
+use nebula_token::claim::NebulaClaim;
 use regex::Regex;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, LoaderTrait,
@@ -18,6 +19,8 @@ use crate::database::{
 };
 
 use super::policy::AccessCondition;
+
+mod path_policy;
 
 pub(crate) struct SecretEntry {
     pub key: String,
@@ -83,6 +86,24 @@ pub(crate) struct AppliedPolicy {
     pub allowed_actions: Vec<AllowedAction>,
 }
 
+impl AppliedPolicy {
+    fn check_accessible(&self, allowed_action: AllowedAction, claim: &NebulaClaim) -> Result<bool> {
+        if !self.allowed_actions.contains(&allowed_action) {
+            return Ok(true);
+        }
+
+        let parsed_expression = path_policy::parse(&self.expression)?;
+
+        if parsed_expression.is_attribute_matched(
+            &claim.attributes.iter().map(|(key, value)| (key.as_str(), value.as_str())).collect::<Vec<_>>(),
+        ) {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
 impl From<(applied_path_policy::Model, Vec<applied_path_policy_allowed_action::Model>)> for AppliedPolicy {
     fn from(
         (policy_model, allowed_action_models): (
@@ -97,7 +118,7 @@ impl From<(applied_path_policy::Model, Vec<applied_path_policy_allowed_action::M
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub(crate) enum AllowedAction {
     Create,
     Update,
@@ -265,11 +286,27 @@ impl Path {
         Self { path, applied_policies, deleted: false, updated_path: None, updated_policies: None }
     }
 
-    pub(crate) fn delete(&mut self) {
-        self.deleted = true
+    pub(crate) async fn delete(&mut self, transaction: &DatabaseTransaction, claim: &NebulaClaim) -> Result<()> {
+        self.ensure_accessible(AllowedAction::Manage, claim)?;
+        for parent_path in get_all_parent_paths(transaction, &self.path).await? {
+            parent_path.ensure_accessible(AllowedAction::Manage, claim)?;
+        }
+
+        self.deleted = true;
+        Ok(())
     }
 
-    pub(crate) fn update_path(&mut self, new_path: &str) -> Result<()> {
+    pub(crate) async fn update_path(
+        &mut self,
+        transaction: &DatabaseTransaction,
+        new_path: &str,
+        claim: &NebulaClaim,
+    ) -> Result<()> {
+        self.ensure_accessible(AllowedAction::Manage, claim)?;
+        for parent_path in get_all_parent_paths(transaction, &self.path).await? {
+            parent_path.ensure_accessible(AllowedAction::Manage, claim)?;
+        }
+
         validate_path(new_path)?;
         if self.path == new_path {
             self.updated_path = None;
@@ -280,12 +317,24 @@ impl Path {
         Ok(())
     }
 
-    pub(crate) fn update_policies(&mut self, new_policies: &[AppliedPolicy]) {
+    pub(crate) async fn update_policies(
+        &mut self,
+        transaction: &DatabaseTransaction,
+        new_policies: &[AppliedPolicy],
+        claim: &NebulaClaim,
+    ) -> Result<()> {
+        self.ensure_accessible(AllowedAction::Manage, claim)?;
+        for parent_path in get_all_parent_paths(transaction, &self.path).await? {
+            parent_path.ensure_accessible(AllowedAction::Manage, claim)?;
+        }
+
         if self.applied_policies.iter().collect::<HashSet<_>>() == new_policies.iter().collect::<HashSet<_>>() {
-            return;
+            return Ok(());
         }
 
         self.updated_policies = Some(new_policies.to_vec());
+
+        Ok(())
     }
 
     async fn ensure_child_path_not_exists(&self, transaction: &DatabaseTransaction) -> Result<()> {
@@ -350,6 +399,16 @@ impl Path {
 
         for path_policy in applied_path_policies {
             applied_path_policy::Entity::delete(path_policy.into_active_model()).exec(transaction).await?;
+        }
+
+        Ok(())
+    }
+
+    fn ensure_accessible(&self, allowed_action: AllowedAction, claim: &NebulaClaim) -> Result<()> {
+        for applied_policy in &self.applied_policies {
+            if !applied_policy.check_accessible(allowed_action, claim)? {
+                return Err(Error::AccessDenied);
+            }
         }
 
         Ok(())
@@ -482,6 +541,7 @@ pub(crate) trait SecretService {
         transaction: &DatabaseTransaction,
         path: &str,
         policies: &[AppliedPolicy],
+        claim: &NebulaClaim,
     ) -> Result<()>;
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>>;
@@ -699,16 +759,11 @@ impl SecretService for PostgresSecretService {
         transaction: &DatabaseTransaction,
         path: &str,
         policies: &[AppliedPolicy],
+        claim: &NebulaClaim,
     ) -> Result<()> {
         validate_path(path)?;
-        if let Some(parent_path) = extract_parent_path(path)? {
-            self.ensure_path_exists(transaction, parent_path).await.map_err(|e| {
-                if let Error::PathNotExists { entered_path } = e {
-                    Error::ParentPathNotExists { entered_path }
-                } else {
-                    e
-                }
-            })?;
+        for parent_path in get_all_parent_paths(transaction, path).await? {
+            parent_path.ensure_accessible(AllowedAction::Manage, claim)?;
         }
         self.ensure_path_not_duplicated(transaction, path).await?;
 
@@ -758,48 +813,7 @@ impl SecretService for PostgresSecretService {
     }
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
-        validate_path(path)?;
-        let path = if let Some(path) = path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await?
-        {
-            path
-        } else {
-            return Ok(None);
-        };
-
-        let applied_path_policies = applied_path_policy::Entity::find()
-            .filter(applied_path_policy::Column::PathId.eq(path.id.clone()))
-            .all(transaction)
-            .await?;
-
-        let mut allowed_actions_map = if !applied_path_policies.is_empty() {
-            let mut allowed_actions_map = HashMap::<UlidId, Vec<applied_path_policy_allowed_action::Model>>::new();
-            let allowed_actions = applied_path_policy_allowed_action::Entity::find()
-                .filter(
-                    applied_path_policy_allowed_action::Column::AppliedPathPolicyId
-                        .is_in(applied_path_policies.iter().map(|app| app.id.clone())),
-                )
-                .all(transaction)
-                .await?;
-
-            for allowed_action in allowed_actions {
-                let allowed_actions =
-                    allowed_actions_map.entry(allowed_action.applied_path_policy_id.clone()).or_default();
-                allowed_actions.push(allowed_action);
-            }
-            allowed_actions_map
-        } else {
-            HashMap::new()
-        };
-
-        let applied_path_policies = applied_path_policies
-            .into_iter()
-            .map(|pp| {
-                let allowed_actions = allowed_actions_map.remove(&pp.id).unwrap_or_default();
-                AppliedPolicy::from((pp, allowed_actions))
-            })
-            .collect::<Vec<_>>();
-
-        Ok(Some(Path::from((path, applied_path_policies))))
+        get_path(transaction, path).await
     }
 }
 
@@ -833,6 +847,83 @@ async fn ensure_path_not_duplicated(transaction: &DatabaseTransaction, path: &st
     Ok(())
 }
 
+fn get_all_raw_parent_paths(path: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut current_path = std::path::Path::new(path);
+
+    while let Some(parent) = current_path.parent() {
+        result.push(parent.to_string_lossy().to_string());
+        current_path = parent;
+    }
+
+    result
+}
+
+async fn get_all_parent_paths(transaction: &DatabaseTransaction, path: &str) -> Result<Vec<Path>> {
+    let raw_paths = get_all_raw_parent_paths(path);
+
+    let mut paths = vec![];
+
+    for raw_path in raw_paths {
+        let path = get_path(transaction, &raw_path)
+            .await
+            .map_err(|e| {
+                if let Error::PathNotExists { entered_path } = e {
+                    Error::ParentPathNotExists { entered_path }
+                } else {
+                    e
+                }
+            })?
+            .ok_or_else(|| Error::ParentPathNotExists { entered_path: raw_path })?;
+        paths.push(path);
+    }
+
+    Ok(paths)
+}
+
+async fn get_path(transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>> {
+    validate_path(path)?;
+    let path = if let Some(path) = path::Entity::find().filter(path::Column::Path.eq(path)).one(transaction).await? {
+        path
+    } else {
+        return Ok(None);
+    };
+
+    let applied_path_policies = applied_path_policy::Entity::find()
+        .filter(applied_path_policy::Column::PathId.eq(path.id.clone()))
+        .all(transaction)
+        .await?;
+
+    let mut allowed_actions_map = if !applied_path_policies.is_empty() {
+        let mut allowed_actions_map = HashMap::<UlidId, Vec<applied_path_policy_allowed_action::Model>>::new();
+        let allowed_actions = applied_path_policy_allowed_action::Entity::find()
+            .filter(
+                applied_path_policy_allowed_action::Column::AppliedPathPolicyId
+                    .is_in(applied_path_policies.iter().map(|app| app.id.clone())),
+            )
+            .all(transaction)
+            .await?;
+
+        for allowed_action in allowed_actions {
+            let allowed_actions = allowed_actions_map.entry(allowed_action.applied_path_policy_id.clone()).or_default();
+            allowed_actions.push(allowed_action);
+        }
+        allowed_actions_map
+    } else {
+        HashMap::new()
+    };
+
+    let applied_path_policies = applied_path_policies
+        .into_iter()
+        .map(|pp| {
+            let allowed_actions = allowed_actions_map.remove(&pp.id).unwrap_or_default();
+            AppliedPolicy::from((pp, allowed_actions))
+        })
+        .collect::<Vec<_>>();
+
+    Ok(Some(Path::from((path, applied_path_policies))))
+}
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum Error {
     #[error("Path({entered_path}) is in use")]
@@ -851,6 +942,10 @@ pub(crate) enum Error {
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
+    #[error("Invalid path policy expression is entered")]
+    InvalidPathPolicy,
+    #[error("Access denied")]
+    AccessDenied,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -858,6 +953,13 @@ pub(crate) enum Error {
 impl From<sea_orm::DbErr> for Error {
     fn from(value: sea_orm::DbErr) -> Self {
         Self::Anyhow(value.into())
+    }
+}
+
+impl From<path_policy::Error> for Error {
+    fn from(v: path_policy::Error) -> Self {
+        dbg!(v);
+        Self::InvalidPathPolicy
     }
 }
 

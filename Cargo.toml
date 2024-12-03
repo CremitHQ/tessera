@@ -74,6 +74,8 @@ cached = { version = "0.54", features = [
     "async",
     "async_tokio_rt_multi_thread",
 ] }
+pest = "2.7.10"
+pest_derive = "2.7.10"
 # nebula crates
 nebula-miracl = { path = "crates/nebula-miracl" }
 nebula-policy = { path = "crates/nebula-policy" }
