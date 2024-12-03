@@ -32,7 +32,7 @@ impl From<authority::Model> for Authority {
 
 impl Authority {
     pub fn delete(&mut self) {
-        self.deleted = false;
+        self.deleted = true;
     }
 
     pub fn update_name(&mut self, new_name: &str) {
