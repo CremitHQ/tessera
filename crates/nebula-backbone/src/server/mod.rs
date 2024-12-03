@@ -42,8 +42,12 @@ impl From<&ApplicationConfig> for ServerConfig {
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
     let application = Arc::new(application);
-    let app = Router::new()
+    let public_router = Router::new()
         .route("/health", get(|| async { "" }))
+        .nest("/workspaces", router::workspace::public_router(application.clone()))
+        .merge(router::parameter::public_router(application.clone()));
+
+    let protected_router = Router::new()
         .nest("/workspaces", router::workspace::router(application.clone()))
         .merge(router::secret::router(application.clone()))
         .merge(router::parameter::router(application.clone()))
@@ -51,6 +55,8 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
         .merge(router::path::router(application.clone()))
         .merge(router::authority::router(application.clone()))
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery().clone()).build());
+
+    let app = Router::new().merge(public_router).merge(protected_router);
     let app = if let Some(cors) = config.cors {
         let cors = CorsLayer::new()
             .allow_methods(Any)

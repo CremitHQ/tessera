@@ -15,23 +15,23 @@ use crate::{
         parameter::{ParameterData, ParameterUseCase},
         Application,
     },
-    server::{check_admin_role, check_member_role, check_workspace_name},
+    server::{check_admin_role, check_workspace_name},
 };
 
 use self::response::ParameterResponse;
 
 mod response;
 
+pub(crate) fn public_router(application: Arc<Application>) -> axum::Router {
+    Router::new().route("/workspaces/:workspace_name/parameter", get(handle_get_parameter)).with_state(application)
+}
+
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    let member_router = Router::new()
-        .route("/workspaces/:workspace_name/parameter", get(handle_get_parameter))
-        .route_layer(middleware::from_fn(check_member_role))
-        .route_layer(middleware::from_fn(check_workspace_name));
     let admin_router = Router::new()
         .route("/workspaces/:workspace_name/parameter", post(handle_post_parameter))
         .route_layer(middleware::from_fn(check_admin_role))
         .route_layer(middleware::from_fn(check_workspace_name));
-    Router::new().merge(member_router).merge(admin_router).with_state(application)
+    Router::new().merge(admin_router).with_state(application)
 }
 
 async fn handle_post_parameter(

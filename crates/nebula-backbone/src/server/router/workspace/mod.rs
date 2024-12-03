@@ -23,13 +23,16 @@ use self::{request::PostWorkspaceRequest, response::GetWorkspacesResponse};
 mod request;
 mod response;
 
+pub(crate) fn public_router(application: Arc<Application>) -> axum::Router {
+    Router::new().route("/workspaces", get(handle_get_workspaces)).with_state(application)
+}
+
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
-    let public_routers = Router::new().route("/", get(handle_get_workspaces).post(handle_post_workspace));
     let admin_routers = Router::new()
         .route("/:workspace_name", delete(handle_delete_workspace))
         .route_layer(middleware::from_fn(check_admin_role))
         .route_layer(middleware::from_fn(check_workspace_name));
-    Router::new().merge(public_routers).merge(admin_routers).with_state(application)
+    Router::new().merge(admin_routers).with_state(application)
 }
 
 #[debug_handler]
