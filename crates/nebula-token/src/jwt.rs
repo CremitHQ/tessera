@@ -18,7 +18,7 @@ use super::jwk::jwk_ext::JwkExt;
 pub struct Jwt {
     header: JwsHeader,
     payload: JwtPayload,
-    serialized_repr: String,
+    pub serialized_repr: String,
 }
 
 impl Jwt {
