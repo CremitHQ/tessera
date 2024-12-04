@@ -13,7 +13,7 @@ use nebula_token::claim::NebulaClaim;
 
 use crate::{
     application::{self, path::PathUseCase, Application},
-    server::{check_workspace_name, router::path::request::PatchPathRequest},
+    server::{check_member_role, check_workspace_name, router::path::request::PatchPathRequest},
 };
 
 use self::request::PostPathRequest;
@@ -29,6 +29,7 @@ pub(crate) fn router(application: Arc<Application>) -> axum::Router {
             "/workspaces/:workspace_name/paths/*path",
             get(handle_get_path).delete(handle_delete_path).patch(handle_patch_path),
         )
+        .route_layer(middleware::from_fn(check_member_role))
         .route_layer(middleware::from_fn(check_workspace_name))
         .with_state(application)
 }
