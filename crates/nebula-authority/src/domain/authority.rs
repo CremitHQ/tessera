@@ -8,7 +8,7 @@ use nebula_storage::backend::{file::FileStorage, postgres::PostgresStorage};
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    config::{ApplicationConfig, BackboneConfig, PostgresAuthMethod, PostgresConfig, StorageConfig},
+    config::{ApplicationConfig, PostgresAuthMethod, PostgresConfig, StorageConfig},
     database::{connect_to_database, AuthMethod},
 };
 
