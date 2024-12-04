@@ -40,6 +40,8 @@ futures-util.workspace = true
 nebula-token = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 tower-http = { workspace = true, features = ["cors"] }
+pest.workspace = true
+pest_derive.workspace = true
 
 [dev-dependencies]
 mockall = { workspace = true }

@@ -7,9 +7,10 @@ use axum::{
     middleware,
     response::IntoResponse,
     routing::get,
-    Json, Router,
+    Extension, Json, Router,
 };
 use base64::{prelude::BASE64_STANDARD, Engine};
+use nebula_token::claim::NebulaClaim;
 use serde::Deserialize;
 
 use crate::{
@@ -64,6 +65,7 @@ async fn handle_get_secrets(
 async fn handle_post_secret(
     Path(workspace_name): Path<String>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
     Json(payload): Json<PostSecretRequest>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
     let cipher = if let Ok(cipher) = BASE64_STANDARD.decode(payload.cipher) {
@@ -75,12 +77,15 @@ async fn handle_post_secret(
     application
         .with_workspace(&workspace_name)
         .secret()
-        .register(SecretRegisterCommand {
-            path: payload.path,
-            key: payload.key,
-            cipher,
-            access_condition_ids: payload.access_condition_ids,
-        })
+        .register(
+            SecretRegisterCommand {
+                path: payload.path,
+                key: payload.key,
+                cipher,
+                access_condition_ids: payload.access_condition_ids,
+            },
+            &claim,
+        )
         .await?;
 
     Ok(StatusCode::CREATED.into_response())
@@ -100,8 +105,9 @@ async fn handle_get_secret(
 async fn handle_delete_secret(
     Path((workspace_name, secret_identifier)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
-    application.with_workspace(&workspace_name).secret().delete(&format!("/{secret_identifier}")).await?;
+    application.with_workspace(&workspace_name).secret().delete(&format!("/{secret_identifier}"), &claim).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -110,6 +116,7 @@ async fn handle_delete_secret(
 async fn handle_patch_secret(
     Path((workspace_name, secret_identifier)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
     Json(payload): Json<PatchSecretRequest>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
     let cipher = match payload.cipher.map(|cipher| BASE64_STANDARD.decode(cipher)) {
@@ -124,6 +131,7 @@ async fn handle_patch_secret(
         .update(
             &format!("/{secret_identifier}"),
             SecretUpdate { path: payload.path, cipher, access_condition_ids: payload.access_condition_ids },
+            &claim,
         )
         .await?;
 

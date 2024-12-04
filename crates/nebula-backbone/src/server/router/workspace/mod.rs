@@ -24,7 +24,7 @@ mod request;
 mod response;
 
 pub(crate) fn public_router(application: Arc<Application>) -> axum::Router {
-    Router::new().route("/workspaces", get(handle_get_workspaces)).with_state(application)
+    Router::new().route("/workspaces", get(handle_get_workspaces).post(handle_post_workspace)).with_state(application)
 }
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {

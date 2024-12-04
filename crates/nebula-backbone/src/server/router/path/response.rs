@@ -85,6 +85,15 @@ impl IntoResponse for PathIsInUseErrorResponse {
     }
 }
 
+struct InvalidPathPolicyEnteredErrorResponse {}
+
+impl IntoResponse for InvalidPathPolicyEnteredErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::BAD_REQUEST, error_payload("INVLAID_PATH_POLICY", "entered path policy is invalid."))
+            .into_response()
+    }
+}
+
 impl IntoResponse for path::Error {
     fn into_response(self) -> axum::response::Response {
         match self {
@@ -96,6 +105,8 @@ impl IntoResponse for path::Error {
             }
             path::Error::PathNotExists { entered_path } => PathNotExistsErrorResponse { entered_path }.into_response(),
             path::Error::PathIsInUse { .. } => PathIsInUseErrorResponse {}.into_response(),
+            path::Error::InvalidPathPolicy => InvalidPathPolicyEnteredErrorResponse {}.into_response(),
+            path::Error::AccessDenied => StatusCode::FORBIDDEN.into_response(),
         }
     }
 }

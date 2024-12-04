@@ -119,7 +119,6 @@ pub(crate) struct WorkspaceParams {
 
 pub(crate) async fn check_workspace_name(
     Path(WorkspaceParams { workspace_name }): Path<WorkspaceParams>,
-
     Extension(claim): Extension<NebulaClaim>,
     req: Request,
     next: Next,

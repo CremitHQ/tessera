@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nebula_token::claim::NebulaClaim;
 use sea_orm::DatabaseConnection;
 
 use crate::{
@@ -16,9 +17,15 @@ pub(crate) struct PathData {
 #[async_trait]
 pub(crate) trait PathUseCase {
     async fn get_all(&self) -> Result<Vec<PathData>>;
-    async fn register(&self, path: &str, policies: &[AppliedPolicy]) -> Result<()>;
-    async fn delete(&self, path: &str) -> Result<()>;
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()>;
+    async fn register(&self, path: &str, policies: &[AppliedPolicy], claim: &NebulaClaim) -> Result<()>;
+    async fn delete(&self, path: &str, claim: &NebulaClaim) -> Result<()>;
+    async fn update(
+        &self,
+        path: &str,
+        new_path: Option<&str>,
+        new_policies: Option<&[AppliedPolicy]>,
+        claim: &NebulaClaim,
+    ) -> Result<()>;
     async fn get(&self, path: &str) -> Result<PathData>;
 }
 
@@ -48,14 +55,14 @@ impl PathUseCase for PathUseCaseImpl {
         Ok(paths.into_iter().map(PathData::from).collect())
     }
 
-    async fn register(&self, path: &str, policies: &[AppliedPolicy]) -> Result<()> {
+    async fn register(&self, path: &str, policies: &[AppliedPolicy], claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
-        self.secret_service.register_path(&transaction, path, policies).await?;
+        self.secret_service.register_path(&transaction, path, policies, claim).await?;
         transaction.commit().await?;
         Ok(())
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
+    async fn delete(&self, path: &str, claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -63,14 +70,20 @@ impl PathUseCase for PathUseCaseImpl {
             .await?
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
-        path.delete();
+        path.delete(&transaction, claim).await?;
         path.persist(&transaction).await?;
 
         transaction.commit().await?;
         Ok(())
     }
 
-    async fn update(&self, path: &str, new_path: Option<&str>, new_policies: Option<&[AppliedPolicy]>) -> Result<()> {
+    async fn update(
+        &self,
+        path: &str,
+        new_path: Option<&str>,
+        new_policies: Option<&[AppliedPolicy]>,
+        claim: &NebulaClaim,
+    ) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
@@ -79,10 +92,10 @@ impl PathUseCase for PathUseCaseImpl {
             .ok_or_else(|| Error::PathNotExists { entered_path: path.to_owned() })?;
 
         if let Some(new_path) = new_path {
-            path.update_path(new_path)?;
+            path.update_path(&transaction, new_path, claim).await?;
         }
         if let Some(new_policies) = new_policies {
-            path.update_policies(new_policies);
+            path.update_policies(&transaction, new_policies, claim).await?;
         }
 
         path.persist(&transaction).await?;
@@ -122,6 +135,10 @@ pub(crate) enum Error {
     ParentPathNotExists { entered_path: String },
     #[error("Invalid path({entered_path}) is entered")]
     InvalidPath { entered_path: String },
+    #[error("Invalid path policy expression is entered")]
+    InvalidPathPolicy,
+    #[error("Access denied")]
+    AccessDenied,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -132,12 +149,13 @@ impl From<secret::Error> for Error {
             secret::Error::InvalidSecretIdentifier { .. } => Self::Anyhow(value.into()),
             secret::Error::SecretNotExists => Self::Anyhow(value.into()),
             secret::Error::Anyhow(e) => Self::Anyhow(e),
-            secret::Error::PathNotExists { .. } => Self::Anyhow(value.into()),
             secret::Error::IdentifierConflicted { .. } => Self::Anyhow(value.into()),
             secret::Error::InvalidPath { entered_path } => Self::InvalidPath { entered_path },
             secret::Error::ParentPathNotExists { entered_path } => Self::ParentPathNotExists { entered_path },
             secret::Error::PathDuplicated { entered_path } => Self::PathDuplicated { entered_path },
             secret::Error::PathIsInUse { entered_path } => Self::PathIsInUse { entered_path },
+            secret::Error::InvalidPathPolicy => Self::InvalidPathPolicy,
+            secret::Error::AccessDenied => Self::AccessDenied,
         }
     }
 }
@@ -152,9 +170,10 @@ pub(crate) type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{collections::HashMap, sync::Arc};
 
     use chrono::Utc;
+    use nebula_token::claim::{NebulaClaim, Role};
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
@@ -213,6 +232,13 @@ mod test {
 
     #[tokio::test]
     async fn when_registering_path_is_successful_then_secret_usecase_returns_unit_ok() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
@@ -221,21 +247,42 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_register_path().times(1).returning(move |_, _, _| Ok(()));
+        mock_secret_service.expect_register_path().times(1).returning(move |_, _, _, _| Ok(()));
 
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        path_usecase.register(path, &[]).await.expect("registering path should be successful");
+        path_usecase.register(path, &[], &claim).await.expect("registering path should be successful");
     }
 
     #[tokio::test]
     async fn when_deleting_existing_path_then_path_usecase_returns_unit_ok() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
         let now = Utc::now();
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test/path".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_query_results([
                 [maplit::btreemap! {
                     "num_items" => sea_orm::Value::BigInt(Some(0))
@@ -264,15 +311,37 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        path_usecase.delete(path).await.expect("registering path should be successful");
+        path_usecase.delete(path, &claim).await.expect("registering path should be successful");
     }
 
     #[tokio::test]
     async fn when_deleting_existing_path_having_child_path_then_path_usecase_returns_path_is_in_use_err() {
+        let now = Utc::now();
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test/path".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_query_results([
                 [maplit::btreemap! {
                     "num_items" => sea_orm::Value::BigInt(Some(1))
@@ -294,17 +363,39 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.delete(path).await;
+        let result = path_usecase.delete(path, &claim).await;
 
         assert!(matches!(result, Err(Error::PathIsInUse { .. })))
     }
 
     #[tokio::test]
     async fn when_deleting_existing_path_having_child_secret_then_path_usecase_returns_path_is_in_use_err() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
+        let now = Utc::now();
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test/path".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_query_results([
                 [maplit::btreemap! {
                     "num_items" => sea_orm::Value::BigInt(Some(0))
@@ -326,13 +417,20 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.delete(path).await;
+        let result = path_usecase.delete(path, &claim).await;
 
         assert!(matches!(result, Err(Error::PathIsInUse { .. })))
     }
 
     #[tokio::test]
     async fn when_deleting_not_existing_path_then_path_usecase_returns_path_not_exists_err() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
@@ -346,16 +444,38 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.delete(path).await;
+        let result = path_usecase.delete(path, &claim).await;
 
         assert!(matches!(result, Err(Error::PathNotExists { .. })));
     }
 
     #[tokio::test]
     async fn when_updating_existing_path_then_path_usecase_returns_unit_ok() {
+        let now = Utc::now();
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
             .append_query_results([[maplit::btreemap! {
                 "num_items" => sea_orm::Value::BigInt(Some(0))
@@ -377,16 +497,38 @@ mod test {
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase
-            .update(path, Some("/new/test/path"), Some(&[]))
+            .update(path, Some("/new/test/path"), None, &claim)
             .await
             .expect("registering path should be successful");
     }
 
     #[tokio::test]
     async fn when_updating_existing_path_to_existing_path_then_path_usecase_returns_path_duplicated_err() {
+        let now = Utc::now();
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let path = "/test/path";
 
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/test".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
+            .append_query_results([[path::Model {
+                id: UlidId::new(Ulid::new()),
+                path: "/".to_owned(),
+                created_at: now,
+                updated_at: now,
+            }]])
+            .append_query_results([Vec::<applied_path_policy::Model>::new()])
             .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }])
             .append_query_results([[maplit::btreemap! {
                 "num_items" => sea_orm::Value::BigInt(Some(1))
@@ -404,7 +546,7 @@ mod test {
         let path_usecase =
             PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
-        let result = path_usecase.update(path, Some("/new/test/path"), Some(&[])).await;
+        let result = path_usecase.update(path, Some("/new/test/path"), None, &claim).await;
 
         assert!(matches!(result, Err(Error::PathDuplicated { .. })))
     }
