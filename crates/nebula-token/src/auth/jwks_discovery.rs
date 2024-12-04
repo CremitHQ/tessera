@@ -27,26 +27,27 @@ impl JwksDiscovery for StaticJwksDiscovery {
 }
 
 pub struct CachedRemoteJwksDiscovery {
-    jwks: Arc<RwLock<JwkSet>>,
+    jwks: Arc<RwLock<Option<JwkSet>>>,
     client: reqwest::Client,
     jwks_url: url::Url,
     refresh_interval: Duration,
     expiration: Arc<RwLock<std::time::Instant>>,
     is_refreshing: Mutex<()>,
+    is_initialized: Mutex<bool>,
 }
 
 impl CachedRemoteJwksDiscovery {
-    pub async fn new(jwks_url: url::Url, refresh_interval: Duration) -> Result<Self, super::error::AuthError> {
+    pub fn new(jwks_url: url::Url, refresh_interval: Duration) -> Self {
         let client = reqwest::Client::new();
-        let jwks = fetch_jwks(&client, jwks_url.clone()).await?;
-        Ok(Self {
-            jwks: Arc::new(RwLock::new(jwks)),
+        Self {
+            jwks: Arc::new(RwLock::new(None)),
             client,
             jwks_url,
             refresh_interval,
-            expiration: Arc::new(RwLock::new(std::time::Instant::now() + refresh_interval)),
+            expiration: Arc::new(RwLock::new(std::time::Instant::now() - refresh_interval)),
             is_refreshing: Mutex::new(()),
-        })
+            is_initialized: Mutex::new(false),
+        }
     }
 }
 
@@ -62,10 +63,18 @@ impl JwksDiscovery for CachedRemoteJwksDiscovery {
         let now = std::time::Instant::now();
         let expiration = self.expiration.read().await;
 
-        if *expiration > now {
-            return Ok(self.jwks.read().await.clone());
-        } else {
+        if *expiration <= now {
             drop(expiration);
+
+            let mut is_initialized = self.is_initialized.lock().await;
+            if !*is_initialized {
+                *is_initialized = true;
+                let jwks = fetch_jwks(&self.client, self.jwks_url.clone()).await?;
+                *self.jwks.write().await = Some(jwks);
+                *self.expiration.write().await = std::time::Instant::now() + self.refresh_interval;
+            }
+            drop(is_initialized);
+
             if let Ok(_lock) = self.is_refreshing.try_lock() {
                 let client = self.client.clone();
                 let jwks_url = self.jwks_url.clone();
@@ -74,13 +83,15 @@ impl JwksDiscovery for CachedRemoteJwksDiscovery {
                 let refresh_interval = self.refresh_interval;
                 tokio::spawn(async move {
                     if let Ok(jwks) = fetch_jwks(&client, jwks_url).await {
-                        *jwks_write.write().await = jwks;
+                        *jwks_write.write().await = Some(jwks);
                         *expiration_write.write().await = std::time::Instant::now() + refresh_interval;
                     }
                 });
             }
-
-            return Ok(self.jwks.read().await.clone());
+        }
+        match self.jwks.read().await.as_ref() {
+            Some(jwks) => return Ok(jwks.clone()),
+            None => return Err(super::error::AuthError::NoJwk),
         }
     }
 }
