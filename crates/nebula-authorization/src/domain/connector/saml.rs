@@ -26,7 +26,7 @@ pub struct SAMLConnertorConfig {
     ca: openssl::x509::X509,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
-    group_attribute: String,
+    group_attribute: Option<String>,
     admin_groups: Vec<String>,
 }
 
@@ -36,7 +36,7 @@ pub struct SAMLConnector {
     service_provider: ServiceProvider,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
-    group_attribute: String,
+    group_attribute: Option<String>,
     admin_groups: Vec<String>,
 }
 
@@ -157,7 +157,7 @@ impl SAMLConnector {
             .value;
         let attributes = assertion.attribute_statements.ok_or(SAMLHandlerError::AttributeStatementNotFound)?;
         let claims = match self.attributes_config {
-            AttributesConfig::Mapping(ref mapping) => mapping
+            AttributesConfig::Mapping { ref claims } => claims
                 .iter()
                 .map(|(key, mapped_key)| {
                     let value = get_attribute(&attributes, key)?;
@@ -179,10 +179,14 @@ impl SAMLConnector {
             WorkspaceConfig::Claim(ref config) => get_attribute(&attributes, &config.claim)?,
         };
 
-        let role = get_all_attribute(&attributes, &self.group_attribute)?
-            .iter()
-            .find_map(|group| if self.admin_groups.contains(group) { Some(Role::Admin) } else { None })
-            .unwrap_or(Role::Member);
+        let role = if let Some(ref group_attribute) = self.group_attribute {
+            get_all_attribute(&attributes, group_attribute)?
+                .iter()
+                .find_map(|group| if self.admin_groups.contains(group) { Some(Role::Admin) } else { None })
+                .unwrap_or(Role::Member)
+        } else {
+            Role::Admin
+        };
 
         Ok(Identity { user_id, claims, workspace_name, role })
     }

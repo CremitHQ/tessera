@@ -38,10 +38,8 @@ impl Authority {
             }
         };
 
-        let backbone_service: Arc<dyn BackboneService + Send + Sync> = match &config.backbone {
-            BackboneConfig::Workspace { host } => Arc::new(WorkspaceBackboneService::new(host.clone())),
-        };
-
+        let backbone_service: Arc<dyn BackboneService + Send + Sync> =
+            Arc::new(WorkspaceBackboneService::new(config.backbone.host.clone()));
         Ok(Self { name: config.authority.name.clone(), key_pair_service, backbone_service })
     }
 
