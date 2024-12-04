@@ -7,9 +7,10 @@ mod command;
 mod config;
 mod utils;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
-    smol::block_on(async move { cli.run().await })?;
+    cli.run().await?;
 
     Ok(())
 }

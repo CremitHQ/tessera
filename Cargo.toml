@@ -70,6 +70,10 @@ clap = { version = "4.5.19", features = ["cargo", "derive"] }
 sea-orm-migration = { version = "1.1.1", features = [
     "runtime-tokio-native-tls",
 ] }
+cached = { version = "0.54", features = [
+    "async",
+    "async_tokio_rt_multi_thread",
+] }
 # nebula crates
 nebula-miracl = { path = "crates/nebula-miracl" }
 nebula-policy = { path = "crates/nebula-policy" }

@@ -25,10 +25,7 @@ thiserror = { workspace = true }
 axum_thiserror = { workspace = true }
 base64 = { workspace = true }
 url = { workspace = true, features = ["serde"] }
-cached = { version = "0.54", features = [
-    "async",
-    "async_tokio_rt_multi_thread",
-] }
+cached = { workspace = true }
 sea-orm = { workspace = true, features = ["mock"] }
 aws-config = { workspace = true }
 aws-credential-types = { workspace = true }
