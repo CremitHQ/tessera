@@ -88,8 +88,8 @@ pub enum AuthorizationMethod {
     MachineIdentity { token: String },
 }
 
-const NEBULA_PATH: &str = "nebula";
-const TOKEN_PATH: &str = ".token";
+const NEBULA_PATH: &str = "nebula/";
+const TOKEN_PATH: &str = ".token/";
 
 fn config_file_path(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     if let Some(path_override) = config_path {
@@ -104,13 +104,13 @@ fn config_file_path(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     }
 }
 
-fn token_file_path() -> anyhow::Result<PathBuf> {
+fn token_file_path(profile: &str) -> anyhow::Result<PathBuf> {
     let user_config_dir = config_dir().ok_or_else(|| anyhow::anyhow!("Failed to get user config directory"))?;
-    let nebula_config_dir = user_config_dir.join(NEBULA_PATH);
-    if !nebula_config_dir.exists() {
-        std::fs::create_dir_all(&nebula_config_dir)?;
+    let token_dir = user_config_dir.join(NEBULA_PATH).join(TOKEN_PATH);
+    if !token_dir.exists() {
+        std::fs::create_dir_all(&token_dir)?;
     }
-    Ok(nebula_config_dir.join(TOKEN_PATH))
+    Ok(token_dir.join(format!("{}.token", profile)))
 }
 
 pub fn has_profile(profile: &str, config_path: Option<PathBuf>) -> anyhow::Result<bool> {
@@ -124,14 +124,14 @@ pub fn has_profile(profile: &str, config_path: Option<PathBuf>) -> anyhow::Resul
     Ok(config.profiles.into_iter().any(|c| c.name == profile))
 }
 
-pub fn load_token() -> anyhow::Result<String> {
-    let token_path = token_file_path()?;
+pub fn load_token(profile: &str) -> anyhow::Result<String> {
+    let token_path = token_file_path(profile)?;
 
     Ok(std::fs::read_to_string(token_path)?)
 }
 
-pub fn save_token(token: &str) -> anyhow::Result<()> {
-    let token_path = token_file_path()?;
+pub fn save_token(profile: &str, token: &str) -> anyhow::Result<()> {
+    let token_path = token_file_path(profile)?;
 
     Ok(std::fs::write(token_path, token)?)
 }
