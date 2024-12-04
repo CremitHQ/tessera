@@ -5,7 +5,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use clap::Parser;
 use domain::authority::Authority;
 use nebula_secret_sharing::shamir::Share;
-use nebula_token::auth::jwks_discovery::{fetch_jwks, CachedRemoteJwksDiscovery, JwksDiscovery, StaticJwksDiscovery};
+use nebula_token::auth::jwks_discovery::{CachedRemoteJwksDiscovery, JwksDiscovery};
 
 use crate::logger::LoggerConfig;
 
@@ -40,9 +40,7 @@ async fn main() -> anyhow::Result<()> {
             CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?,
         )
     } else {
-        let client = reqwest::Client::new();
-        let jwks = fetch_jwks(&client, app_config.jwks_url.clone()).await?;
-        Arc::new(StaticJwksDiscovery::new(jwks))
+        Arc::new(CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(600)).await?)
     };
     let application = Application::new(authority, jwks_discovery);
     if let Some(key_shares) = &app_config.disarm_key_shares {
