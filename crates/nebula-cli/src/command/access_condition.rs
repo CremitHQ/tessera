@@ -30,7 +30,7 @@ pub struct AccessConditionListCommand {}
 impl RunCommand for AccessConditionListCommand {
     async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
         let config = NebulaConfig::load(args.profile.as_str(), args.config.clone().map(Into::into))?;
-        let token = load_token()?;
+        let token = load_token(&args.profile)?;
         let backbone_url = config.backbone.host;
         let workspace_name = config.workspace;
 

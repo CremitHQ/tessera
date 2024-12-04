@@ -56,7 +56,7 @@ pub struct SecretListCommand {
 impl RunCommand for SecretListCommand {
     async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
         let config = NebulaConfig::load(args.profile.as_str(), args.config.clone().map(Into::into))?;
-        let token = load_token()?;
+        let token = load_token(&args.profile)?;
         let backbone_url = config.backbone.host;
         let workspace_name = config.workspace;
 
@@ -119,7 +119,7 @@ pub struct SecretGetCommand {
 impl RunCommand for SecretGetCommand {
     async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
         let config = NebulaConfig::load(args.profile.as_str(), args.config.clone().map(Into::into))?;
-        let token = load_token()?;
+        let token = load_token(&args.profile)?;
         let backbone_url = config.backbone.host;
         let workspace_name = config.workspace;
         let identifier = &self.path;
@@ -174,7 +174,7 @@ pub struct SecretCreateCommand {
 impl RunCommand for SecretCreateCommand {
     async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
         let config = NebulaConfig::load(args.profile.as_str(), args.config.clone().map(Into::into))?;
-        let token = load_token()?;
+        let token = load_token(&args.profile)?;
         let backbone_url = config.backbone.host;
         let workspace_name = config.workspace;
 
