@@ -7,8 +7,7 @@ use super::{Error, PolicyNode};
 #[grammar = "domain/secret/path_policy/pest/policy.pest"]
 pub(crate) struct PolicyParser;
 
-pub(crate) fn parse<'a>(pair: Pair<'a, Rule>) -> Result<PolicyNode<'a>, Error> {
-    dbg!(&pair);
+pub(crate) fn parse(pair: Pair<'_, Rule>) -> Result<PolicyNode<'_>, Error> {
     match pair.as_rule() {
         Rule::Condition => {
             let p = pair.into_inner().next().unwrap();

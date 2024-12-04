@@ -96,7 +96,6 @@ impl IntoResponse for InvalidPathPolicyEnteredErrorResponse {
 
 impl IntoResponse for path::Error {
     fn into_response(self) -> axum::response::Response {
-        dbg!(&self);
         match self {
             path::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
             path::Error::InvalidPath { .. } => InvalidPathErrorResponse {}.into_response(),

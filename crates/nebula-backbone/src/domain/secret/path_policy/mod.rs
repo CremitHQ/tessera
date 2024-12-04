@@ -27,10 +27,10 @@ impl PolicyNode<'_> {
                     if attribute_key != key {
                         return false;
                     }
-                    return match operator {
+                    match operator {
                         Operator::Equal => attribute_value == value,
                         Operator::NotEqual => attribute_value != value,
-                    };
+                    }
                 })
             }
         }
@@ -57,8 +57,8 @@ impl FromStr for Operator {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("human policy error: {0}")]
-    ParseError(String),
+    #[error("Parse error: {0}")]
+    ParseFailed(String),
     #[error("provided policy was empty")]
     Empty,
     #[error("Invalid Operator: {0}")]
@@ -70,7 +70,7 @@ pub enum Error {
 pub fn parse(policy: &str) -> Result<PolicyNode, Error> {
     let mut result = PolicyParser::parse(Rule::Content, policy)?;
     let result = result.next().ok_or(Error::Empty)?;
-    Ok(pest::parse(result)?)
+    pest::parse(result)
 }
 
 impl From<::pest::error::Error<pest::Rule>> for Error {
@@ -79,6 +79,6 @@ impl From<::pest::error::Error<pest::Rule>> for Error {
             LineColLocation::Pos((line, _)) => line,
             LineColLocation::Span((start_line, _), (end_line, _)) => std::cmp::max(start_line, end_line),
         };
-        Error::ParseError(format!("Human Policy Error in line {}\n", line))
+        Error::ParseFailed(format!("Human Policy Error in line {}\n", line))
     }
 }

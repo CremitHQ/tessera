@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nebula_token::claim::NebulaClaim;
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use ulid::Ulid;
 
@@ -17,9 +18,9 @@ use crate::{
 pub(crate) trait SecretUseCase {
     async fn list(&self, path: &str) -> Result<Vec<SecretData>>;
     async fn get(&self, secret_identifier: &str) -> Result<SecretData>;
-    async fn register(&self, cmd: SecretRegisterCommand) -> Result<()>;
-    async fn delete(&self, secret_identifier: &str) -> Result<()>;
-    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()>;
+    async fn register(&self, cmd: SecretRegisterCommand, claim: &NebulaClaim) -> Result<()>;
+    async fn delete(&self, secret_identifier: &str, claim: &NebulaClaim) -> Result<()>;
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate, claim: &NebulaClaim) -> Result<()>;
 }
 
 pub(crate) struct SecretUseCaseImpl {
@@ -73,42 +74,44 @@ impl SecretUseCase for SecretUseCaseImpl {
         Ok(secret.into())
     }
 
-    async fn register(&self, cmd: SecretRegisterCommand) -> Result<()> {
+    async fn register(&self, cmd: SecretRegisterCommand, claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
         let access_conditions = self.get_policies(&transaction, cmd.access_condition_ids).await?;
 
-        self.secret_service.register_secret(&transaction, cmd.path, cmd.key, cmd.cipher, access_conditions).await?;
+        self.secret_service
+            .register_secret(&transaction, cmd.path, cmd.key, cmd.cipher, access_conditions, claim)
+            .await?;
 
         transaction.commit().await?;
 
         Ok(())
     }
 
-    async fn delete(&self, secret_identifier: &str) -> Result<()> {
+    async fn delete(&self, secret_identifier: &str, claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
         let mut secret = self.secret_service.get_secret(&transaction, secret_identifier).await?;
-        secret.delete();
+        secret.delete(&transaction, claim).await?;
         secret.persist(&transaction).await?;
         transaction.commit().await?;
 
         Ok(())
     }
 
-    async fn update(&self, secret_identifier: &str, update: SecretUpdate) -> Result<()> {
+    async fn update(&self, secret_identifier: &str, update: SecretUpdate, claim: &NebulaClaim) -> Result<()> {
         let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
 
         let mut secret = self.secret_service.get_secret(&transaction, secret_identifier).await?;
 
         if let Some(updated_access_policy_ids) = update.access_condition_ids {
             let updated_access_policies = self.get_policies(&transaction, updated_access_policy_ids).await?;
-            secret.update_access_conditions(updated_access_policies);
+            secret.update_access_conditions(&transaction, updated_access_policies, claim).await?;
         }
         if let Some(updated_path) = update.path {
-            secret.update_path(updated_path);
+            secret.update_path(&transaction, updated_path, claim).await?;
         }
         if let Some(updated_cipher) = update.cipher {
-            secret.update_cipher(updated_cipher);
+            secret.update_cipher(&transaction, updated_cipher, claim).await?;
         }
 
         secret.persist(&transaction).await?;
@@ -163,12 +166,11 @@ impl From<domain::secret::Error> for Error {
                 Error::InvalidSecretIdentifier { entered_identifier }
             }
             domain::secret::Error::SecretNotExists => Error::SecretNotExists,
-            domain::secret::Error::PathNotExists { entered_path } => Error::PathNotExists { entered_path },
             domain::secret::Error::IdentifierConflicted { entered_identifier } => {
                 Error::IdentifierConflicted { entered_identifier }
             }
             domain::secret::Error::InvalidPath { .. } => Self::Anyhow(value.into()),
-            domain::secret::Error::ParentPathNotExists { .. } => Self::Anyhow(value.into()),
+            domain::secret::Error::ParentPathNotExists { entered_path } => Self::PathNotExists { entered_path },
             domain::secret::Error::PathDuplicated { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::PathIsInUse { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::InvalidPathPolicy => Self::Anyhow(value.into()),
@@ -209,9 +211,9 @@ pub(crate) struct SecretRegisterCommand {
 
 #[cfg(test)]
 mod test {
-    use std::{str::FromStr, sync::Arc};
+    use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-    use nebula_token::claim::NebulaClaim;
+    use nebula_token::claim::{NebulaClaim, Role};
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
@@ -338,6 +340,13 @@ mod test {
 
     #[tokio::test]
     async fn when_registering_secret_is_successful_then_secret_usecase_returns_unit_ok() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let key = "TEST_KEY";
         let path = "/test/path";
         let access_condition_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
@@ -348,7 +357,7 @@ mod test {
         let mock_connection = Arc::new(mock_database.into_connection());
 
         let mut mock_secret_service = MockSecretService::new();
-        mock_secret_service.expect_register_secret().times(1).returning(move |_, _, _, _, _| Ok(()));
+        mock_secret_service.expect_register_secret().times(1).returning(move |_, _, _, _, _, _| Ok(()));
         let mut mock_policy_service = MockPolicyService::new();
         mock_policy_service.expect_get().times(1).returning(move |_, _| {
             Ok(Some(AccessCondition::new(
@@ -366,18 +375,28 @@ mod test {
         );
 
         secret_usecase
-            .register(SecretRegisterCommand {
-                path: path.to_owned(),
-                key: key.to_owned(),
-                cipher: vec![4, 5, 6],
-                access_condition_ids,
-            })
+            .register(
+                SecretRegisterCommand {
+                    path: path.to_owned(),
+                    key: key.to_owned(),
+                    cipher: vec![4, 5, 6],
+                    access_condition_ids,
+                },
+                &claim,
+            )
             .await
             .expect("creating workspace should be successful");
     }
 
     #[tokio::test]
     async fn when_registering_secret_with_not_existing_policy_then_secret_usecase_returns_policy_not_exists_err() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let key = "TEST_KEY";
         let path = "/test/path";
         let access_condition_ids = vec![Ulid::from_str("01JACZ1B5W5Z3D9R1CVYB7JJ8S").unwrap()];
@@ -399,12 +418,15 @@ mod test {
         );
 
         let result = secret_usecase
-            .register(SecretRegisterCommand {
-                path: path.to_owned(),
-                key: key.to_owned(),
-                cipher: vec![],
-                access_condition_ids,
-            })
+            .register(
+                SecretRegisterCommand {
+                    path: path.to_owned(),
+                    key: key.to_owned(),
+                    cipher: vec![],
+                    access_condition_ids,
+                },
+                &claim,
+            )
             .await;
 
         assert!(matches!(result, Err(Error::PolicyNotExists { .. })))
