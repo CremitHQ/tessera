@@ -5,17 +5,16 @@ permissions:
 
 on:
   push:
-  #   tags:
-  #     - "v*"
-  # pull_request: # FOR TESTING PURPOSES
+    tags:
+      - "v*"
 
 jobs:
-  # ci:
-  #   uses: ./.github/workflows/ci-nebula.yaml
+  ci:
+    uses: ./.github/workflows/ci-nebula.yaml
 
   build:
     runs-on: ${{ matrix.os }}
-    # needs: ci
+    needs: ci
     strategy:
       fail-fast: false
       matrix:
@@ -25,14 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # - name: Set release version
-      #   id: set_version
-      #   run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      #   shell: bash
-
       - name: Set release version
         id: set_version
-        run: echo "VERSION=alpha" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
