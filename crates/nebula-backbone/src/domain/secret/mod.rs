@@ -11,11 +11,12 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, LoaderTrait,
     PaginatorTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
+use tracing::warn;
 use ulid::Ulid;
 
 use crate::database::{
-    applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, secret_metadata, secret_value,
-    Persistable, UlidId,
+    applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, policy, secret_metadata,
+    secret_value, Persistable, UlidId,
 };
 
 use super::policy::AccessCondition;
@@ -572,9 +573,19 @@ impl Persistable for Path {
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait SecretService {
-    async fn list_secret(&self, transaction: &DatabaseTransaction, path_prefix: &str) -> Result<Vec<SecretEntry>>;
+    async fn list_secret(
+        &self,
+        transaction: &DatabaseTransaction,
+        path_prefix: &str,
+        claim: &NebulaClaim,
+    ) -> Result<Vec<SecretEntry>>;
 
-    async fn get_secret(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry>;
+    async fn get_secret(
+        &self,
+        transaction: &DatabaseTransaction,
+        secret_identifier: &str,
+        claim: &NebulaClaim,
+    ) -> Result<SecretEntry>;
 
     async fn get_paths(&self, transaction: &DatabaseTransaction) -> Result<Vec<Path>>;
 
@@ -604,6 +615,8 @@ lazy_static! {
         Regex::new(r"^((?:/[^/]+)*)/([^/]+)$").expect("IDENTIFIER_PATTERN should be compiled successfully");
     static ref PATH_PATTERN: Regex =
         Regex::new(r"^((?:/[^/]+)*)/([^/]+)$").expect("PATH_PATTERN should be compiled successfully");
+    static ref SECRET_POLICY_VALUE_PATTERN: Regex =
+        Regex::new(r"^([^=]+)=([^@]+)@([^#]+)").expect("SECRET_POLICY_VALUE_PATTERN should be compiled successfully");
 }
 
 fn parse_identifier(full_path: &str) -> Option<(String, String)> {
@@ -636,9 +649,46 @@ fn validate_path(path: &str) -> Result<()> {
 
 pub(crate) struct PostgresSecretService {}
 
+fn check_secret_accessible(secret_policy: &policy::Model, claim: &NebulaClaim) -> bool {
+    let (parsed_policy, _) =
+        nebula_policy::pest::parse(&secret_policy.expression, nebula_policy::pest::PolicyLanguage::HumanPolicy)
+            .expect("registered policy should be parsable");
+
+    check_node_accessiblity(&parsed_policy, claim)
+}
+
+fn check_node_accessiblity(node: &nebula_policy::pest::PolicyNode, claim: &NebulaClaim) -> bool {
+    match node {
+        nebula_policy::pest::PolicyNode::And((left, right)) => {
+            check_node_accessiblity(left, claim) && check_node_accessiblity(right, claim)
+        }
+        nebula_policy::pest::PolicyNode::Or((left, right)) => {
+            check_node_accessiblity(left, claim) || check_node_accessiblity(right, claim)
+        }
+        nebula_policy::pest::PolicyNode::Leaf((val, _)) => check_leaf_node_accessiblity(val, claim),
+    }
+}
+
+fn check_leaf_node_accessiblity(val: &str, claim: &NebulaClaim) -> bool {
+    let mut capture = SECRET_POLICY_VALUE_PATTERN.captures_iter(val);
+    let (key, value) = if let Some((_, [key, value, _])) = capture.next().map(|c| c.extract()) {
+        (key, value)
+    } else {
+        warn!("failed to extract key-value from {}", val);
+        return false;
+    };
+
+    claim.attributes.get(key).map(|attribute_value| attribute_value == value).unwrap_or(false)
+}
+
 #[async_trait]
 impl SecretService for PostgresSecretService {
-    async fn list_secret(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Vec<SecretEntry>> {
+    async fn list_secret(
+        &self,
+        transaction: &DatabaseTransaction,
+        path: &str,
+        claim: &NebulaClaim,
+    ) -> Result<Vec<SecretEntry>> {
         let metadata =
             secret_metadata::Entity::find().filter(secret_metadata::Column::Path.eq(path)).all(transaction).await?;
         let applied_policies = metadata.load_many(applied_policy::Entity, transaction).await?;
@@ -653,18 +703,50 @@ impl SecretService for PostgresSecretService {
             .map(|secret_value| (secret_value.identifier, secret_value.cipher))
             .collect();
 
+        let policies_by_id: HashMap<_, _> = policy::Entity::find()
+            .filter(
+                policy::Column::Id
+                    .is_in(applied_policies.iter().flatten().map(|applied_policy| applied_policy.policy_id.clone())),
+            )
+            .all(transaction)
+            .await?
+            .into_iter()
+            .map(|policy| (policy.id.clone(), policy))
+            .collect();
+
         Ok(metadata
             .into_iter()
             .zip(applied_policies.into_iter())
-            .map(|(metadata, applied_policies)| {
+            .filter_map(|(metadata, applied_policies)| {
                 let cipher = ciphers.remove(&create_identifier(&metadata.path, &metadata.key)).unwrap_or_default();
 
-                SecretEntry::from((metadata, applied_policies, cipher))
+                let policies: Vec<_> = applied_policies
+                    .iter()
+                    .map(|applied_policy| &applied_policy.policy_id)
+                    .filter_map(|policy_id| policies_by_id.get(policy_id))
+                    .collect();
+
+                let accessible = if policies.is_empty() {
+                    true
+                } else {
+                    policies.into_iter().any(|policy| check_secret_accessible(policy, claim))
+                };
+
+                if accessible {
+                    Some(SecretEntry::from((metadata, applied_policies, cipher)))
+                } else {
+                    None
+                }
             })
             .collect())
     }
 
-    async fn get_secret(&self, transaction: &DatabaseTransaction, secret_identifier: &str) -> Result<SecretEntry> {
+    async fn get_secret(
+        &self,
+        transaction: &DatabaseTransaction,
+        secret_identifier: &str,
+        claim: &NebulaClaim,
+    ) -> Result<SecretEntry> {
         let (path, key) = parse_identifier(secret_identifier)
             .ok_or_else(|| Error::InvalidSecretIdentifier { entered_identifier: secret_identifier.to_owned() })?;
 
@@ -685,6 +767,23 @@ impl SecretService for PostgresSecretService {
             .map(|secret_value| secret_value.cipher)
             .unwrap_or_default();
 
+        let policies = policy::Entity::find()
+            .filter(
+                policy::Column::Id
+                    .is_in(applied_policies.iter().map(|applied_policy| applied_policy.policy_id.clone())),
+            )
+            .all(transaction)
+            .await?;
+
+        let accessible = if policies.is_empty() {
+            true
+        } else {
+            policies.iter().any(|policy| check_secret_accessible(policy, claim))
+        };
+
+        if !accessible {
+            return Err(Error::AccessDenied);
+        }
         Ok(SecretEntry::from((metadata, applied_policies, cipher)))
     }
 
@@ -996,7 +1095,7 @@ mod test {
     use super::{Error, PostgresSecretService, SecretService};
     use crate::{
         database::{
-            applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, secret_metadata,
+            applied_path_policy, applied_path_policy_allowed_action, applied_policy, path, policy, secret_metadata,
             secret_value, UlidId,
         },
         domain::{
@@ -1007,6 +1106,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_secret_data_is_successful_then_secret_service_returns_secrets_ok() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let now = Utc::now();
         let metadata_id = UlidId::new(Ulid::from_str("01JACYVTYB4F2PEBFRG1BB7BKP").unwrap());
         let key = "TEST_KEY";
@@ -1038,7 +1144,8 @@ mod test {
                 cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
-            }]]);
+            }]])
+            .append_query_results([Vec::<policy::Model>::new()]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -1046,8 +1153,10 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result =
-            secret_service.list_secret(&transaction, "/").await.expect("creating workspace should be successful");
+        let result = secret_service
+            .list_secret(&transaction, "/", &claim)
+            .await
+            .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert_eq!(result[0].key, key);
@@ -1058,6 +1167,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_secrets_is_failed_then_secret_service_returns_anyhow_err() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
         let mock_connection = Arc::new(mock_database.into_connection());
@@ -1066,7 +1182,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.list_secret(&transaction, "/").await;
+        let result = secret_service.list_secret(&transaction, "/", &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
@@ -1075,6 +1191,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_secret_data_is_successful_then_secret_service_returns_secret_ok() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let now = Utc::now();
         let identifier = "/test/path/TEST_KEY";
         let metadata_id = UlidId::new(Ulid::from_str("01JACYVTYB4F2PEBFRG1BB7BKP").unwrap());
@@ -1107,7 +1230,8 @@ mod test {
                 cipher: vec![1, 2, 3],
                 created_at: now,
                 updated_at: now,
-            }]]);
+            }]])
+            .append_query_results([Vec::<policy::Model>::new()]);
 
         let mock_connection = Arc::new(mock_database.into_connection());
 
@@ -1115,8 +1239,10 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result =
-            secret_service.get_secret(&transaction, identifier).await.expect("creating workspace should be successful");
+        let result = secret_service
+            .get_secret(&transaction, identifier, &claim)
+            .await
+            .expect("creating workspace should be successful");
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert_eq!(result.key, key);
@@ -1127,6 +1253,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_secret_is_failed_then_secret_service_returns_anyhow_err() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let identifier = "/some/secret";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
@@ -1136,7 +1269,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get_secret(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier, &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
@@ -1145,6 +1278,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_secret_path_without_slash_then_secret_service_returns_invalid_secret_identifier_error() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let identifier = "just_key";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
@@ -1154,7 +1294,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get_secret(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier, &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -1163,6 +1303,13 @@ mod test {
     #[tokio::test]
     async fn when_getting_secret_path_without_leading_slash_then_secret_service_returns_invalid_secret_identifier_error(
     ) {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let identifier = "some/secret";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
@@ -1172,7 +1319,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get_secret(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier, &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -1181,6 +1328,13 @@ mod test {
     #[tokio::test]
     async fn when_getting_secret_path_contains_empty_segment_then_secret_service_returns_invalid_secret_identifier_error(
     ) {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let identifier = "/some//secret";
         let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_errors(vec![DbErr::Custom("some error".to_owned())]);
@@ -1190,7 +1344,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get_secret(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier, &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::InvalidSecretIdentifier { .. })));
@@ -1198,6 +1352,13 @@ mod test {
 
     #[tokio::test]
     async fn when_getting_not_existing_secret_then_secret_service_returns_secret_not_exists_error() {
+        let claim = NebulaClaim {
+            gid: "test@cremit.io".to_owned(),
+            workspace_name: "cremit".to_owned(),
+            attributes: HashMap::new(),
+            role: Role::Member,
+        };
+
         let identifier = "/some/secret";
         let mock_database =
             MockDatabase::new(DatabaseBackend::Postgres).append_query_results([Vec::<secret_metadata::Model>::new()]);
@@ -1207,7 +1368,7 @@ mod test {
 
         let transaction = mock_connection.begin().await.expect("begining transaction should be successful");
 
-        let result = secret_service.get_secret(&transaction, identifier).await;
+        let result = secret_service.get_secret(&transaction, identifier, &claim).await;
         transaction.commit().await.expect("commiting transaction should be successful");
 
         assert!(matches!(result, Err(Error::SecretNotExists { .. })));
