@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use nebula_token::auth::jwks_discovery::{fetch_jwks, CachedRemoteJwksDiscovery, JwksDiscovery, StaticJwksDiscovery};
+use nebula_token::auth::jwks_discovery::{CachedRemoteJwksDiscovery, JwksDiscovery};
 use parameter::{ParameterUseCase, ParameterUseCaseImpl};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
@@ -123,9 +123,7 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     {
         Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?)
     } else {
-        let client = reqwest::Client::new();
-        let jwks = fetch_jwks(&client, config.jwks_url.clone()).await?;
-        Arc::new(StaticJwksDiscovery::new(jwks))
+        Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(600)).await?)
     };
 
     database::migrate(database_connection.as_ref()).await?;
