@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, Request, State},
+    extract::{Path, Query, Request, State},
     http::{HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Redirect, Response},
@@ -243,8 +243,15 @@ async fn handle_post_workspace(
     Ok(StatusCode::CREATED)
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ConnectorLoginQuery {
+    pub callback_port: Option<u16>,
+}
+
 async fn handle_connector_login(
     Path(connector): Path<String>,
+    Query(query): Query<ConnectorLoginQuery>,
     State(application): State<Arc<Application>>,
 ) -> Result<impl IntoResponse, ConnectorLoginError> {
     match connector.as_str() {
@@ -254,7 +261,11 @@ async fn handle_connector_login(
                 .authentication_request()
                 .map_err(|_| ConnectorLoginError::FailedToCreateSAMLAuthenticationRequest)?;
             let url = request
-                .redirect(&application.connector.redirect_uri)
+                .redirect(&if let Some(port) = query.callback_port {
+                    format!("nebula-callback-port={}", port)
+                } else {
+                    "".to_string()
+                })
                 .map_err(|_| ConnectorLoginError::FailedToCreateSAMLAuthenticationRequest)?
                 .ok_or(ConnectorLoginError::FailedToCreateSAMLAuthenticationRequest)?;
 
@@ -278,7 +289,7 @@ pub enum ConnectorLoginError {
 async fn handle_saml_connector_callback(
     State(application): State<Arc<Application>>,
     Form(payload): Form<SAMLConnectorCallbackRequest>,
-) -> Result<impl IntoResponse, SAMLConnectorCallbackError> {
+) -> Result<Response, SAMLConnectorCallbackError> {
     let identity = application
         .connector
         .identity(&payload.saml_response, &payload.relay_state)
@@ -286,7 +297,17 @@ async fn handle_saml_connector_callback(
 
     let jwt =
         application.token_service.create_jwt(&identity).map_err(|_| SAMLConnectorCallbackError::FailedToCreateJWT)?;
-    Ok(Json(SAMLConnectorCallbackResponse { access_token: jwt }))
+    if payload.relay_state.starts_with("nebula-callback-port=") {
+        let relay_state = payload.relay_state.trim_start_matches("nebula-callback-port=");
+        let url = format!(
+            "http://localhost:{}/callback/saml?access-token={}",
+            relay_state.parse::<u16>().map_err(|_| SAMLConnectorCallbackError::InvalidRelayState)?,
+            jwt.serialized_repr
+        );
+        Ok(Redirect::to(&url).into_response())
+    } else {
+        Ok(Json(SAMLConnectorCallbackResponse { access_token: jwt }).into_response())
+    }
 }
 
 #[derive(Deserialize)]
@@ -306,6 +327,10 @@ pub enum SAMLConnectorCallbackError {
     #[error("Failed to create a JWT")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
     FailedToCreateJWT,
+
+    #[error("Failed to parse the relay state as a port number. The relay state should be a port number")]
+    #[status(StatusCode::BAD_REQUEST)]
+    InvalidRelayState,
 }
 
 #[derive(Serialize)]
