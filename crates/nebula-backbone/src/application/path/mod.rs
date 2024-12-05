@@ -202,7 +202,7 @@ mod test {
             .returning(move |_| Ok(vec![Path::new(path.to_owned(), vec![])]));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.get_all().await.expect("creating workspace should be successful");
 
@@ -223,7 +223,7 @@ mod test {
             .times(1)
             .returning(move |_| Err(crate::domain::secret::Error::Anyhow(anyhow::anyhow!("some error"))));
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.get_all().await;
 
@@ -251,7 +251,7 @@ mod test {
         mock_secret_service.expect_register_path().times(1).returning(move |_, _, _, _| Ok(()));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase.register(path, &[], &claim).await.expect("registering path should be successful");
     }
@@ -310,7 +310,7 @@ mod test {
             .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase.delete(path, &claim).await.expect("registering path should be successful");
     }
@@ -362,7 +362,7 @@ mod test {
             .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.delete(path, &claim).await;
 
@@ -416,7 +416,7 @@ mod test {
             .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.delete(path, &claim).await;
 
@@ -443,7 +443,7 @@ mod test {
         mock_secret_service.expect_get_path().times(1).returning(move |_, _| Ok(None));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.delete(path, &claim).await;
 
@@ -495,7 +495,7 @@ mod test {
             .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         path_usecase
             .update(path, Some("/new/test/path"), None, &claim)
@@ -545,7 +545,7 @@ mod test {
             .returning(move |_, _| Ok(Some(Path::new(path.to_owned(), vec![]))));
 
         let path_usecase =
-            PathUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
+            PathUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_secret_service));
 
         let result = path_usecase.update(path, Some("/new/test/path"), None, &claim).await;
 

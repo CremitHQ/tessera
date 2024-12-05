@@ -261,7 +261,7 @@ mod test {
         let mock_policy_service = MockPolicyService::new();
 
         let secret_usecase = SecretUseCaseImpl::new(
-            "test_workspace".to_owned(),
+            "testworkspace".to_owned(),
             mock_connection,
             Arc::new(mock_secret_service),
             Arc::new(mock_policy_service),
@@ -298,7 +298,7 @@ mod test {
         let mock_policy_service = MockPolicyService::new();
 
         let secret_usecase = SecretUseCaseImpl::new(
-            "test_workspace".to_owned(),
+            "testworkspace".to_owned(),
             mock_connection,
             Arc::new(mock_secret_service),
             Arc::new(mock_policy_service),
@@ -346,7 +346,7 @@ mod test {
         let mock_policy_service = MockPolicyService::new();
 
         let secret_usecase = SecretUseCaseImpl::new(
-            "test_workspace".to_owned(),
+            "testworkspace".to_owned(),
             mock_connection,
             Arc::new(mock_secret_service),
             Arc::new(mock_policy_service),
@@ -390,7 +390,7 @@ mod test {
         });
 
         let secret_usecase = SecretUseCaseImpl::new(
-            "test_workspace".to_owned(),
+            "testworkspace".to_owned(),
             mock_connection,
             Arc::new(mock_secret_service),
             Arc::new(mock_policy_service),
@@ -433,7 +433,7 @@ mod test {
         mock_policy_service.expect_get().times(1).returning(move |_, _| Ok(None));
 
         let secret_usecase = SecretUseCaseImpl::new(
-            "test_workspace".to_owned(),
+            "testworkspace".to_owned(),
             mock_connection,
             Arc::new(mock_secret_service),
             Arc::new(mock_policy_service),
