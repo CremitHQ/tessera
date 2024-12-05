@@ -1,18 +1,19 @@
 use std::{sync::Arc, time::Duration};
 
+use anyhow::bail;
 use nebula_token::auth::jwks_discovery::{CachedRemoteJwksDiscovery, JwksDiscovery};
 use parameter::{ParameterUseCase, ParameterUseCaseImpl};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::{
-    config::ApplicationConfig,
+    config::{ApplicationConfig, WorkspaceConfig},
     database::{self, connect_to_database, AuthMethod},
     domain::{
         authority::{AuthorityService, PostgresAuthorityService},
         parameter::{ParameterService, PostgresParameterService},
         policy::{PolicyService, PostgresPolicyService},
         secret::{PostgresSecretService, SecretService},
-        workspace::WorkspaceServiceImpl,
+        workspace::{WorkspaceService, WorkspaceServiceImpl},
     },
 };
 
@@ -20,6 +21,7 @@ use workspace::{WorkspaceUseCase, WorkspaceUseCaseImpl};
 
 use self::{
     authority::{AuthorityUseCase, AuthorityUseCaseImpl},
+    database::WorkspaceScopedTransaction,
     path::{PathUseCase, PathUseCaseImpl},
     policy::{PolicyUseCase, PolicyUseCaseImpl},
     secret::{SecretUseCase, SecretUseCaseImpl},
@@ -125,16 +127,6 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
             Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(10)))
         };
 
-    database::migrate(database_connection.as_ref()).await?;
-    database::migrate_all_workspaces(
-        &database_connection.begin().await?,
-        &config.database.host,
-        config.database.port,
-        &config.database.database_name,
-        &create_database_auth_method(config),
-    )
-    .await?;
-
     let workspace_service = Arc::new(WorkspaceServiceImpl::new(
         database_connection.clone(),
         config.database.host.to_owned(),
@@ -146,6 +138,39 @@ pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Applicati
     let parameter_service = Arc::new(PostgresParameterService);
     let policy_service = Arc::new(PostgresPolicyService {});
     let authority_service = Arc::new(PostgresAuthorityService {});
+    database::migrate(database_connection.as_ref()).await?;
+    match config.workspace {
+        WorkspaceConfig::Static { ref name } => {
+            let transaction = database_connection.begin_with_workspace_scope(name).await?;
+            match workspace_service.create(&transaction, name).await {
+                Ok(_) | Err(crate::domain::workspace::Error::WorkspaceNameConflicted) => {}
+                Err(e) => {
+                    transaction.rollback().await?;
+                    bail!("Failed to create workspace: {:?}", e);
+                }
+            }
+
+            match parameter_service.create(&transaction).await {
+                Ok(_) | Err(crate::domain::parameter::Error::ParameterAlreadyCreated(_)) => {
+                    transaction.commit().await?;
+                }
+                Err(e) => {
+                    transaction.rollback().await?;
+                    bail!("Failed to create parameter: {:?}", e);
+                }
+            }
+        }
+        WorkspaceConfig::Dynamic => {
+            database::migrate_all_workspaces(
+                &database_connection.begin().await?,
+                &config.database.host,
+                config.database.port,
+                &config.database.database_name,
+                &create_database_auth_method(config),
+            )
+            .await?;
+        }
+    }
 
     Ok(Application {
         database_connection,

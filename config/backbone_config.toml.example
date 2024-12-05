@@ -8,3 +8,11 @@ database_name = "postgres"
 auth.method = "CREDENTIAL"
 auth.username = "postgres"
 auth.password = "password"
+
+[workspace]
+type = "STATIC"
+name = "default" # Change this to the name of your workspace
+
+# if you want to use dynamic workspace, you can use the following configuration
+# [workspace]
+# type = "DYNAMIC"
