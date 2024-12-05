@@ -81,6 +81,8 @@ pub enum Error {
     WorkspaceNotExists,
     #[error("workspace name already exists")]
     WorkspaceNameConflicted,
+    #[error("Workspace name is invalid")]
+    InvalidWorkspaceName,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -89,6 +91,7 @@ impl From<WorkspaceServiceError> for Error {
     fn from(value: WorkspaceServiceError) -> Self {
         match value {
             WorkspaceServiceError::Anyhow(e) => e.into(),
+            WorkspaceServiceError::InvalidWorkspaceName => Self::InvalidWorkspaceName,
             WorkspaceServiceError::WorkspaceNameConflicted => Self::WorkspaceNameConflicted,
         }
     }

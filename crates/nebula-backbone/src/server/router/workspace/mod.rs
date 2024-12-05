@@ -57,6 +57,7 @@ impl IntoResponse for workspace::Error {
             workspace::Error::Anyhow(e) => handle_internal_server_error(&*e).into_response(),
             workspace::Error::WorkspaceNameConflicted => response::WorkspaceNameConflictedErrorResponse.into_response(),
             workspace::Error::WorkspaceNotExists => response::WorkspaceNotExistsErrorResponse.into_response(),
+            workspace::Error::InvalidWorkspaceName => response::InvalidWorkspaceNameErrorResponse.into_response(),
         }
     }
 }
