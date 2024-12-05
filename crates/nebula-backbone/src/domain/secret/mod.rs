@@ -991,10 +991,6 @@ impl PostgresSecretService {
 }
 
 async fn ensure_path_not_duplicated(transaction: &DatabaseTransaction, path: &str) -> Result<()> {
-    if path == "/" {
-        return Err(Error::PathDuplicated { entered_path: path.to_owned() });
-    }
-
     if path::Entity::find().filter(path::Column::Path.eq(path)).count(transaction).await? > 0 {
         return Err(Error::PathDuplicated { entered_path: path.to_owned() });
     }
