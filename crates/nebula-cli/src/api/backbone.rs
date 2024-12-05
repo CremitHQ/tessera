@@ -109,6 +109,28 @@ pub async fn get_access_condition(
     Ok(response)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostPolicyRequest {
+    pub name: String,
+    pub expression: String,
+}
+
+pub async fn create_access_condition(
+    backbone_url: impl IntoUrl,
+    workspace_name: &str,
+    request: PostPolicyRequest,
+    token: &str,
+) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    let url = backbone_url.into_url()?.join(&format!("workspaces/{workspace_name}/policies"))?;
+    let response = client.post(url).bearer_auth(token).json(&request).send().await?;
+    response.error_for_status()?;
+
+    Ok(())
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathResponse {
@@ -155,6 +177,28 @@ pub async fn get_path(
     Ok(response)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePathRequest {
+    pub path: String,
+    pub applied_policies: Vec<AppliedPolicy>,
+}
+
+pub async fn create_path(
+    backbone_url: impl IntoUrl,
+    workspace_name: &str,
+    request: CreatePathRequest,
+    token: &str,
+) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    let url = backbone_url.into_url()?.join(&format!("workspaces/{workspace_name}/paths"))?;
+    let response = client.post(url).bearer_auth(token).json(&request).send().await?;
+    response.error_for_status()?;
+
+    Ok(())
+}
+
 #[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ParameterResponse {
@@ -191,13 +235,6 @@ pub struct AuthorityResponse {
     pub public_key: Option<String>,
 }
 
-#[io_cached(
-    map_error = "|e| anyhow::anyhow!(e)",
-    disk = true,
-    time = 60,
-    key = "String",
-    convert = r#"{ format!("authorities:{}/{}", backbone_url.as_str(), workspace_name) }"#
-)]
 pub async fn get_authorities(
     backbone_url: impl IntoUrl,
     workspace_name: &str,
@@ -209,4 +246,26 @@ pub async fn get_authorities(
     let response = client.get(url).bearer_auth(token).send().await?.json::<Vec<AuthorityResponse>>().await?;
 
     Ok(response)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostAuthorityRequest {
+    pub name: String,
+    pub host: String,
+}
+
+pub async fn add_authority(
+    backbone_url: impl IntoUrl,
+    workspace_name: &str,
+    request: PostAuthorityRequest,
+    token: &str,
+) -> Result<()> {
+    let client = reqwest::Client::new();
+
+    let url = backbone_url.into_url()?.join(&format!("workspaces/{workspace_name}/authorities"))?;
+    let response = client.post(url).bearer_auth(token).json(&request).send().await?;
+    response.error_for_status()?;
+
+    Ok(())
 }
