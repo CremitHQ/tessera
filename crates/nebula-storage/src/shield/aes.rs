@@ -177,9 +177,7 @@ impl<S: Storage<Key = str, Value = [u8]> + Sync> Shield for AESShieldStorage<S> 
         let shield_key: AESShieldKey =
             rmp_serde::from_slice(&shield_key).map_err(InitializationErrorKind::DeserializeShieldKey)?;
 
-        let mut shield = self.shield_key.write().await;
-        let shield = shield.deref_mut();
-        *shield = Some(shield_key);
+        *self.shield_key.write().await = Some(shield_key);
 
         Ok(())
     }
