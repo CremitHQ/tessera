@@ -1,0 +1,20 @@
+port = 8090
+jwks_url = "http://authorization:9000/jwks"
+# if you want to disarm the key shares on the startup, you can specify the key shares.
+# NOTE: This is a dangerous option. Please use it only for testing or you can manage the key shares securely.
+# disarm_key_shares = ["...key1...", "...key2...", ...]
+
+[backbone]
+host = "http://backbone:8080"
+
+[storage]
+type = "POSTGRES"
+host = "db"
+port = 5432
+database_name = "postgres"
+auth.method = "CREDENTIAL"
+auth.username = "postgres"
+auth.password = "password"
+
+[authority]
+name = "Authority" # Change this to the name of your authority

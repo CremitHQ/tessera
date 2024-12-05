@@ -1,0 +1,115 @@
+version: "3"
+
+services:
+  backbone:
+    container_name: nebula-backbone
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    image: ghcr.io/cremithq/nebula-backbone:latest
+
+    # To build the image locally, uncomment the following lines
+    # build:
+    #   context: .
+    #   dockerfile: ./crates/nebula-backbone/Dockerfile
+    pull_policy: always
+    ports:
+      - 8080:8080
+    networks:
+      - nebula
+    entrypoint: ["nebula-backbone"]
+    command:
+      - "--config"
+      - "/etc/nebula/backbone_config.toml"
+    volumes:
+      - ./config/:/etc/nebula/
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 30s
+      timeout: 15s
+      retries: 3
+
+  authority:
+    container_name: nebula-authority
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      backbone:
+        condition: service_healthy
+      authorization:
+        condition: service_healthy
+
+    image: ghcr.io/cremithq/nebula-authority:latest
+    # build:
+    #   context: .
+    #   dockerfile: ./crates/nebula-authority/Dockerfile
+    pull_policy: always
+    ports:
+      - 8090:8090
+    networks:
+      - nebula
+    entrypoint: ["nebula-authority"]
+    command:
+      - "--config"
+      - "/etc/nebula/authority_config.toml"
+    volumes:
+      - ./config/:/etc/nebula/
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/8090' || exit 1
+      interval: 30s
+      timeout: 15s
+      retries: 3
+
+  authorization:
+    container_name: nebula-authorization
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      backbone:
+        condition: service_healthy
+    image: ghcr.io/cremithq/nebula-authorization:latest
+    # build:
+    #   context: .
+    #   dockerfile: ./crates/nebula-authorization/Dockerfile
+    pull_policy: always
+    ports:
+      - 9000:9000
+    networks:
+      - nebula
+    entrypoint: ["nebula-authorization"]
+    command:
+      - "--config"
+      - "/etc/nebula/authorization_config.toml"
+    volumes:
+      - ./config/:/etc/nebula/
+    healthcheck:
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/9000' || exit 1
+      interval: 30s
+      timeout: 15s
+      retries: 3
+
+  db:
+    container_name: nebula-db
+    image: postgres:17-alpine
+    restart: always
+    env_file:
+      - .db.env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - nebula
+    healthcheck:
+      test: "pg_isready --username=${POSTGRES_USER} && psql --username=${POSTGRES_USER} --list"
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  pg_data:
+    driver: local
+
+networks:
+  nebula:
