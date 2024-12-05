@@ -156,6 +156,7 @@ impl From<secret::Error> for Error {
             secret::Error::PathIsInUse { entered_path } => Self::PathIsInUse { entered_path },
             secret::Error::InvalidPathPolicy => Self::InvalidPathPolicy,
             secret::Error::AccessDenied => Self::AccessDenied,
+            secret::Error::InvalidSecretPolicy => Self::Anyhow(value.into()),
         }
     }
 }

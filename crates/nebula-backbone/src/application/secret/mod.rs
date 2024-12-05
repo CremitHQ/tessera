@@ -175,6 +175,7 @@ impl From<domain::secret::Error> for Error {
             domain::secret::Error::PathIsInUse { .. } => Self::Anyhow(value.into()),
             domain::secret::Error::InvalidPathPolicy => Self::Anyhow(value.into()),
             domain::secret::Error::AccessDenied => Self::AccessDenied,
+            domain::secret::Error::InvalidSecretPolicy => Self::Anyhow(value.into()),
         }
     }
 }

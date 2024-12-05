@@ -649,36 +649,34 @@ fn validate_path(path: &str) -> Result<()> {
 
 pub(crate) struct PostgresSecretService {}
 
-fn check_secret_accessible(secret_policy: &policy::Model, claim: &NebulaClaim) -> bool {
+fn check_secret_accessible(secret_policy: &policy::Model, claim: &NebulaClaim) -> Result<bool> {
     let (parsed_policy, _) =
-        nebula_policy::pest::parse(&secret_policy.expression, nebula_policy::pest::PolicyLanguage::HumanPolicy)
-            .expect("registered policy should be parsable");
+        nebula_policy::pest::parse(&secret_policy.expression, nebula_policy::pest::PolicyLanguage::HumanPolicy)?;
 
     check_node_accessiblity(&parsed_policy, claim)
 }
 
-fn check_node_accessiblity(node: &nebula_policy::pest::PolicyNode, claim: &NebulaClaim) -> bool {
+fn check_node_accessiblity(node: &nebula_policy::pest::PolicyNode, claim: &NebulaClaim) -> Result<bool> {
     match node {
         nebula_policy::pest::PolicyNode::And((left, right)) => {
-            check_node_accessiblity(left, claim) && check_node_accessiblity(right, claim)
+            Ok(check_node_accessiblity(left, claim)? && check_node_accessiblity(right, claim)?)
         }
         nebula_policy::pest::PolicyNode::Or((left, right)) => {
-            check_node_accessiblity(left, claim) || check_node_accessiblity(right, claim)
+            Ok(check_node_accessiblity(left, claim)? || check_node_accessiblity(right, claim)?)
         }
         nebula_policy::pest::PolicyNode::Leaf((val, _)) => check_leaf_node_accessiblity(val, claim),
     }
 }
 
-fn check_leaf_node_accessiblity(val: &str, claim: &NebulaClaim) -> bool {
+fn check_leaf_node_accessiblity(val: &str, claim: &NebulaClaim) -> Result<bool> {
     let mut capture = SECRET_POLICY_VALUE_PATTERN.captures_iter(val);
     let (key, value) = if let Some((_, [key, value, _])) = capture.next().map(|c| c.extract()) {
         (key, value)
     } else {
-        warn!("failed to extract key-value from {}", val);
-        return false;
+        return Err(Error::InvalidSecretPolicy);
     };
 
-    claim.attributes.get(key).map(|attribute_value| attribute_value == value).unwrap_or(false)
+    Ok(claim.attributes.get(key).map(|attribute_value| attribute_value == value).unwrap_or(false))
 }
 
 #[async_trait]
@@ -729,7 +727,22 @@ impl SecretService for PostgresSecretService {
                 let accessible = if policies.is_empty() {
                     true
                 } else {
-                    policies.into_iter().any(|policy| check_secret_accessible(policy, claim))
+                    let mut accessible = false;
+                    for policy in policies {
+                        match check_secret_accessible(policy, claim) {
+                            Ok(check_result) => accessible |= check_result,
+                            Err(e) => {
+                                warn!(
+                                    "failed to check accessibility for secret({}): {:?}",
+                                    create_identifier(&metadata.path, &metadata.key),
+                                    e
+                                );
+                                return None;
+                            }
+                        }
+                    }
+
+                    accessible
                 };
 
                 if accessible {
@@ -778,7 +791,21 @@ impl SecretService for PostgresSecretService {
         let accessible = if policies.is_empty() {
             true
         } else {
-            policies.iter().any(|policy| check_secret_accessible(policy, claim))
+            let mut accessible = false;
+            for policy in policies {
+                match check_secret_accessible(&policy, claim) {
+                    Ok(check_result) => accessible |= check_result,
+                    Err(e) => {
+                        warn!(
+                            "failed to check accessibility for secret({}): {:?}",
+                            create_identifier(&metadata.path, &metadata.key),
+                            e
+                        );
+                        return Err(Error::InvalidSecretPolicy);
+                    }
+                }
+            }
+            accessible
         };
 
         if !accessible {
@@ -1063,10 +1090,18 @@ pub(crate) enum Error {
     InvalidPath { entered_path: String },
     #[error("Invalid path policy expression is entered")]
     InvalidPathPolicy,
+    #[error(" path policy expression is entered")]
+    InvalidSecretPolicy,
     #[error("Access denied")]
     AccessDenied,
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
+}
+
+impl From<nebula_policy::error::PolicyParserError> for Error {
+    fn from(_: nebula_policy::error::PolicyParserError) -> Self {
+        Self::InvalidSecretPolicy
+    }
 }
 
 impl From<sea_orm::DbErr> for Error {
