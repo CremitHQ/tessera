@@ -7,7 +7,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    image: ghcr.io/cremithq/nebula-backbone:latest
+    build:
+      context: .
+      dockerfile: ./crates/nebula-backbone/Dockerfile
     pull_policy: always
     ports:
       - 8080:8080
@@ -35,8 +37,9 @@ services:
         condition: service_healthy
       authorization:
         condition: service_healthy
-
-    image: ghcr.io/cremithq/nebula-authority:latest
+    build:
+      context: .
+      dockerfile: ./crates/nebula-authority/Dockerfile
     pull_policy: always
     ports:
       - 8090:8090
@@ -62,7 +65,9 @@ services:
         condition: service_healthy
       backbone:
         condition: service_healthy
-    image: ghcr.io/cremithq/nebula-authorization:latest
+    build:
+      context: .
+      dockerfile: ./crates/nebula-authorization/Dockerfile
     pull_policy: always
     ports:
       - 9000:9000
