@@ -5,7 +5,7 @@ use nebula_token::claim::NebulaClaim;
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    database::{OrganizationScopedTransaction, Persistable},
+    database::{Persistable, WorkspaceScopedTransaction},
     domain::secret::{self, AppliedPolicy, Path, SecretService},
 };
 
@@ -48,7 +48,7 @@ impl PathUseCaseImpl {
 #[async_trait]
 impl PathUseCase for PathUseCaseImpl {
     async fn get_all(&self) -> Result<Vec<PathData>> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let paths = self.secret_service.get_paths(&transaction).await?;
         transaction.commit().await?;
 
@@ -56,14 +56,14 @@ impl PathUseCase for PathUseCaseImpl {
     }
 
     async fn register(&self, path: &str, policies: &[AppliedPolicy], claim: &NebulaClaim) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         self.secret_service.register_path(&transaction, path, policies, claim).await?;
         transaction.commit().await?;
         Ok(())
     }
 
     async fn delete(&self, path: &str, claim: &NebulaClaim) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
             .get_path(&transaction, path)
@@ -84,7 +84,7 @@ impl PathUseCase for PathUseCaseImpl {
         new_policies: Option<&[AppliedPolicy]>,
         claim: &NebulaClaim,
     ) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let mut path = self
             .secret_service
             .get_path(&transaction, path)
@@ -105,7 +105,7 @@ impl PathUseCase for PathUseCaseImpl {
     }
 
     async fn get(&self, path: &str) -> Result<PathData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let path = self
             .secret_service
             .get_path(&transaction, path)

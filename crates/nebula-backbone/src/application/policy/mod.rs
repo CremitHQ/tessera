@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use ulid::Ulid;
 
 use crate::{
-    database::{OrganizationScopedTransaction, Persistable},
+    database::{Persistable, WorkspaceScopedTransaction},
     domain::{self, policy::PolicyService},
 };
 
@@ -37,7 +37,7 @@ impl PolicyUseCaseImpl {
 #[async_trait]
 impl PolicyUseCase for PolicyUseCaseImpl {
     async fn get_all(&self) -> Result<Vec<PolicyData>> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let policies = self.policy_service.list(&transaction).await?;
 
@@ -47,7 +47,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let policy = self
             .policy_service
@@ -61,7 +61,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn register(&self, name: &str, expression: &str) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         self.policy_service.register(&transaction, name, expression).await?;
 
@@ -71,7 +71,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut policy = self
             .policy_service
@@ -94,7 +94,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn delete(&self, policy_id: &Ulid) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut policy = self
             .policy_service

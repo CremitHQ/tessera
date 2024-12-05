@@ -6,7 +6,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use ulid::Ulid;
 
 use crate::{
-    database::{OrganizationScopedTransaction, Persistable},
+    database::{Persistable, WorkspaceScopedTransaction},
     domain::{
         self,
         policy::{AccessCondition, PolicyService},
@@ -59,7 +59,7 @@ impl SecretUseCaseImpl {
 #[async_trait]
 impl SecretUseCase for SecretUseCaseImpl {
     async fn list(&self, path: &str, claim: &NebulaClaim) -> Result<Vec<SecretData>> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let secrets = self.secret_service.list_secret(&transaction, path, claim).await?;
         transaction.commit().await?;
 
@@ -67,7 +67,7 @@ impl SecretUseCase for SecretUseCaseImpl {
     }
 
     async fn get(&self, secret_identifier: &str, claim: &NebulaClaim) -> Result<SecretData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let secret = self.secret_service.get_secret(&transaction, secret_identifier, claim).await?;
         transaction.commit().await?;
 
@@ -75,7 +75,7 @@ impl SecretUseCase for SecretUseCaseImpl {
     }
 
     async fn register(&self, cmd: SecretRegisterCommand, claim: &NebulaClaim) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let access_conditions = self.get_policies(&transaction, cmd.access_condition_ids).await?;
 
@@ -89,7 +89,7 @@ impl SecretUseCase for SecretUseCaseImpl {
     }
 
     async fn delete(&self, secret_identifier: &str, claim: &NebulaClaim) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let mut secret = self.secret_service.get_secret(&transaction, secret_identifier, claim).await?;
         secret.delete(&transaction, claim).await?;
         secret.persist(&transaction).await?;
@@ -99,7 +99,7 @@ impl SecretUseCase for SecretUseCaseImpl {
     }
 
     async fn update(&self, secret_identifier: &str, update: SecretUpdate, claim: &NebulaClaim) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut secret = self.secret_service.get_secret(&transaction, secret_identifier, claim).await?;
 
