@@ -179,7 +179,7 @@ impl SAMLConnector {
         let role = match &self.admin_role_config {
             SAMLAdminRoleConfig::All => Role::Admin,
             SAMLAdminRoleConfig::Group { attribute_name, admin_groups } => {
-                get_all_attribute(&attributes, &attribute_name)?
+                get_all_attribute(&attributes, attribute_name)?
                     .iter()
                     .find_map(|group| if admin_groups.contains(group) { Some(Role::Admin) } else { None })
                     .unwrap_or(Role::Member)
