@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     logger::init_logger(LoggerConfig::default());
 
     let app_config = config::load_config(args)?;
-    let application = application::Application::new(&app_config).await?;
+    let application = application::Application::init(&app_config).await?;
 
     server::run(application, app_config.into()).await?;
     Ok(())

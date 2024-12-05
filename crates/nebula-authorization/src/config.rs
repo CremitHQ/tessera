@@ -46,8 +46,7 @@ pub struct SAMLConfig {
     pub idp_issuer: Option<String>,
     pub ca: String,
     pub attributes: AttributesConfig,
-    pub group_attribute: Option<String>,
-    pub admin_groups: Vec<String>,
+    pub admin_role: SAMLAdminRoleConfig,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -55,6 +54,13 @@ pub struct SAMLConfig {
 pub enum AttributesConfig {
     All,
     Mapping { claims: Vec<(String, String)> },
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
+pub(crate) enum SAMLAdminRoleConfig {
+    All,
+    Group { attribute_name: String, admin_groups: Vec<String> },
 }
 
 #[derive(Deserialize, Debug)]

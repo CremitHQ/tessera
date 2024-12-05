@@ -17,10 +17,12 @@ idp_issuer = "<fill in your IdP issuer URL>"
 entity_id = "<fill in your entity ID>"
 ca = "<fill in you CA>" # ex) "-----BEGIN CERTIFICATE-----\nblabla...\n...blabla\n-----END CERTIFICATE-----"
 attributes = { type = "ALL" } # or { type = "MAPPING", claims = [["email_from_idp", "email"], ["name_from_idp", "derived_name"]] }
-# if you want to use group-based authorization, you can specify the group attribute and admin groups
-# if not, members who can authenticate will be treated as admin
-# group_attribute = "group"
-# admin_groups = ["ADMINSTRATOR"]
+admin_role.type = "ALL"
+
+# or "GROUP" if you want to specify the admin role by the group claim
+# admin_role.type = "GROUP"
+# admin_role.attribute_name = "group"
+# admin_role.admin_groups = ["ADMINSTRATOR"]
 
 [workspace]
 type = "STATIC"
