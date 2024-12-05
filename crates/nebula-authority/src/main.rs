@@ -33,15 +33,12 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let app_config = config::load_config(args.config, args.port)?;
     let authority = Authority::new(&app_config).await?;
-    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> = if let Some(refresh_interval) =
-        app_config.jwks_refresh_interval
-    {
-        Arc::new(
-            CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?,
-        )
-    } else {
-        Arc::new(CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(600)).await?)
-    };
+    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> =
+        if let Some(refresh_interval) = app_config.jwks_refresh_interval {
+            Arc::new(CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(refresh_interval)))
+        } else {
+            Arc::new(CachedRemoteJwksDiscovery::new(app_config.jwks_url.clone(), Duration::from_secs(10)))
+        };
     let application = Application::new(authority, jwks_discovery);
     if let Some(key_shares) = &app_config.disarm_key_shares {
         let key_shares = key_shares

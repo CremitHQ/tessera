@@ -118,13 +118,12 @@ impl ApplicationWithWorkspace {
 pub(super) async fn init(config: &ApplicationConfig) -> anyhow::Result<Application> {
     let database_connection = init_database_connection(config).await?;
 
-    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> = if let Some(refresh_interval) =
-        config.jwks_refresh_interval
-    {
-        Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(refresh_interval)).await?)
-    } else {
-        Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(600)).await?)
-    };
+    let jwks_discovery: Arc<dyn JwksDiscovery + Send + Sync> =
+        if let Some(refresh_interval) = config.jwks_refresh_interval {
+            Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(refresh_interval)))
+        } else {
+            Arc::new(CachedRemoteJwksDiscovery::new(config.jwks_url.clone(), Duration::from_secs(10)))
+        };
 
     database::migrate(database_connection.as_ref()).await?;
     database::migrate_all_workspaces(
