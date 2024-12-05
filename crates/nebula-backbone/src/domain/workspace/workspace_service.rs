@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 #[cfg(test)]
 use mockall::automock;
+use nebula_common::validate_workspace_name;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction, DbErr,
     EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement,
@@ -72,6 +73,20 @@ impl WorkspaceService for WorkspaceServiceImpl {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
 
+        if !validate_workspace_name(name) {
+            return Err(Error::InvalidWorkspaceName);
+        }
+
+        self.connection
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
+            ))
+            .await?;
+
+        migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
+            .await?;
+
         if self.exists_by_name(transaction, name).await? {
             return Err(Error::WorkspaceNameConflicted);
         }
@@ -86,16 +101,6 @@ impl WorkspaceService for WorkspaceServiceImpl {
         }
         .insert(transaction)
         .await?;
-
-        self.connection
-            .execute(Statement::from_string(
-                DatabaseBackend::Postgres,
-                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
-            ))
-            .await?;
-
-        migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
-            .await?;
 
         info!("workspace(name: {name}) created.");
 

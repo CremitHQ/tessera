@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Utc;
+use nebula_common::validate_workspace_name;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection, DatabaseTransaction, DbErr,
     EntityTrait, PaginatorTrait, QueryFilter, RuntimeErr, SqlxError, Statement,
@@ -14,6 +15,10 @@ use crate::database::{migrate_workspace, AuthMethod};
 pub(crate) enum Error {
     #[error("workspace name already exists")]
     WorkspaceNameConflicted,
+
+    #[error("invalid workspace name")]
+    InvalidWorkspaceName,
+
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -50,10 +55,21 @@ impl WorkspaceService {
     pub(crate) async fn create(&self, transaction: &DatabaseTransaction, name: &str) -> Result<()> {
         use crate::database::workspace::ActiveModel;
         use sea_orm::ActiveValue;
+        if !validate_workspace_name(name) {
+            return Err(Error::InvalidWorkspaceName);
+        }
+
+        self.connection
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
+            ))
+            .await?;
+
+        migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
+            .await?;
 
         if self.exists_by_name(transaction, name).await? {
-            migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
-                .await?;
             return Err(Error::WorkspaceNameConflicted);
         }
 
@@ -67,16 +83,6 @@ impl WorkspaceService {
         }
         .insert(transaction)
         .await?;
-
-        self.connection
-            .execute(Statement::from_string(
-                DatabaseBackend::Postgres,
-                format!("CREATE SCHEMA IF NOT EXISTS \"{name}\";"),
-            ))
-            .await?;
-
-        migrate_workspace(name, &self.database_host, self.database_port, &self.database_name, &self.database_auth)
-            .await?;
 
         info!("workspace(name: {name}) created.");
 
