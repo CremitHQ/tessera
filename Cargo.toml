@@ -84,3 +84,4 @@ nebula-storage = { path = "crates/nebula-storage" }
 nebula-secret-sharing = { path = "crates/nebula-secret-sharing" }
 nebula-token = { path = "crates/nebula-token" }
 nebula-config-path = { path = "crates/nebula-config-path" }
+nebula-common = { path = "crates/nebula-common" }
