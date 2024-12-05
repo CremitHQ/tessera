@@ -17,6 +17,7 @@ async fn handle_initializing_authority(
     State(application): State<Arc<Application>>,
     Json(InitRequest { secret_shares: share, secret_threshold: threshold }): Json<InitRequest>,
 ) -> Result<impl IntoResponse, InitAuthorityError> {
+    validate_share_and_threshold(share, threshold)?;
     let shares = application
         .authority
         .init_key_pair_storage(share as usize, threshold as usize)
@@ -36,6 +37,18 @@ async fn handle_initializing_authority(
     Ok(Json(shares))
 }
 
+fn validate_share_and_threshold(shares: u8, threshold: u8) -> Result<(), InitAuthorityError> {
+    if shares < threshold {
+        return Err(InitAuthorityError::InvalidSecretShares);
+    }
+
+    if shares < 1 || threshold < 1 {
+        return Err(InitAuthorityError::InvalidSecretShares);
+    }
+
+    Ok(())
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitRequest {
@@ -52,4 +65,8 @@ pub enum InitAuthorityError {
     #[error("Unable to serialize the shares")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
     Serialization(#[from] rmp_serde::encode::Error),
+
+    #[error("Invalid secret shares")]
+    #[status(StatusCode::BAD_REQUEST)]
+    InvalidSecretShares,
 }
