@@ -13,6 +13,7 @@ use aws_sigv4::{
     http_request::{sign, SignableBody, SignableRequest, SigningSettings},
     sign::v4::SigningParams,
 };
+use nebula_common::validate_workspace_name;
 use sea_orm::{sqlx::postgres::PgConnectOptions, ConnectionTrait, DatabaseBackend, Statement, TransactionTrait};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, DbErr, TryFromU64, TryGetError};
 use ulid::Ulid;
@@ -111,7 +112,10 @@ async fn connect_to_database_with_search_path(
     };
 
     if let Some(search_path) = search_path {
-        options.set_schema_search_path(search_path);
+        if !validate_workspace_name(search_path) {
+            return Err(anyhow::anyhow!("Invalid search path"));
+        }
+        options.set_schema_search_path(format!(r#""{search_path}""#));
     }
 
     options.sqlx_logging_level(tracing::log::LevelFilter::Debug);
@@ -263,6 +267,9 @@ pub trait WorkspaceScopedTransaction {
 impl WorkspaceScopedTransaction for DatabaseConnection {
     async fn begin_with_workspace_scope(&self, workspace_slug: &str) -> Result<DatabaseTransaction, DbErr> {
         let transaction = self.begin().await?;
+        if !validate_workspace_name(workspace_slug) {
+            return Err(DbErr::Custom("workspace slug is invalid".to_string()));
+        }
         transaction
             .execute(Statement::from_string(
                 DatabaseBackend::Postgres,
