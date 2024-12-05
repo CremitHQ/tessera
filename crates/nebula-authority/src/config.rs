@@ -41,15 +41,13 @@ pub(crate) enum PostgresAuthMethod {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE", tag = "type")]
-pub(crate) enum BackboneConfig {
-    Workspace { host: Url },
+pub(crate) struct BackboneConfig {
+    pub host: Url,
 }
 
 #[derive(Deserialize, Debug)]
 pub(crate) struct AuthorityConfig {
     pub name: String,
-    pub admin: Vec<String>,
 }
 
 #[derive(Deserialize, Debug)]

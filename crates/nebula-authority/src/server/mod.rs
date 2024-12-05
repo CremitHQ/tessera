@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::OnceLock;
 
 use axum::{
     extract::{Path, Request},
@@ -25,27 +24,21 @@ mod router;
 use crate::config::CorsConfig;
 use crate::{application::Application, config::ApplicationConfig};
 
-static AUTHORITY_ADMINS: OnceLock<Vec<String>> = OnceLock::new();
 pub(super) struct ServerConfig {
     pub port: u16,
-    pub admin: Vec<String>,
     pub path_prefix: Option<String>,
     pub cors: Option<CorsConfig>,
 }
 
 impl From<ApplicationConfig> for ServerConfig {
     fn from(value: ApplicationConfig) -> Self {
-        Self { port: value.port, admin: value.authority.admin, path_prefix: value.path_prefix, cors: value.cors }
+        Self { port: value.port, path_prefix: value.path_prefix, cors: value.cors }
     }
 }
 
 pub(super) async fn run(application: Application, config: ServerConfig) -> anyhow::Result<()> {
-    AUTHORITY_ADMINS.get_or_init(|| config.admin.clone());
-
     let application = Arc::new(application);
     let protected_router = Router::new()
-        .nest("/", router::init::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
-        .nest("/", router::disarm::router(application.clone()).route_layer(middleware::from_fn(check_authority_admin)))
         .nest(
             "/workspaces/:workspace_name/",
             router::userkey::router(application.clone()).route_layer(middleware::from_fn(check_workspace_name)),
@@ -57,7 +50,10 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
                 .route_layer(middleware::from_fn(check_workspace_name)),
         )
         .layer(NebulaAuthLayer::builder().jwk_discovery(application.jwks_discovery.clone()).build());
-    let public_router = Router::new().nest("/workspaces/:workspace_name/", router::pubkey::router(application.clone()));
+    let public_router = Router::new()
+        .nest("/workspaces/:workspace_name/", router::pubkey::router(application.clone()))
+        .nest("/", router::init::router(application.clone()))
+        .nest("/", router::disarm::router(application.clone()));
 
     let app = Router::new().route("/health", get(|| async { "OK" }));
     let app = if let Some(path_prefix) = config.path_prefix {
@@ -122,19 +118,6 @@ pub(crate) async fn check_admin_role(
     next: Next,
 ) -> Result<Response, StatusCode> {
     if claim.role == Role::Admin {
-        Ok(next.run(req).await)
-    } else {
-        Err(StatusCode::FORBIDDEN)
-    }
-}
-
-pub(crate) async fn check_authority_admin(
-    Extension(claim): Extension<NebulaClaim>,
-    req: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    let admins = AUTHORITY_ADMINS.get().map(Vec::as_slice).unwrap_or(&[]);
-    if admins.contains(&claim.gid) {
         Ok(next.run(req).await)
     } else {
         Err(StatusCode::FORBIDDEN)

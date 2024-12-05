@@ -46,7 +46,7 @@ pub struct SAMLConfig {
     pub idp_issuer: Option<String>,
     pub ca: String,
     pub attributes: AttributesConfig,
-    pub group_attribute: String,
+    pub group_attribute: Option<String>,
     pub admin_groups: Vec<String>,
 }
 
@@ -54,7 +54,7 @@ pub struct SAMLConfig {
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AttributesConfig {
     All,
-    Mapping(Vec<(String, String)>),
+    Mapping { claims: Vec<(String, String)> },
 }
 
 #[derive(Deserialize, Debug)]
