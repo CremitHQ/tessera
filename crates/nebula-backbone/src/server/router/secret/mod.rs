@@ -53,9 +53,13 @@ async fn handle_get_secrets(
     Path(workspace_name): Path<String>,
     Query(query_params): Query<GetSecretsApiQueryParam>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
-    let secrets =
-        application.with_workspace(&workspace_name).secret().list(query_params.path.as_deref().unwrap_or("/")).await?;
+    let secrets = application
+        .with_workspace(&workspace_name)
+        .secret()
+        .list(query_params.path.as_deref().unwrap_or("/"), &claim)
+        .await?;
     let response: Vec<SecretResponse> = secrets.into_iter().map(SecretResponse::from).collect();
 
     Ok(Json(response))
@@ -95,8 +99,10 @@ async fn handle_post_secret(
 async fn handle_get_secret(
     Path((workspace_name, secret_identifier)): Path<(String, String)>,
     State(application): State<Arc<Application>>,
+    Extension(claim): Extension<NebulaClaim>,
 ) -> Result<impl IntoResponse, application::secret::Error> {
-    let secret = application.with_workspace(&workspace_name).secret().get(&format!("/{secret_identifier}")).await?;
+    let secret =
+        application.with_workspace(&workspace_name).secret().get(&format!("/{secret_identifier}"), &claim).await?;
 
     Ok(Json(SecretResponse::from(secret)))
 }
