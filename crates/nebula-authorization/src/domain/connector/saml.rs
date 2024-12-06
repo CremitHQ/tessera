@@ -10,7 +10,7 @@ use samael::{
 };
 use thiserror::Error;
 
-use crate::config::{AttributesConfig, WorkspaceConfig};
+use crate::config::{AttributesConfig, SAMLAdminRoleConfig, WorkspaceConfig};
 
 use super::Identity;
 
@@ -26,8 +26,7 @@ pub struct SAMLConnertorConfig {
     ca: openssl::x509::X509,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
-    group_attribute: Option<String>,
-    admin_groups: Vec<String>,
+    admin_role_config: SAMLAdminRoleConfig,
 }
 
 pub struct SAMLConnector {
@@ -36,8 +35,7 @@ pub struct SAMLConnector {
     service_provider: ServiceProvider,
     attributes_config: AttributesConfig,
     workspace_config: WorkspaceConfig,
-    group_attribute: Option<String>,
-    admin_groups: Vec<String>,
+    admin_role_config: SAMLAdminRoleConfig,
 }
 
 #[derive(Error, Debug)]
@@ -130,8 +128,7 @@ impl SAMLConnector {
             redirect_uri: config.redirect_uri,
             attributes_config: config.attributes_config,
             workspace_config: config.workspace_config,
-            group_attribute: config.group_attribute,
-            admin_groups: config.admin_groups,
+            admin_role_config: config.admin_role_config,
         })
     }
 
@@ -179,13 +176,14 @@ impl SAMLConnector {
             WorkspaceConfig::Claim(ref config) => get_attribute(&attributes, &config.claim)?,
         };
 
-        let role = if let Some(ref group_attribute) = self.group_attribute {
-            get_all_attribute(&attributes, group_attribute)?
-                .iter()
-                .find_map(|group| if self.admin_groups.contains(group) { Some(Role::Admin) } else { None })
-                .unwrap_or(Role::Member)
-        } else {
-            Role::Admin
+        let role = match &self.admin_role_config {
+            SAMLAdminRoleConfig::All => Role::Admin,
+            SAMLAdminRoleConfig::Group { attribute_name, admin_groups } => {
+                get_all_attribute(&attributes, attribute_name)?
+                    .iter()
+                    .find_map(|group| if admin_groups.contains(group) { Some(Role::Admin) } else { None })
+                    .unwrap_or(Role::Member)
+            }
         };
 
         Ok(Identity { user_id, claims, workspace_name, role })

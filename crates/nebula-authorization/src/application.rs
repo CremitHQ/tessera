@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    config::{ApplicationConfig, UpstreamIdpConfig},
+    config::{ApplicationConfig, StaticWorkspaceConfig, UpstreamIdpConfig, WorkspaceConfig},
     database::{self, connect_to_database, AuthMethod},
     domain::{
         connector::saml::{SAMLConnector, SAMLConnertorConfig},
@@ -23,16 +23,31 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn new(config: &ApplicationConfig) -> anyhow::Result<Self> {
+    pub async fn init(config: &ApplicationConfig) -> anyhow::Result<Self> {
         let database_connection = init_database_connection(config).await?;
-        database::migrate_all_workspaces(
-            &database_connection.begin().await?,
-            &config.database.host,
-            config.database.port,
-            &config.database.database_name,
-            &create_database_auth_method(config),
-        )
-        .await?;
+
+        match config.workspace {
+            WorkspaceConfig::Static(StaticWorkspaceConfig { ref name }) => {
+                database::migrate_workspace(
+                    name,
+                    &config.database.host,
+                    config.database.port,
+                    &config.database.database_name,
+                    &create_database_auth_method(config),
+                )
+                .await?;
+            }
+            WorkspaceConfig::Claim(_) => {
+                database::migrate_all_workspaces(
+                    &database_connection.begin().await?,
+                    &config.database.host,
+                    config.database.port,
+                    &config.database.database_name,
+                    &create_database_auth_method(config),
+                )
+                .await?;
+            }
+        }
 
         let saml_config = match config.upstream_idp {
             UpstreamIdpConfig::Saml(ref saml) => {
@@ -51,8 +66,7 @@ impl Application {
                     .ca(openssl::x509::X509::from_pem(saml.ca.as_bytes())?)
                     .attributes_config(saml.attributes.clone())
                     .workspace_config(config.workspace.clone())
-                    .maybe_group_attribute(saml.group_attribute.as_ref())
-                    .admin_groups(saml.admin_groups.clone())
+                    .admin_role_config(saml.admin_role.clone())
                     .build()
             }
         };
