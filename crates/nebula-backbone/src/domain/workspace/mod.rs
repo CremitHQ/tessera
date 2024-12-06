@@ -32,6 +32,10 @@ impl Workspace {
 pub(crate) enum Error {
     #[error("workspace name already exists")]
     WorkspaceNameConflicted,
+
+    #[error("invalid workspace name")]
+    InvalidWorkspaceName,
+
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }

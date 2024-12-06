@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use ulid::Ulid;
 
 use crate::{
-    database::{OrganizationScopedTransaction, Persistable},
+    database::{Persistable, WorkspaceScopedTransaction},
     domain::{self, policy::PolicyService},
 };
 
@@ -37,7 +37,7 @@ impl PolicyUseCaseImpl {
 #[async_trait]
 impl PolicyUseCase for PolicyUseCaseImpl {
     async fn get_all(&self) -> Result<Vec<PolicyData>> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let policies = self.policy_service.list(&transaction).await?;
 
@@ -47,7 +47,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn get_policy(&self, policy_id: Ulid) -> Result<PolicyData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let policy = self
             .policy_service
@@ -61,7 +61,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn register(&self, name: &str, expression: &str) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         self.policy_service.register(&transaction, name, expression).await?;
 
@@ -71,7 +71,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn update(&self, policy_id: &Ulid, new_name: Option<&str>, new_expression: Option<&str>) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut policy = self
             .policy_service
@@ -94,7 +94,7 @@ impl PolicyUseCase for PolicyUseCaseImpl {
     }
 
     async fn delete(&self, policy_id: &Ulid) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut policy = self
             .policy_service
@@ -182,7 +182,7 @@ mod test {
         });
 
         let policy_usecase =
-            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+            PolicyUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
 
         let result = policy_usecase.get_all().await.expect("creating workspace should be successful");
 
@@ -205,7 +205,7 @@ mod test {
             .times(1)
             .returning(move |_| Err(crate::domain::policy::Error::Anyhow(anyhow::anyhow!("some error"))));
         let policy_usecase =
-            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+            PolicyUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
 
         let result = policy_usecase.get_all().await;
 
@@ -230,7 +230,7 @@ mod test {
         });
 
         let policy_usecase =
-            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+            PolicyUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
 
         let result = policy_usecase.get_policy(policy_id).await.expect("getting policy data should be successful");
 
@@ -252,7 +252,7 @@ mod test {
         mock_policy_service.expect_get().times(1).returning(move |_, _| Ok(None));
 
         let policy_usecase =
-            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+            PolicyUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
 
         let result = policy_usecase.get_policy(policy_id).await;
 
@@ -274,7 +274,7 @@ mod test {
         });
 
         let policy_usecase =
-            PolicyUseCaseImpl::new("test_workspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
+            PolicyUseCaseImpl::new("testworkspace".to_owned(), mock_connection, Arc::new(mock_policy_service));
 
         let result = policy_usecase.register("test policy", "(\"role=FRONTEND@A\"").await;
 

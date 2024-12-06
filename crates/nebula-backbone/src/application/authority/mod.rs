@@ -5,7 +5,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction, DbErr};
 use ulid::Ulid;
 
 use crate::{
-    database::{OrganizationScopedTransaction, Persistable},
+    database::{Persistable, WorkspaceScopedTransaction},
     domain::{
         self,
         authority::{Authority, AuthorityService},
@@ -65,14 +65,14 @@ impl AuthorityUseCaseImpl {
 #[async_trait]
 impl AuthorityUseCase for AuthorityUseCaseImpl {
     async fn register_authority(&self, name: &str, host: &str) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         self.authority_service.register_authority(&transaction, name, host).await?;
         transaction.commit().await?;
         Ok(())
     }
 
     async fn get_authorities(&self) -> Result<Vec<AuthorityData>> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let authorities = self.authority_service.get_authorities(&transaction).await?;
         transaction.commit().await?;
 
@@ -80,7 +80,7 @@ impl AuthorityUseCase for AuthorityUseCaseImpl {
     }
 
     async fn get_authority(&self, authority_id: &Ulid) -> Result<AuthorityData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let authority = self.get_authority_model(&transaction, authority_id).await?;
         transaction.commit().await?;
 
@@ -93,7 +93,7 @@ impl AuthorityUseCase for AuthorityUseCaseImpl {
         new_name: Option<&str>,
         new_public_key: Option<&str>,
     ) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut authority = self.get_authority_model(&transaction, authority_id).await?;
         if let Some(new_name) = new_name {
@@ -110,7 +110,7 @@ impl AuthorityUseCase for AuthorityUseCaseImpl {
     }
 
     async fn delete_authority(&self, authority_id: &Ulid) -> Result<()> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
 
         let mut authority = self.get_authority_model(&transaction, authority_id).await?;
         authority.delete();

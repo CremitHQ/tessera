@@ -207,6 +207,9 @@ enum WorkspaceError {
     #[error("Workspace name is already in used")]
     #[status(StatusCode::CONFLICT)]
     WorkspaceNameConflicted,
+    #[error("Invalid workspace name")]
+    #[status(StatusCode::BAD_REQUEST)]
+    InvalidWorkspaceName,
     #[error("Unhandled error is occurred")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
     UnhandledError(#[from] anyhow::Error),
@@ -219,6 +222,7 @@ impl From<domain::workspace::Error> for WorkspaceError {
     fn from(value: domain::workspace::Error) -> Self {
         match value {
             domain::workspace::Error::WorkspaceNameConflicted => Self::WorkspaceNameConflicted,
+            domain::workspace::Error::InvalidWorkspaceName => Self::InvalidWorkspaceName,
             domain::workspace::Error::Anyhow(e) => e.into(),
         }
     }

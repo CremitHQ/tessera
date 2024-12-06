@@ -11,6 +11,7 @@ pub(crate) struct ApplicationConfig {
     pub jwks_url: Url,
     pub jwks_refresh_interval: Option<u64>,
     pub database: DatabaseConfig,
+    pub workspace: WorkspaceConfig,
     pub cors: Option<CorsConfig>,
 }
 
@@ -34,6 +35,13 @@ pub enum DatabaseAuthConfig {
 pub(crate) enum CorsConfig {
     AllowAll,
     AllowList(Vec<String>),
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum WorkspaceConfig {
+    Static { name: String },
+    Dynamic,
 }
 
 pub(super) fn load_config(args: Args) -> anyhow::Result<ApplicationConfig> {

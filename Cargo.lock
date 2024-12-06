@@ -2704,6 +2704,7 @@ dependencies = [
  "clap",
  "config",
  "futures-util",
+ "nebula-common",
  "nebula-config-path",
  "nebula-token",
  "openssl",
@@ -2745,6 +2746,7 @@ dependencies = [
  "maplit",
  "mockall",
  "nebula-abe",
+ "nebula-common",
  "nebula-policy",
  "nebula-token",
  "pest",
@@ -2799,6 +2801,10 @@ dependencies = [
  "validator",
  "webbrowser",
 ]
+
+[[package]]
+name = "nebula-common"
+version = "0.0.1"
 
 [[package]]
 name = "nebula-config-path"

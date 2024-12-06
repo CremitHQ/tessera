@@ -5,7 +5,7 @@ use nebula_abe::{curves::bn462::Bn462Curve, schemes::isabella24::GlobalParams};
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    database::OrganizationScopedTransaction,
+    database::WorkspaceScopedTransaction,
     domain::{
         self,
         parameter::{Parameter, ParameterService},
@@ -37,7 +37,7 @@ impl ParameterUseCaseImpl {
 #[async_trait]
 impl ParameterUseCase for ParameterUseCaseImpl {
     async fn create(&self) -> Result<ParameterData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let parameter = self.parameter_service.create(&transaction).await.map_err(Error::GetParameterFailed)?;
         transaction.commit().await?;
 
@@ -45,7 +45,7 @@ impl ParameterUseCase for ParameterUseCaseImpl {
     }
 
     async fn get(&self) -> Result<ParameterData> {
-        let transaction = self.database_connection.begin_with_organization_scope(&self.workspace_name).await?;
+        let transaction = self.database_connection.begin_with_workspace_scope(&self.workspace_name).await?;
         let parameter = self.parameter_service.get(&transaction).await.map_err(Error::GetParameterFailed)?;
         transaction.commit().await?;
 

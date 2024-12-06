@@ -25,3 +25,11 @@ impl IntoResponse for WorkspaceNotExistsErrorResponse {
         (StatusCode::NOT_FOUND, error_payload("WORKSPACE_NOT_EXISTS", "workspace is not exists.")).into_response()
     }
 }
+
+pub(super) struct InvalidWorkspaceNameErrorResponse;
+
+impl IntoResponse for InvalidWorkspaceNameErrorResponse {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::BAD_REQUEST, error_payload("INVALID_WORKSPACE_NAME", "workspace name is invalid.")).into_response()
+    }
+}
