@@ -1,10 +1,14 @@
+use std::io::stdout;
+
 use async_trait::async_trait;
 use clap::{Args, Subcommand};
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, Table};
+use crossterm::execute;
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 
-use crate::api::backbone::get_access_conditions;
+use crate::api::backbone::{create_access_condition, get_access_conditions, PostPolicyRequest};
 use crate::config::{load_token, NebulaConfig};
 
 use super::{GlobalArgs, RunCommand};
@@ -12,6 +16,7 @@ use super::{GlobalArgs, RunCommand};
 #[derive(Subcommand, Debug)]
 pub enum AccessConditionCommand {
     List(AccessConditionListCommand),
+    Create(AccessConditionCreateCommand),
 }
 
 #[async_trait]
@@ -19,6 +24,7 @@ impl RunCommand for AccessConditionCommand {
     async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
         match self {
             AccessConditionCommand::List(cmd) => cmd.run(args).await,
+            AccessConditionCommand::Create(cmd) => cmd.run(args).await,
         }
     }
 }
@@ -48,6 +54,37 @@ impl RunCommand for AccessConditionListCommand {
             ]);
         }
         println!("{table}");
+        Ok(())
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct AccessConditionCreateCommand {
+    #[clap(short = 'n', long)]
+    pub name: String,
+    #[clap(short = 'e', long)]
+    pub expression: String,
+}
+
+#[async_trait]
+impl RunCommand for AccessConditionCreateCommand {
+    async fn run(&self, args: &GlobalArgs) -> anyhow::Result<()> {
+        let config = NebulaConfig::load(args.profile.as_str(), args.config.clone().map(Into::into))?;
+        let token = load_token(&args.profile)?;
+        let backbone_url = config.backbone.host;
+        let workspace_name = config.workspace;
+
+        let request = PostPolicyRequest { name: self.name.clone(), expression: self.expression.clone() };
+
+        create_access_condition(backbone_url.clone(), &workspace_name, request, &token).await?;
+
+        execute!(
+            stdout(),
+            SetForegroundColor(Color::Green),
+            Print("✅ Successfully created access condition\n"),
+            ResetColor
+        )?;
+
         Ok(())
     }
 }

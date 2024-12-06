@@ -166,7 +166,7 @@ pub struct SecretCreateCommand {
     #[clap(short = 'v', long)]
     value: String,
 
-    #[clap(long, value_delimiter = ',')]
+    #[clap(long, value_delimiter = ',', required = true)]
     access_condition_ids: Vec<String>,
 }
 

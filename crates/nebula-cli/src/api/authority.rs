@@ -44,3 +44,36 @@ pub async fn get_user_key(
 
     Ok(response)
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitRequest {
+    secret_shares: u8,
+    secret_threshold: u8,
+}
+
+pub async fn init(authority_url: impl IntoUrl, secret_shares: u8, secret_threshold: u8) -> anyhow::Result<Vec<String>> {
+    let client = reqwest::Client::new();
+
+    let url = authority_url.into_url()?.join("init")?;
+    let response =
+        client.post(url).json(&InitRequest { secret_shares, secret_threshold }).send().await?.error_for_status()?;
+
+    let shares: Vec<String> = response.json().await?;
+    Ok(shares)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisarmRequest {
+    shares: Vec<String>,
+}
+
+pub async fn disarm(authority_url: impl IntoUrl, shares: Vec<String>) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+
+    let url = authority_url.into_url()?.join("disarm")?;
+    client.post(url).json(&DisarmRequest { shares }).send().await?.error_for_status()?;
+
+    Ok(())
+}
