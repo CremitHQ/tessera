@@ -7,6 +7,7 @@ use super::{workspace, AuthMethod};
 
 mod m20241126_001_init_backbone;
 mod m20241128_001_create_authority_table;
+mod m20241206_001_remove_unused_column_applied_policy_table;
 
 pub struct Migrator;
 
@@ -16,6 +17,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20241126_001_init_backbone::Migration),
             Box::new(m20241128_001_create_authority_table::Migration),
+            Box::new(m20241206_001_remove_unused_column_applied_policy_table::Migration),
         ]
     }
 }
