@@ -26,7 +26,6 @@ pub enum AppliedPolicy {
     Table,
     Id,
     SecretMetadataId,
-    Type,
     PolicyId,
     CreatedAt,
     UpdatedAt,
@@ -82,6 +81,17 @@ pub enum SecretValue {
     UpdatedAt,
 }
 
+#[derive(DeriveIden)]
+pub enum Authority {
+    Table,
+    Id,
+    Name,
+    Host,
+    PublicKey,
+    CreatedAt,
+    UpdatedAt,
+}
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -131,7 +141,6 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(char_len(AppliedPolicy::Id, 26).primary_key())
                     .col(char_len(AppliedPolicy::SecretMetadataId, 26))
-                    .col(string_len(AppliedPolicy::Type, 50))
                     .col(char_len(AppliedPolicy::PolicyId, 26))
                     .col(timestamp_with_time_zone(AppliedPolicy::CreatedAt))
                     .col(timestamp_with_time_zone(AppliedPolicy::UpdatedAt))
@@ -222,12 +231,33 @@ impl MigrationTrait for Migration {
                     .take(),
             )
             .await?;
-
+        manager
+            .create_table(
+                Table::create()
+                    .table(Authority::Table)
+                    .if_not_exists()
+                    .col(char_len(Authority::Id, 26).primary_key())
+                    .col(string_len(Authority::Name, 255))
+                    .col(text(Authority::Host))
+                    .col(text_null(Authority::PublicKey))
+                    .col(timestamp_with_time_zone(Authority::CreatedAt))
+                    .col(timestamp_with_time_zone(Authority::UpdatedAt))
+                    .take(),
+            )
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager.drop_table(Table::drop().table(AppliedPathPolicy::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(Authority::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(AppliedPathPolicyAllowedAction::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(AppliedPolicy::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(Parameter::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(Path::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(Policy::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(SecretMetadata::Table).if_exists().take()).await?;
+        manager.drop_table(Table::drop().table(SecretValue::Table).if_exists().take()).await?;
 
         Ok(())
     }

@@ -6,19 +6,13 @@ use sea_orm_migration::{IntoSchemaManagerConnection, MigrationTrait, MigratorTra
 use super::{workspace, AuthMethod};
 
 mod m20241126_001_init_backbone;
-mod m20241128_001_create_authority_table;
-mod m20241206_001_remove_unused_column_applied_policy_table;
 
 pub struct Migrator;
 
 #[async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![
-            Box::new(m20241126_001_init_backbone::Migration),
-            Box::new(m20241128_001_create_authority_table::Migration),
-            Box::new(m20241206_001_remove_unused_column_applied_policy_table::Migration),
-        ]
+        vec![Box::new(m20241126_001_init_backbone::Migration)]
     }
 }
 
