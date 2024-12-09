@@ -1,0 +1,77 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Quick Start Guide
+
+Learn how to set up Nebula using the Docker Compose template.
+The steps outlined below provide a general guide for self-hosting Nebula Services on your own infrastructure.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
+
+
+### Download the Docker Compose Template
+:::info
+If you want to build the docker image from the source code, you can clone the repository and build the image using the following commands:
+
+```sh
+git clone https://github.com/CremitHQ/nebula.git
+cd nebula
+docker-compose -f docker-compose.build.yaml up -d
+```
+:::
+
+You can get the nebula latest docker compose file by running the following command:
+
+<Tabs>
+  <TabItem value="curl" label="curl">
+```sh
+curl -o https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
+```
+  </TabItem>
+    <TabItem value="wget" label="wget">
+```sh
+wget -O https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
+```
+    </TabItem>
+</Tabs>
+
+### Download the Configurations
+
+You can get the nebula configurations by running the following command:
+<Tabs>
+  <TabItem value="curl" label="curl">
+```sh
+mkdir -p config
+curl -o config/backbone_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/backbone_config.toml.example
+curl -o config/authority_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authority_config.toml.example
+curl -o config/authorization_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authorization_config.toml.example
+```
+  </TabItem>
+    <TabItem value="wget" label="wget">
+```sh
+mkdir -p config
+wget -O config/backbone_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/backbone_config.toml.example
+wget -O config/authority_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authority_config.toml.example
+wget -O config/authorization_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authorization_config.toml.example
+```
+    </TabItem>
+</Tabs>
+
+### Update Your Configurations
+
+Update the configurations in the `config` directory according to your requirements:
+
+- [Backbone Configuration](/docs/config/backbone)
+- [Authority Configuration](/docs/config/authority)
+- [Authorization Configuration](/docs/config/authorization)
+
+
+### Start Nebula Services
+Run the following command to start the Nebula services:
+
+```sh
+docker-compose up -d
+```
