@@ -54,7 +54,7 @@ const config: Config = {
       title: "Nebula",
       logo: {
         alt: "Nebula Logo",
-        src: "img/logo.webp",
+        src: "img/nebula-logo.svg",
       },
       items: [
         {
