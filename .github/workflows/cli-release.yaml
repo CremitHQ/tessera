@@ -71,7 +71,6 @@ jobs:
       - name: Set release version
         id: set_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/cli/v}" >> $GITHUB_OUTPUT
-        # run: echo "VERSION=0.0.0-alpha" >> $GITHUB_OUTPUT
         shell: bash
 
       # Linux & Windows
