@@ -104,15 +104,28 @@ jobs:
           ${{ matrix.platform.cargo_command }} build ${{ env.BUILD_ARGS }} --target ${{ matrix.platform.target }}
           mv target/${{ matrix.platform.target }}/release/${{ env.BIN_NAME }} nebula
           tar -czf v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}.tar.gz nebula
+          tar -czf latest-${{ matrix.platform.target }}.tar.gz nebula
 
       - name: Release the CLI
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}
+            v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
           release_name: cli/v${{ steps.set_version.outputs.VERSION }}
           tag_name: cli/v${{ steps.set_version.outputs.VERSION }}
           body: "Release cli/v${{ steps.set_version.outputs.VERSION }}"
           draft: false
           prerelease: false
+
+      - name: Release to latest
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            latest-${{ matrix.platform.target }}.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: cli/latest
+          tag_name: cli/latest
+          draft: false
+          prerelease: false
+          make_latest: "true"
