@@ -173,7 +173,9 @@ impl SAMLConnector {
         }?;
         let workspace_name = match self.workspace_config {
             WorkspaceConfig::Static(ref config) => config.name.clone(),
-            WorkspaceConfig::Claim(ref config) => get_attribute(&attributes, &config.claim)?,
+            WorkspaceConfig::Claim(ref config) => {
+                claims.get(&config.claim).cloned().ok_or(SAMLHandlerError::AttributeNotFound)?
+            }
         };
 
         let role = match &self.admin_role_config {
