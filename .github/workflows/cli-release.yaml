@@ -1,0 +1,130 @@
+name: Release the CLI
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "cli/v*"
+
+env:
+  RUST_VERSION: 1.82
+  BUILD_ARGS: "--locked --release --all-features --package nebula-cli"
+  BIN_NAME: "nebula-cli"
+
+jobs:
+  build:
+    name: Build - ${{ matrix.platform.name }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          # Linux
+          - name: Linux x86_64
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: false
+            cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+
+          - name: Linux aarch64
+            target: aarch64-unknown-linux-gnu
+            os: linux-arm64
+            cross: false
+            cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+
+          # - name: Linux musl
+          #   target: x86_64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   cross: false
+          #   cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+
+          # - name: Linux musl aarch64
+          #   target: aarch64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   cross: false
+          #   cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+
+          # Mac OS
+          - name: MacOS x86_64
+            target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+            cargo_command: cargo
+
+          - name: MacOS aarch64
+            target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+            cargo_command: cargo
+
+          # # Windows
+          # - name: Windows x86_64
+          #   os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Checkout Git repo
+        uses: actions/checkout@v4
+
+      - name: Set release version
+        id: set_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/cli/v}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      # Linux & Windows
+      - name: Install rust toolchain
+        if: ${{ !contains(matrix.platform.target, 'apple') }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "${{ env.RUST_VERSION }}"
+          targets: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "${{ env.RUST_VERSION }}"
+          targets: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
+        if: ${{ !matrix.platform.cross }}
+
+      - name: Setup Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+        if: contains(matrix.platform.name, 'musl')
+
+      - name: Build binary
+        shell: bash
+        run: |
+          ${{ matrix.platform.cargo_command }} build ${{ env.BUILD_ARGS }} --target ${{ matrix.platform.target }}
+          mv target/${{ matrix.platform.target }}/release/${{ env.BIN_NAME }} nebula
+          tar -czf v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}.tar.gz nebula
+          tar -czf latest-${{ matrix.platform.target }}.tar.gz nebula
+
+      - name: Release the CLI
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: cli/v${{ steps.set_version.outputs.VERSION }}
+          tag_name: cli/v${{ steps.set_version.outputs.VERSION }}
+          body: "Release cli/v${{ steps.set_version.outputs.VERSION }}"
+          draft: false
+          prerelease: false
+
+      - name: Release to latest
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            latest-${{ matrix.platform.target }}.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: cli/latest
+          tag_name: cli/latest
+          draft: false
+          prerelease: false
+          make_latest: "true"
