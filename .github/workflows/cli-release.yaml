@@ -16,7 +16,6 @@ env:
 jobs:
   build:
     name: Build - ${{ matrix.platform.name }}
-    # By default, runs on Ubuntu, otherwise, override with the desired os
     runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
@@ -103,13 +102,14 @@ jobs:
         shell: bash
         run: |
           ${{ matrix.platform.cargo_command }} build ${{ env.BUILD_ARGS }} --target ${{ matrix.platform.target }}
-          mv target/${{ matrix.platform.target }}/release/${{ env.BIN_NAME }}${{ contains(matrix.platform.target, 'windows') && '.exe' || '' }} v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}-${{ contains(matrix.platform.target, 'windows') && '.exe' || '' }}
+          mv target/${{ matrix.platform.target }}/release/${{ env.BIN_NAME }} nebula
+          tar -czf v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}.tar.gz nebula
 
       - name: Release the CLI
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}-${{ contains(matrix.platform.target, 'windows') && '.exe' || '' }}
+            v${{ steps.set_version.outputs.VERSION }}-${{ matrix.platform.target }}
           token: ${{ secrets.GITHUB_TOKEN }}
           release_name: cli/v${{ steps.set_version.outputs.VERSION }}
           tag_name: cli/v${{ steps.set_version.outputs.VERSION }}
