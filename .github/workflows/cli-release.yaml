@@ -1,5 +1,6 @@
-name: Release
+name: Release the CLI
 on:
+  push:
   workflow_dispatch:
     inputs:
       version:
