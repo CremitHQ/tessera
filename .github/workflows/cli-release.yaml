@@ -1,12 +1,8 @@
 name: Release the CLI
 on:
   push:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version of the application"
-        required: true
-        type: string
+    # tags:
+    #   - "cli/v*"
 
 env:
   RUST_VERSION: 1.82
@@ -70,6 +66,12 @@ jobs:
       - name: Checkout Git repo
         uses: actions/checkout@v4
 
+      - name: Set release version
+        id: set_version
+        # run: echo "VERSION=${GITHUB_REF#refs/tags/cli/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=0.0.0-alpha" >> $GITHUB_OUTPUT
+        shell: bash
+
       # Linux & Windows
       - name: Install rust toolchain
         if: ${{ !contains(matrix.platform.target, 'apple') }}
@@ -105,8 +107,8 @@ jobs:
           files: |
             target/${{ matrix.platform.target }}/release/${{ env.BIN_NAME }}${{ contains(matrix.platform.target, 'windows') && '.exe' || '' }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          release_name: cli/v${{ github.event.inputs.version }}
-          tag_name: cli/v${{ github.event.inputs.version }}
-          body: "Release cli/v${{ github.event.inputs.version }}"
+          release_name: cli/v${{ steps.set_version.outputs.VERSION }}
+          tag_name: cli/v${{ steps.set_version.outputs.VERSION }}
+          body: "Release cli/v${{ steps.set_version.outputs.VERSION }}"
           draft: false
           prerelease: false
