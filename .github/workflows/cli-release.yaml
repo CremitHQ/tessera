@@ -1,4 +1,8 @@
 name: Release the CLI
+
+permissions:
+  contents: write
+
 on:
   push:
     # tags:
@@ -31,17 +35,17 @@ jobs:
             cross: false
             cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
 
-          - name: Linux musl
-            target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            cross: false
-            cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+          # - name: Linux musl
+          #   target: x86_64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   cross: false
+          #   cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
 
-          - name: Linux musl aarch64
-            target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            cross: false
-            cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
+          # - name: Linux musl aarch64
+          #   target: aarch64-unknown-linux-musl
+          #   os: ubuntu-latest
+          #   cross: false
+          #   cargo_command: RUSTFLAGS='-C target-feature=+crt-static' cargo
 
           # Mac OS
           - name: MacOS x86_64
@@ -56,11 +60,10 @@ jobs:
             cross: false
             cargo_command: cargo
 
-          # Windows
-          - name: Windows x86_64
-            # Use another GitHub action OS
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+          # # Windows
+          # - name: Windows x86_64
+          #   os: windows-latest
+          #   target: x86_64-pc-windows-msvc
 
     steps:
       - name: Checkout Git repo
