@@ -82,7 +82,12 @@ impl Application {
         Ok(Self {
             database_connection: database_connection.clone(),
             connector: saml_connector,
-            token_service: Arc::new(TokenService::new(config.base_url.clone(), config.token.lifetime, jwks, kid)),
+            token_service: Arc::new(TokenService::new(
+                config.base_url.join(config.path_prefix.as_deref().unwrap_or_default())?,
+                config.token.lifetime,
+                jwks,
+                kid,
+            )),
             machine_identity_service: Arc::new(MachineIdentityService {}),
             workspace_service: Arc::new(WorkspaceService::new(
                 database_connection.clone(),
