@@ -1,0 +1,15 @@
+{
+  "docsSidebar": [
+    {
+      "type": "category",
+      "label": "Getting Started",
+      "items": [
+        {
+          "type": "doc",
+          "label": "What is Nebula?",
+          "id": "getting-started/introduction"
+        }
+      ]
+    }
+  ]
+}

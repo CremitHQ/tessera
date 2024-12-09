@@ -1,0 +1,177 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Authority Configuration Guide
+The Authority server is a pivotal component of Nebula, responsible for issuing user keys based on user attributes and exposing the public keys used for encryption. This guide provides a detailed explanation of the Authority configuration file, enabling you to tailor Nebula to your specific environment and requirements.
+
+## Configuration File Overview
+Below is an example of an Authority configuration file:
+```toml
+port = 8090
+jwks_url = "http://authorization:9000/jwks"
+# if you want to disarm the key shares on the startup, you can specify the key shares.
+# NOTE: This is a dangerous option. Please use it only for testing or you can manage the key shares securely.
+# disarm_key_shares = ["...key1...", "...key2...", ...]
+
+[backbone]
+host = "http://backbone:8080"
+
+[storage]
+type = "POSTGRES"
+host = "db"
+port = 5432
+database_name = "postgres"
+auth.method = "CREDENTIAL"
+auth.username = "postgres"
+auth.password = "password"
+
+[authority]
+name = "Authority" # Change this to the name of your authority
+```
+
+This configuration file is written in [TOML](https://toml.io/) format and is divided into several sections.
+
+---
+
+## Configuration Details
+
+### Port
+`port` specifies the port on which the Authority server listens for incoming requests.
+
+### (Optional) Path Prefix
+`path_prefix` specifies the path prefix for the Authorization server. This is useful when the Authorization server is behind a reverse proxy or load balancer.
+
+```toml
+path_prefix = "/auth"
+```
+
+### JWKs URL Configuration
+`jwks_url` where the Authorization server exposes its [JSON Web Key Set (JWKS)](https://datatracker.ietf.org/doc/html/rfc7517) endpoint.
+
+:::note
+Ensure that the `jwks_url` is accessible from the Backbone server.
+:::
+
+### (Optional) JWKs Refresh Interval
+`jwks_refresh_interval` specifies the interval (in seconds) at which the server revalidates the JWKs from the authorization server.
+- Default: `10` seconds
+
+### (Optional) Disarm Key Shares
+`disarm_key_shares` specifies the key shares to disarm on startup automatically.
+
+:::danger
+This option is dangerous and should be used only for testing purposes or when managing key shares securely.
+:::
+
+
+### Backbone Configuration
+`[backbone]` section configures the connection to the Backbone server.
+
+#### Host
+`host` specifies the hostname or IP address of the Backbone server.
+
+_example_:
+```toml
+[backbone]
+host = "http://backbone:8080"
+```
+
+### Authority Configuration
+`[authority]` section allows you to specify the name of the authority.
+
+#### Name
+`name` specifies the name of the authority.
+
+:::warning
+Ensure that the authority name is unique in the authority server.
+:::
+
+_example_:
+```toml
+[authority]
+name = "Authority"
+```
+
+
+### Storage Configuration
+`[storage]` section configures the storage backend used by the authority server. Supported storage types are:
+- `POSTGRES`: PostgreSQL database
+- `FILE`: File-based storage
+
+<Tabs>
+  <TabItem value="POSTGRES" label="PostgreSQL">
+  #### Database Configuration
+  `[database]` section configures the connection to the PostgreSQL database used to store secrets and metadata.
+
+  ##### Host
+  `host` specifies the hostname or IP address of the PostgreSQL database server.
+
+  ##### Port
+  `port` specifies the port on which the PostgreSQL database server is listening.
+
+  ##### Database Name
+  `database_name` specifies the name of the PostgreSQL database for storing the workspace metadata.
+
+  ##### Authentication Method
+  `auth.method` specifies the authentication method used to connect to the PostgreSQL database. The available options are:
+  - `CREDENTIAL`: Uses a username and password for authentication.
+  - `RDS_IAM_AUTH`: Uses AWS RDS IAM authentication.
+
+  <Tabs>
+    <TabItem value="CREDENTIAL" label="Credential">
+  ##### Username
+  `auth.username` specifies the username used to authenticate with the PostgreSQL database.
+  ##### Password
+  `auth.password` specifies the password used to authenticate with the PostgreSQL database.
+    </TabItem>
+    <TabItem value="RDS_IAM_AUTH" label="AWS RDS IAM">
+  #####  Username
+  `auth.username` specifies the username used to authenticate with the PostgreSQL database.
+      </TabItem>
+  </Tabs>
+  </TabItem>
+  <TabItem value="FILE" label="File">
+    #### File Configuration
+    `[file]` section configures the file-based storage.
+
+    ##### Path
+    `path` specifies the path to the directory where the secrets and metadata are stored.
+
+    _example_:
+    ```toml
+    [storage]
+    type = "FILE"
+    path = "/var/nebula/path"
+    ```
+
+  </TabItem>
+
+
+</Tabs>
+
+
+### CORS Configuration
+`[cors]` section allows you to configure Cross-Origin Resource Sharing (CORS) settings for the Backbone server. The available options are:
+- `ALLOW_ALL`: Allows requests from any origin.
+- `ALLOW_LIST`: Allows requests from specific origins. Also, wildcard characters can be used to match multiple origins.
+
+
+<Tabs>
+  <TabItem value="ALLOW_ALL" label="All Origins">
+```toml
+[cors]
+type = "ALLOW_ALL"
+```
+  </TabItem>
+  <TabItem value="ALLOW_LIST" label="List">
+```toml
+[cors]
+type = "ALLOW_LIST"
+domains = ["http://localhost:3000", "https://*.example.com"]
+```
+:::warning
+Wildcard characters should be used only once in the origin URL. (e.g., `https://*.example.com`).
+:::
+
+    </TabItem>
+</Tabs>

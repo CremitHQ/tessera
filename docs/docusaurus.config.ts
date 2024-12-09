@@ -1,83 +1,104 @@
-import { themes as prismThemes } from 'prism-react-renderer';
-import type { Config } from '@docusaurus/types';
-import type * as Preset from '@docusaurus/preset-classic';
+import { themes as prismThemes } from "prism-react-renderer";
+import type { Config } from "@docusaurus/types";
+import type * as Preset from "@docusaurus/preset-classic";
 
 const config: Config = {
-  title: 'Nebula',
+  title: "Nebula",
   tagline:
-    'A secret manager offering robust Attribute-Based Encryption (ABE) for secure data protection.',
-  favicon: 'img/favicon.ico',
+    "A secret manager offering robust Attribute-Based Encryption (ABE) for secure data protection.",
+  favicon: "img/favicon.ico",
 
   // Set the production url of your site here
-  url: 'https://docs.cremit.io',
+  url: "https://docs.cremit.io",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/nebula',
+  baseUrl: "/nebula",
   trailingSlash: false,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'CremitHQ', // Usually your GitHub org/user name.
-  projectName: 'nebula', // Usually your repo name.
+  organizationName: "CremitHQ", // Usually your GitHub org/user name.
+  projectName: "nebula", // Usually your repo name.
 
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: "warn",
+  onBrokenMarkdownLinks: "warn",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: "en",
+    locales: ["en"],
   },
 
   presets: [
     [
-      'classic',
+      "classic",
       {
         docs: {
-          sidebarPath: './sidebars.ts',
+          sidebarPath: "./sidebars.ts",
           // Please change this to your repo.
           // Remove this to remove the "edit this page" links.
-          editUrl: 'https://github.com/CremitHQ/nebula/tree/main/docs/docs/',
+          editUrl: "https://github.com/CremitHQ/nebula/tree/main/docs/docs/",
         },
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: "./src/css/custom.css",
         },
       } satisfies Preset.Options,
     ],
   ],
 
   themeConfig: {
-    image: 'img/social-card.jpg',
+    image: "img/social-card.jpg",
     navbar: {
-      title: 'Nebula',
+      title: "Nebula",
       logo: {
-        alt: 'Nebula Logo',
-        src: 'img/logo.png',
+        alt: "Nebula Logo",
+        src: "img/nebula-logo.svg",
       },
       items: [
         {
-          type: 'docSidebar',
-          sidebarId: 'docsSidebar',
-          position: 'left',
-          label: 'Docs',
+          type: "docSidebar",
+          sidebarId: "docsSidebar",
+          position: "left",
+          label: "Docs",
         },
         {
-          href: 'https://github.com/CremitHQ/nebula',
-          label: 'GitHub',
-          position: 'right',
+          type: "docsVersionDropdown",
+          position: "right",
+        },
+        {
+          href: "https://github.com/CremitHQ/nebula",
+          label: "GitHub",
+          position: "right",
         },
       ],
     },
     footer: {
-      copyright: `© Cremit, Inc.`,
+      copyright: "© Cremit, Inc.",
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ["bash", "toml"],
     },
   } satisfies Preset.ThemeConfig,
+  markdown: {
+    mermaid: true,
+  },
+  themes: ["@docusaurus/theme-mermaid"],
+  plugins: [
+    [
+      "@docusaurus/plugin-ideal-image",
+      {
+        quality: 90,
+        max: 2048,
+        min: 640,
+        steps: 3,
+        disableInDev: false,
+      },
+    ],
+  ],
 };
 
 export default config;
