@@ -13,6 +13,22 @@ The steps outlined below provide a general guide for self-hosting Nebula Service
 
 
 ### Download the Docker Compose Template
+
+You can get the nebula latest docker compose file by running the following command:
+
+<Tabs>
+  <TabItem value="curl" label="curl">
+```sh
+curl -o docker-compose.yaml https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
+```
+  </TabItem>
+    <TabItem value="wget" label="wget">
+```sh
+wget -O docker-compose.yaml https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
+```
+    </TabItem>
+</Tabs>
+
 :::info
 If you want to build the docker image from the source code, you can clone the repository and build the image using the following commands:
 
@@ -23,20 +39,6 @@ docker-compose -f docker-compose.build.yaml up -d
 ```
 :::
 
-You can get the nebula latest docker compose file by running the following command:
-
-<Tabs>
-  <TabItem value="curl" label="curl">
-```sh
-curl -o https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
-```
-  </TabItem>
-    <TabItem value="wget" label="wget">
-```sh
-wget -O https://raw.githubusercontent.com/CremitHQ/nebula/main/docker-compose.yaml
-```
-    </TabItem>
-</Tabs>
 
 ### Download the Configurations
 
@@ -45,6 +47,7 @@ You can get the nebula configurations by running the following command:
   <TabItem value="curl" label="curl">
 ```sh
 mkdir -p config
+curl -o .db.env https://raw.githubusercontent.com/CremitHQ/nebula/main/.db.env.example
 curl -o config/backbone_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/backbone_config.toml.example
 curl -o config/authority_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authority_config.toml.example
 curl -o config/authorization_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authorization_config.toml.example
@@ -53,6 +56,7 @@ curl -o config/authorization_config.toml https://raw.githubusercontent.com/Cremi
     <TabItem value="wget" label="wget">
 ```sh
 mkdir -p config
+wget -O .db.env https://raw.githubusercontent.com/CremitHQ/nebula/main/.db.env.example
 wget -O config/backbone_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/backbone_config.toml.example
 wget -O config/authority_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authority_config.toml.example
 wget -O config/authorization_config.toml https://raw.githubusercontent.com/CremitHQ/nebula/main/config/authorization_config.toml.example
@@ -62,11 +66,18 @@ wget -O config/authorization_config.toml https://raw.githubusercontent.com/Cremi
 
 ### Update Your Configurations
 
-Update the configurations in the `config` directory according to your requirements:
+Update the `.db.env` file with your PostgreSQL configurations:
+```sh
+PGUSER=postgres
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=password
+```
 
+Update the following configuration files with your desired settings in the `config` directory:
 - [Backbone Configuration](/docs/config/backbone)
 - [Authority Configuration](/docs/config/authority)
 - [Authorization Configuration](/docs/config/authorization)
+
 
 
 ### Start Nebula Services
