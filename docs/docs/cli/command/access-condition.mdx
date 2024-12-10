@@ -1,0 +1,32 @@
+# `nebula access-condtion`
+Manage the access conditions for secrets.
+
+## Subcommands
+
+### `nebula access-condition list`
+
+The `nebula access-condition list` command lists the access conditions that are registered into the backbone server. The command returns the access condition id, name, and expression of each access condition.
+
+
+
+### `nebula access-condtion create`
+
+The `nebula access-condtion create` command creates a new access condition in the backbone server.
+
+#### Flags
+- `-n, --name <name>`: The name of the access condition. (required)
+- `-e, --expression <expression>`: The expression of the access condition. (required)
+
+Expression syntax:
+```
+("<attribute_key>=<attribute_value>@<authority_name>#<version>")
+
+Note:
+The expression must be enclosed in double quotes.
+The expression can be a combination of multiple conditions using logical operators (AND, OR).
+If you didn't roll the version, the default version is 1.
+
+
+Example:
+(("group=admin@Authority#1") AND ("role=manager@Authority#1")) OR ("group=infra@Authority#1"))
+```

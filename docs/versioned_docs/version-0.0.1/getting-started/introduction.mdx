@@ -2,55 +2,62 @@ import Image from '@theme/IdealImage';
 import overviewDiagram from './overview-diagram.png';
 
 
+# Introduction
 
-# What is Nebula?
+## The Problem
+Traditionally, organizations have stored sensitive information and credentials in centralized systems, where a single server or service oversees access to secrets. While this centralized approach simplifies management, it introduces critical vulnerabilities. Chief among these is the **Single Point of Failure (SPOF)**, which can compromise the entire secret management infrastructure.
+- **Insider Threats**: Central server administrators hold significant power over the secret management system. If they leak or misuse sensitive information, such as API keys or user credentials, they can compromise the entire security framework.
+- **Vulnerability to External attacks**: An attacker who gains elevated privileges within the central system could gain access to all managed secrets, potentially causing catastrophic damage.
+- **Limited Scalability**: As organizations grow, centralized systems often struggle to scale effectively. Scaling typically requires distributing physical servers, which increases infrastructure complexity and costs while potentially degrading usability and performance.
+- **Lack of Data Owner Control**: Centralized secret management leaves access control in the hands of server administrators, limiting the control data owners have over permissions. This can result in security gaps, as owners are unable to tailor policies to specific needs and contexts.
+
+## The Solution
+Nebula, our open-source secret management system leveraging Multi-Authority Attribute-Based Encryption (MA-ABE), offers a robust alternative to centralized approaches by addressing the limitations and vulnerabilities.
+
+- **Distributed Management**: By distributing the management of keys across multiple authorities, Nebula eliminates reliance on a single central system, thereby mitigating the risks associated with SPOF. This approach facilitates scalability without compromising security and system usability.
+- **Flexible Access Control**: MA-ABE enables granular, attribute-based access controls for secure and customized permission management, tailored to organizational needs. This allows data owners to define and enforce access policies, without relying solely on central administrators.
+- **Enhanced Security**: Secrets are stored in a distributed manner and protected using attribute-based encryption, ensuring they are inaccessible without the necessary attributes controlled by other authorities—even if one authority or backbone server is compromised. Additionally, the implementation of E2EE (End-to-End Encryption) further safeguards data by ensuring that encryption and decryption occur exclusively between authorized parties, reducing the risk of interception or unauthorized access during transmission and storage.
+
+## What is Nebula?
 
 <Image img={overviewDiagram} />
 
-[Nebula](https://github.com/CremitHQ/nebula) is a comprehensive platform for secret management, designed to support various applications and use cases. It provides a secure, scalable, and flexible solution for storing and controlling access to sensitive information across multiple domains and organizations.
+[Nebula](https://github.com/CremitHQ/nebula) is an open-source, scalable, secure, and decentralized secret management platform that leverages Multi-Authority Attribute-Based Encryption (MA-ABE) to address the limitations of centralized approaches. It supports diverse applications and use cases, providing a flexible solution for securely storing and managing access to sensitive information across various domains and organizations.
 
-- Multi-Authority Attribute-Based Encryption (MA-ABE) is the core cryptographic protocol used by Nebula to securely store and control access to secrets. It allows for fine-grained access control based on user attributes across multiple authorities.
 
-- A key security feature of Nebula is its end-to-end encryption(E2EE) model. All encryption and decryption operations are performed on the client side, ensuring that sensitive data never leaves the client in an unencrypted form. This approach significantly enhances security by reducing the attack surface and eliminating the need to trust the server with unencrypted secrets.
+### Nebula's Goals
 
-- The Nebula protocol operates over a secure transport layer (e.g., TLS) that provides integrity, server authentication, confidentiality, and transport channel binding.
+Provide a secure and decentralized secret management infrastructure for organizations and applications. This infrastructure aims to achieve the following goals:
 
-#### Nebula objectives
+   - **Enhance Security**: Eliminate centralized key management servers to reduce single points of failure and enhance overall system security.
 
-1. Provide a secure and decentralized secret management infrastructure for organizations and applications. This infrastructure aims to achieve the following qualities:
+   - **Distribute Authority**: Distribute authority across multiple entities to enhance security and minimize the impact of a compromised authority.
 
-   - Enhanced Security: Eliminate the need for centralized key management servers, reducing the risk of single point of failure and improving overall system security.
+   - **Fine-Grained Access Control**: Leverage attribute-based policies for precise and flexible access control. So that organizations can define and enforce complex rules based on user roles and attributes.
 
-   - Distributed Authority: Separate and distribute authority across multiple entities, enhancing security and reducing the potential impact of compromised authorities.
+   - **Flexible Authorization**: Support a variety of authentication/authorization protocols, including OIDC and SAML, allowing integration with existing identity and access management systems.
 
-   - Fine-grained Access Control: Utilize attribute-based policies to enable precise control over secret access, allowing organizations to define and enforce complex access rules based on user attributes and roles.
+   - **Flexible Storage Options**: Nebula supports a variety of storage backends, including PostgreSQL, etcd, and file-based storage, allowing organizations to select the storage solution that best fits their specific requirements. This flexibility enables seamless scaling of the secret management infrastructure without being constrained by storage limitations.
 
-   - Flexible Authentication: Support various authentication methods across different authorities, enabling organizations to use their preferred identity providers and authentication mechanisms.
+   - **Auditable**: Provide detailed logs and audit trails to track access events, changes, and system activities, enabling organizations to meet compliance requirements by enhancing transparency and accountability.
 
-   - Robust Validation: Validate client credentials against trusted third-party sources, similar to Vault's approach with Github, LDAP, AppRole, and others, ensuring the authenticity of access requests.
+   - **Advanced Secret Management Capabilities**: Features such as secret rotation and SSH secret engines are integrated through separate agents, allowing for automated and secure management of secrets. This ensures advanced features are isolated from core operations, maintaining system integrity and security.
 
-2. Offer a more secure and privacy-focused alternative to traditional centralized secret management solutions. Nebula aims to provide:
 
-   - Improved security against potential compromises of individual authorities in the system.
 
-   - Enhanced privacy through client-side encryption, ensuring that unencrypted secrets never leave the client.
-
-3. Balance robust security measures with user experience, prioritizing ease of integration for developers and simplicity of use for end-users across various platforms and devices.
-
-4. Provide a scalable and adaptable solution that can grow with organizations, supporting complex multi-domain and multi-organizational secret sharing scenarios while maintaining strict security standards.
-
-#### Why Nebula?
-
-TBD
-
-## Techincal Details and Architecture
+## Architecture
 
 ```mermaid
 sequenceDiagram
-    participant User
+    actor User
+    participant AZ as Authorization<br>Server
     participant BS as Backbone<br>Server
     participant ASA as Authority<br>Server A
     participant ASB as Authority<br>Server B
+
+
+    User->>AZ: Requests a token with a identity
+    AZ->>User: JWT(s) for each audience
 
     Note over BS, ASB: Share global parameters
     par Authority A
@@ -59,21 +66,16 @@ sequenceDiagram
         Note over ASB: Generate master key for attributes
     end
     par Request the User key to Authority A
-        User->>+ASA: createUserKey() with authentication
+        User->>+ASA: createUserKey() with JWT
         Note right of  ASA: Create a user's key <br>from the attributes granted to the user
         ASA->>-User: User key(s) of Attribute(s)
     and Authority B
-        User->>+ASB: createUserKey() with token
+        User->>+ASB: createUserKey() with JWT
         Note left of  ASB: Create a user's key <br>from the attributes granted to the user
         ASB->>-User: User key(s) of Attribute(s)
     end
 
-    loop Health check for Authority A
-        ASA-->>BS: ping
-    end
-    loop Health check for Authority B
-        ASB-->>BS: ping
-    end
+
     alt Encryption
         par Get public key from Authority A
             User->>+ASA: getPublicKey()
@@ -83,17 +85,17 @@ sequenceDiagram
             ASB->>-User: Retrieve the public key of Authority B
         end
 
-        User->>User: Encrypt the data key with ABE
-        User-->>BS: Save to backbone server
+        User-->>User: Encrypt the data with ABE
+        User->>BS: Save to backbone server
 
     else Decryption
         User->>+BS: getABEEntity(id)
         BS->>-User: Retrieve the encrypted entity based on attributes
-        User->>User: Decrypt with user key
+        User-->>User: Decrypt with user key(s)
     end
 ```
 
-TBD
+
 
 ## Acknowledgements
 

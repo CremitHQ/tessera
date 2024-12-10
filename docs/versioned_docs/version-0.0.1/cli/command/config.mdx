@@ -1,0 +1,17 @@
+# `nebula config`
+
+Manage the Nebula CLI configuration.
+
+## Subcommands
+
+### `nebula config init`
+The `nebula config init` command initializes the Nebula CLI configuration file.
+
+
+
+#### Flags
+- `-b, --backbone <backbone_url>`: The URL of the Backbone server. (optional)
+- `-a, --auth <authz_url>`: The URL of the Authorization server. (optional)
+- `--auth-method <auth_method>`: The authentication method to use. Supported values are `credential` and `machine-identity`.
+- `--machine-identity-token <machine_identity_token>`: The machine identity token to use for authentication. It is required if `auth-method` is set to `machine-identity`.
+- `-w, --workspace <workspace_name>`: The name of the workspace to use. (optional)

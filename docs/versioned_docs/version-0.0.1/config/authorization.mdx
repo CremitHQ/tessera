@@ -1,0 +1,272 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Authorization Configuration Guide
+
+The Authorization server is a critical component of Nebula, responsible for identifying and authenticating users through various identity providers (IdPs) and managing machine identities. This guide provides a detailed explanation of the Authorization configuration file, enabling you to tailor Nebula to your specific environment and requirements.
+
+## Configuration File Overview
+
+Below is an example of an Authorization configuration file:
+```toml
+port = 9000
+
+base_url = "http://localhost:9000" # External URL of the authorization server
+
+[database]
+host = "db"
+port = 5432
+database_name = "postgres"
+auth.method = "CREDENTIAL"
+auth.username = "postgres"
+auth.password = "password"
+
+[upstream_idp]
+type = "SAML"
+sso_url = "<fill in your IdP single sign-on URL>"
+idp_issuer = "<fill in your IdP issuer URL>"
+entity_id = "<fill in your entity ID>"
+ca = "<fill in you CA>" # ex) "-----BEGIN CERTIFICATE-----\nblabla...\n...blabla\n-----END CERTIFICATE-----"
+attributes = { type = "ALL" } # or { type = "MAPPING", claims = [["email_from_idp", "email"], ["name_from_idp", "derived_name"]] }
+admin_role.type = "ALL"
+
+# or "GROUP" if you want to specify the admin role by the group claim
+# admin_role.type = "GROUP"
+# admin_role.attribute_name = "group"
+# admin_role.admin_groups = ["ADMINSTRATOR"]
+
+[workspace]
+type = "STATIC"
+name = "default" # Change this to the name of your workspace
+
+# or "CLAIM" if you want to specify the workspace by the claim value
+# [workspace]
+# type = "CLAIM"
+# claim = "workspace" # Change this to the claim key of your workspace
+```
+This configuration file is written in [TOML](https://toml.io/) format and is divided into several sections.
+
+
+---
+## Configuration Details
+
+### Port
+`port` specifies the port on which the Backbone server listens for incoming requests.
+
+### Base URL
+`base_url` is the external URL where the Authorization server is accessible. This URL is used to construct the redirect URL for the Identity Provider (IdP). It is also used to construct the JWKs endpoint in JWT.
+
+### (Optional) Path Prefix
+`path_prefix` specifies the path prefix for the Authorization server. This is useful when the Authorization server is behind a reverse proxy or load balancer.
+
+```toml
+path_prefix = "/auth"
+```
+
+### (Optional) Token Configuration
+`[token]` section configures the token settings for the Authorization server.
+
+#### Token Lifetime
+`token.lifetime` specifies the lifetime of the JWT token in seconds.
+- Default: `6 * 3600` seconds (6 hours)
+
+#### JWKs
+`token.jwks` specifies the JSON Web Key Set (JWKS) used for token verification. This is useful when you want to use a custom JWKS endpoint.
+
+JWKs contain a keys array, where each key includes the following fields:
+- `kty`: Key type (e.g. RSA, EC)
+- `crv`: Curve (used only for EC key type)
+- `d`: Private key
+- `x`: X coordinate (EC key type only)
+- `y`: Y coordinate (EC key type only)
+- `alg`: Algorithm (e.g. RS256, ES256)
+- `kid`: Key Identifier
+- `use`: Key usage (e.g. sig, enc)
+
+_example_:
+```toml
+[[token.jwks.keys]]
+kty = "EC"
+crv = "P-256"
+d = "~~"
+x = "~~"
+y = "~~"
+alg = "ES256"
+kid = "default-key"
+use = "sig"
+
+[[token.jwks.keys]]
+kty = "EC"
+crv = "P-256"
+d = "~~"
+x = "~~"
+y = "~~"
+alg = "ES256"
+kid = "aux-key"
+use = "sig"
+```
+
+#### JWK key ID
+`token.jwk_kid` specifies the key ID used for token issuance when signing the JWT token.
+
+:::warning
+Make sure that the `token.jwk_kid` matches the `kid` field in one of the JWks.
+:::
+
+
+### Database Configuration
+`[database]` section configures the connection to the PostgreSQL database used by the Authorization server.
+
+#### Host
+`host` specifies the hostname or IP address of the PostgreSQL database server.
+
+#### Port
+`port` specifies the port on which the PostgreSQL database server is listening.
+
+#### Database Name
+`database_name` specifies the name of the PostgreSQL database for storing the workspace metadata.
+
+#### Authentication Method
+`auth.method` specifies the authentication method used to connect to the PostgreSQL database. The available options are:
+- `CREDENTIAL`: Uses a username and password for authentication.
+- `RDS_IAM_AUTH`: Uses AWS RDS IAM authentication.
+
+<Tabs>
+  <TabItem value="CREDENTIAL" label="Credential">
+#### Username
+`auth.username` specifies the username used to authenticate with the PostgreSQL database.
+#### Password
+`auth.password` specifies the password used to authenticate with the PostgreSQL database.
+  </TabItem>
+  <TabItem value="RDS_IAM_AUTH" label="AWS RDS IAM">
+####  Username
+`auth.username` specifies the username used to authenticate with the PostgreSQL database.
+    </TabItem>
+</Tabs>
+
+### CORS Configuration
+`[cors]` section allows you to configure Cross-Origin Resource Sharing (CORS) settings for the Backbone server. The available options are:
+- `ALLOW_ALL`: Allows requests from any origin.
+- `ALLOW_LIST`: Allows requests from specific origins. Also, wildcard characters can be used to match multiple origins.
+
+
+<Tabs>
+  <TabItem value="ALLOW_ALL" label="All Origins">
+```toml
+[cors]
+type = "ALLOW_ALL"
+```
+  </TabItem>
+  <TabItem value="ALLOW_LIST" label="List">
+```toml
+[cors]
+type = "ALLOW_LIST"
+domains = ["http://localhost:3000", "https://*.example.com"]
+```
+:::warning
+Wildcard characters should be used only once in the origin URL. (e.g., `https://*.example.com`).
+:::
+    </TabItem>
+</Tabs>
+
+### Upstream IdP Configuration
+`[upstream_idp]` section configures the Identity Provider (IdP) settings for the Authorization server. The available options are:
+- `SAML`: Specifies the IdP settings for SAML-based authentication.
+
+
+<Tabs>
+  <TabItem value="SAML" label="SAML">
+
+#### SSO URL
+`sso_url` specifies the single sign-on URL of the Identity Provider (IdP).
+
+#### IdP Issuer
+`idp_issuer` specifies the issuer URL of the Identity Provider (IdP).
+
+#### Entity ID
+`entity_id` specifies the entity ID of the Authorization server.
+
+#### CA
+`ca` specifies the certificate authority (CA) certificate used to verify the IdP's SSL certificate. The CA certificate should be in PEM format.
+
+#### Attributes
+`attributes` specifies the user attributes to be retrieved from the IdP. The available options are:
+- `ALL`: Retrieves all user attributes from the IdP.
+- `MAPPING`: Maps specific user attributes from the IdP to custom attributes.
+
+<Tabs>
+  <TabItem value="ALL" label="All">
+
+_example_:
+```toml
+attributes = { type = "ALL" }
+```
+  </TabItem>
+  <TabItem value="MAPPING" label="Mapping">
+`claims` specifies the mapping of user attributes from the IdP to custom attributes. The format is a list of tuples, where each tuple follows the pattern:
+
+`[<from_idp_attribute>, <into_custom_attribute>]`.
+
+_example_:
+```toml
+attributes = { type = "MAPPING", claims = [["email_from_idp", "email"], ["name_from_idp", "derived_name"]] }
+```
+  </TabItem>
+</Tabs>
+
+#### Admin Role
+`admin_role` specifies the role required to access the admin panel. The available options are:
+- `ALL`: Grants admin access to all users.
+- `GROUP`: Grants admin access based on the group claim.
+
+<Tabs>
+    <TabItem value="ALL" label="All">
+```toml
+admin_role.type = "ALL"
+```
+    </TabItem>
+    <TabItem value="GROUP" label="Group">
+`attribute_name` specifies the attribute name used for the group claim.
+`admin_groups` specifies the list of groups that have admin access.
+
+_example_:
+```toml
+admin_role.type = "GROUP"
+admin_role.attribute_name = "group"
+admin_role.admin_groups = ["ADMINSTRATOR"]
+```
+    </TabItem>
+</Tabs>
+  </TabItem>
+</Tabs>
+
+
+### Workspace Configuration
+`[workspace]` section configures the workspace settings for the Backbone server. The available options are:
+- `STATIC`: Uses a single workspace for all users.
+- `CLAIM`: Specifies the workspace by the claim value. This option is useful when you want to assign workspaces based on user claims.
+
+
+<Tabs>
+  <TabItem value="STATIC" label="Static">
+```toml
+[workspace]
+type = "STATIC"
+name = "<workspace_name>"
+```
+  </TabItem>
+  <TabItem value="CLAIM" label="Claim">
+```toml
+[workspace]
+type = "CLAIM"
+claim = "<claim_key>"
+```
+:::info
+You have to create and initialize for each workspace by the claim key in the database.
+:::
+:::note
+Make sure that the claim key must exist in the user's claim.
+:::
+
+    </TabItem>
+</Tabs>
