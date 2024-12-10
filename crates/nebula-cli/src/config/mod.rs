@@ -47,6 +47,10 @@ impl NebulaConfig {
 
     pub fn append(&self) -> anyhow::Result<()> {
         let config_file_path = config_file_path(None)?;
+        if !config_file_path.exists() {
+            std::fs::write(&config_file_path, "")?;
+        }
+
         let mut config: NebulaConfigs = Config::builder()
             .add_source(File::from(config_file_path.clone()).format(FileFormat::Toml))
             .build()?
