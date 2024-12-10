@@ -39,11 +39,43 @@ const sidebars: SidebarsConfig = {
           label: "Installation",
           id: "cli/install",
         },
-        // {
-        //   type: "category",
-        //   label: "Commands",
-        //   items: [],
-        // },
+        {
+          type: "category",
+          label: "Commands",
+          link: { type: "doc", id: "cli/command/index" },
+          items: [
+            {
+              type: "doc",
+              label: "Config",
+              id: "cli/command/config",
+            },
+            {
+              type: "doc",
+              label: "Login",
+              id: "cli/command/login",
+            },
+            {
+              type: "doc",
+              label: "Authority",
+              id: "cli/command/authority",
+            },
+            {
+              type: "doc",
+              label: "Path",
+              id: "cli/command/path",
+            },
+            {
+              type: "doc",
+              label: "Access Condition",
+              id: "cli/command/access-condition",
+            },
+            {
+              type: "doc",
+              label: "Secret",
+              id: "cli/command/secret",
+            },
+          ],
+        },
       ],
     },
 

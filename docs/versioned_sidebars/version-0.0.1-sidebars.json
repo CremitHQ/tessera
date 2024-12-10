@@ -6,8 +6,90 @@
       "items": [
         {
           "type": "doc",
-          "label": "What is Nebula?",
+          "label": "Introduction",
           "id": "getting-started/introduction"
+        },
+        {
+          "type": "doc",
+          "label": "Quick Start",
+          "id": "getting-started/quick-start"
+        },
+        {
+          "type": "doc",
+          "label": "Glossary",
+          "id": "getting-started/glossary"
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "CLI",
+      "items": [
+        {
+          "type": "doc",
+          "label": "Installation",
+          "id": "cli/install"
+        },
+        {
+          "type": "category",
+          "label": "Commands",
+          "link": {
+            "type": "doc",
+            "id": "cli/command/index"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "label": "Config",
+              "id": "cli/command/config"
+            },
+            {
+              "type": "doc",
+              "label": "Login",
+              "id": "cli/command/login"
+            },
+            {
+              "type": "doc",
+              "label": "Authority",
+              "id": "cli/command/authority"
+            },
+            {
+              "type": "doc",
+              "label": "Path",
+              "id": "cli/command/path"
+            },
+            {
+              "type": "doc",
+              "label": "Access Condition",
+              "id": "cli/command/access-condition"
+            },
+            {
+              "type": "doc",
+              "label": "Secret",
+              "id": "cli/command/secret"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Configurations",
+      "items": [
+        {
+          "type": "doc",
+          "label": "Backbone server",
+          "id": "config/backbone"
+        },
+        {
+          "type": "doc",
+          "label": "Authorization server",
+          "id": "config/authorization"
+        },
+        {
+          "type": "doc",
+          "label": "Authority server",
+          "id": "config/authority"
         }
       ]
     }
