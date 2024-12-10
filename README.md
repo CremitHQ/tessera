@@ -1,8 +1,8 @@
-<!-- <p align="center">
-  <img src="https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/ec559a9f6bfd399b82bb44393651661b08aaf7ba/icons/folder-markdown-open.svg" width="20%" alt="TESSERA-logo">
-</p> -->
 <p align="center">
-    <h1 align="center">🔐 Nebula</h1>
+  <img src="https://github.com/CremitHQ/nebula/blob/main/docs/static/img/social-card.jpg?raw=true" width="100%" alt="nebula-logo">
+</p>
+<p align="center">
+    <h1 align="center">💫 Nebula</h1>
 </p>
 <p align="center">
     <em>Scalable, Secure, and Decentralized Secret Management</em>
@@ -18,108 +18,31 @@
 </p>
 <br>
 
-## 🔗 Table of Contents
-
-- [🔗 Table of Contents](#-table-of-contents)
-- [📍 Overview](#-overview)
-- [👾 Features](#-features)
-- [🚀 Getting Started](#-getting-started)
-  - [☑️ Prerequisites](#️-prerequisites)
-  - [⚙️ Installation](#️-installation)
-  - [🤖 Usage](#-usage)
-  - [🧪 Testing](#-testing)
-- [🔰 Contributing](#-contributing)
-- [🎗 License](#-license)
-
----
-
-## 📍 Overview
-
-Nebula is an open-source secret management platform engineered to revolutionize how organizations protect and manage sensitive information. By leveraging advanced cryptographic protocols—specifically Multi-Authority Attribute-Based Encryption (MA-ABE)—Nebula provides a decentralized, flexible, and highly scalable solution for secure secret storage and granular access control.
-
-Designed to meet the rigorous security demands of modern enterprises, Nebula addresses the complex challenges of secret management across multiple domains and organizations. It offers a robust framework that not only enhances security but also adapts to the evolving needs of diverse systems.
-
----
-
-## 👾 Features
-
-|      | Feature         | Summary       |
-| :--- | :---:           | :---          |
-| ⚙️ | **Decentralized Architecture**  | <ul><li>Eliminates single points of failure by distributing authority across multiple trusted entities.</li><li>Enhances overall system security and resilience against targeted attacks.</li></ul> |
-| 🔐 | **End-to-End Encryption**  | <ul><li>Ensures all encryption and decryption processes occur on the client side.</li><li>Guarantees that unencrypted secrets never leave the user’s device.</li></ul> |
-| 📝 | **Audit** | <ul><li>Provides detailed logs of access events, changes, and system activities.</li><li>Supports compliance requirements by enabling thorough security audits.</li><li>Enhances transparency and accountability within the organization.</li></ul> |
-| 🔌 | **Integrations**  | <ul><li>Offers intuitive APIs and SDKs for seamless integration into applications and workflows.</li><li>Supports WebAssembly (`nebula-abe-wasm`) for cross-platform compatibility and performance-critical tasks.</li><li>Minimizes the learning curve and accelerates deployment times.</li></ul> |
-| 🎛️ | **Advanced Access Control**       | <ul><li>Enables fine-grained access control based on user attributes and roles.</li><li>Allows for the definition and enforcement of complex access policies across multiple authorities.</li><li>Supports secure collaboration and secret sharing in multi-organizational environments.</li></ul> |
-| ⚡️  | **Performance**   | <ul><li>Designed to scale effortlessly from startups to large enterprises.</li><li>Utilizes efficient cryptographic operations optimized for speed and security.</li></ul> |
-| 🛡️ | **Security**      | <ul><li>Supports various authentication methods.</li><li>Secure data handling with AES-GCM encryption for storage operations.</li><li>Facilitates multi-factor and federated authentication setups.</li></ul> |
-
----
-
-## 🚀 Getting Started
-
-### ☑️ Prerequisites
-
-Before getting started with nebula, ensure your runtime environment meets the following requirements:
-
-- **Programming Language:** Rust
-- **Package Manager:** Cargo
 
 
-### ⚙️ Installation
+## What is Nebula?
 
-Install nebula using one of the following methods:
+Nebula is an open-source, scalable, secure, and decentralized secret management platform that leverages Multi-Authority Attribute-Based Encryption (MA-ABE) to address the limitations of centralized approaches. It supports diverse applications and use cases, providing a flexible solution for securely storing and managing access to sensitive information across various domains and organizations.
 
-**Build from source:**
-
-1. Clone the nebula repository:
-```sh
-❯ git clone https://github.com/CremitHQ/nebula
-```
-
-2. Navigate to the project directory:
-```sh
-❯ cd nebula
-```
-
-3. Build the project:
+Look at the [Introduction](https://docs.cremit.io/nebula/docs/getting-started/introduction) to learn more about Nebula and its features.
 
 
-**Using `cargo`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Rust-000000.svg?style={badge_style}&logo=rust&logoColor=white" />](https://www.rust-lang.org/)
 
-```sh
-❯ cargo build -p $PACKAGE_NAME
-```
+## Getting Started
+
+
+- **[Quick Start Guide](https://docs.cremit.io/nebula/docs/getting-started/quick-start)**: A step-by-step guide to set up Nebula using the Docker Compose template.
 
 
 
 
-### 🤖 Usage
-Run nebula using the following command:
-**Using `cargo`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Rust-000000.svg?style={badge_style}&logo=rust&logoColor=white" />](https://www.rust-lang.org/)
-
-```sh
-❯ cargo run -p $PACKAGE_NAME
-```
 
 
-### 🧪 Testing
-Run the test suite using the following command:
-**Using `cargo`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Rust-000000.svg?style={badge_style}&logo=rust&logoColor=white" />](https://www.rust-lang.org/)
+## Contributing
 
-```sh
-❯ cargo test
-```
-
-
-
-
----
-
-## 🔰 Contributing
-
-- **💬 [Join the Discussions](https://github.com/CremitHQ/nebula/discussions)**: Share your insights, provide feedback, or ask questions.
-- **🐛 [Report Issues](https://github.com/CremitHQ/nebula/issues)**: Submit bugs found or log feature requests for the Nebula project.
-- **💡 [Contributing Guidelines](./CONTRIBUTING.md)**: Contributing to the Nebula project.
+- **[Join the Discussions](https://github.com/CremitHQ/nebula/discussions)**: Share your insights, provide feedback, or ask questions.
+- **[Report Issues](https://github.com/CremitHQ/nebula/issues)**: Submit bugs found or log feature requests for the Nebula project.
+- **[Contributing Guidelines](./CONTRIBUTING.md)**: Contributing to the Nebula project.
 
 
 <details open>
@@ -134,6 +57,6 @@ Run the test suite using the following command:
 
 ---
 
-## 🎗 License
+##  License
 
 This project is licensed under the [Apache License 2.0](./LICENSE). You are free to use, modify, and distribute this software under the terms of this license.
