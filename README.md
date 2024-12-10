@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/CremitHQ/nebula/blob/main/docs/static/img/social-card.jpg?raw=true" width="100%" alt="nebula-logo">
+  <img src="https://github.com/CremitHQ/nebula/blob/main/docs/static/img/social-card.jpg?raw=true" width="90%" alt="nebula-logo">
 </p>
 <p align="center">
     <h1 align="center">💫 Nebula</h1>
@@ -21,6 +21,8 @@
 
 
 ## What is Nebula?
+<img src="https://github.com/CremitHQ/nebula/blob/main/docs/docs/getting-started/overview-diagram.png?raw=true" width="100%" alt="nebula-logo">
+
 
 Nebula is an open-source, scalable, secure, and decentralized secret management platform that leverages Multi-Authority Attribute-Based Encryption (MA-ABE) to address the limitations of centralized approaches. It supports diverse applications and use cases, providing a flexible solution for securely storing and managing access to sensitive information across various domains and organizations.
 
