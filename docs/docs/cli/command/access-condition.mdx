@@ -9,9 +9,9 @@ The `nebula access-condition list` command lists the access conditions that are 
 
 
 
-### `nebula access-condtion create`
+### `nebula access-condition create`
 
-The `nebula access-condtion create` command creates a new access condition in the backbone server.
+The `nebula access-condition create` command creates a new access condition in the backbone server.
 
 #### Flags
 - `-n, --name <name>`: The name of the access condition. (required)
@@ -19,7 +19,7 @@ The `nebula access-condtion create` command creates a new access condition in th
 
 Expression syntax:
 ```
-("<attribute_key>=<attribute_value>@<authority_name>#<version>")
+("<attribute_key>=<attribute_value>@<authority_name>-<workspace_name>#<version>")
 
 Note:
 The expression must be enclosed in double quotes.
@@ -28,5 +28,5 @@ If you didn't roll the version, the default version is 1.
 
 
 Example:
-(("group=admin@Authority#1") AND ("role=manager@Authority#1")) OR ("group=infra@Authority#1"))
+(("group=admin@Authority-default#1") AND ("role=manager@Authority-default#1")) OR ("group=infra@Authority-test#1"))
 ```
