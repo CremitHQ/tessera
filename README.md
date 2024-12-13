@@ -1,7 +1,4 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CremitHQ/nebula/refs/heads/main/docs/static/img/social-card.jpg" width="90%" alt="nebula-logo">
-</p>
-<p align="center">
     <h1 align="center">💫 Nebula</h1>
 </p>
 <p align="center">
@@ -17,6 +14,9 @@
 	<!-- default option, no dependency badges. -->
 </p>
 <br>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CremitHQ/nebula/refs/heads/main/docs/static/img/social-card.jpg" width="90%" alt="nebula-logo">
+</p>
 
 
 
@@ -35,6 +35,8 @@ Look at the [Introduction](https://docs.cremit.io/nebula/docs/getting-started/in
 
 - **[Quick Start Guide](https://docs.cremit.io/nebula/docs/getting-started/quick-start)**: A step-by-step guide to set up Nebula using the Docker Compose template.
 
+### Demo
+[![asciicast](https://asciinema.org/a/694656.svg)](https://asciinema.org/a/694656)
 
 
 
