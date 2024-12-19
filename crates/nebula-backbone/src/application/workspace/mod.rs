@@ -5,10 +5,16 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::{
     database::Persistable,
-    domain::workspace::{Error as WorkspaceServiceError, Workspace, WorkspaceService},
+    domain::{
+        parameter::Error as ParameterError,
+        secret::Error as SecretError,
+        workspace::{Error as WorkspaceServiceError, Workspace, WorkspaceService},
+    },
 };
 
 use self::{command::CreatingWorkspaceCommand, data::WorkspaceData};
+
+use super::{ParameterService, SecretService};
 
 pub mod command;
 pub mod data;
@@ -20,20 +26,26 @@ pub(crate) trait WorkspaceUseCase {
     async fn delete_by_name(&self, name: &str) -> Result<()>;
 }
 
-#[derive(Default)]
-pub(crate) struct WorkspaceUseCaseImpl<W: WorkspaceService + Sync + Send> {
+pub(crate) struct WorkspaceUseCaseImpl {
     database_connection: Arc<DatabaseConnection>,
-    workspace_service: Arc<W>,
+    workspace_service: Arc<dyn WorkspaceService + Sync + Send>,
+    secret_service: Arc<dyn SecretService + Sync + Send>,
+    parameter_service: Arc<dyn ParameterService + Sync + Send>,
 }
 
-impl<W: WorkspaceService + Sync + Send> WorkspaceUseCaseImpl<W> {
-    pub fn new(database_connection: Arc<DatabaseConnection>, workspace_service: Arc<W>) -> Self {
-        Self { database_connection, workspace_service }
+impl WorkspaceUseCaseImpl {
+    pub fn new(
+        database_connection: Arc<DatabaseConnection>,
+        workspace_service: Arc<dyn WorkspaceService + Sync + Send>,
+        secret_service: Arc<dyn SecretService + Sync + Send>,
+        parameter_service: Arc<dyn ParameterService + Sync + Send>,
+    ) -> Self {
+        Self { database_connection, workspace_service, secret_service, parameter_service }
     }
 }
 
 #[async_trait]
-impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImpl<W> {
+impl WorkspaceUseCase for WorkspaceUseCaseImpl {
     async fn get_all(&self) -> Result<Vec<WorkspaceData>> {
         let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
 
@@ -49,6 +61,8 @@ impl<W: WorkspaceService + Sync + Send> WorkspaceUseCase for WorkspaceUseCaseImp
         let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
 
         self.workspace_service.create(&transaction, &cmd.name).await?;
+        self.secret_service.initialize_root_path(&transaction).await?;
+        self.parameter_service.create(&transaction).await?;
 
         transaction.commit().await.map_err(anyhow::Error::from)?;
 
@@ -87,6 +101,24 @@ pub enum Error {
     Anyhow(#[from] anyhow::Error),
 }
 
+impl From<SecretError> for Error {
+    fn from(value: SecretError) -> Self {
+        match value {
+            SecretError::Anyhow(e) => Self::Anyhow(e),
+            _ => Self::Anyhow(value.into()),
+        }
+    }
+}
+
+impl From<ParameterError> for Error {
+    fn from(value: ParameterError) -> Self {
+        match value {
+            ParameterError::Anyhow(e) => Self::Anyhow(e),
+            _ => Self::Anyhow(value.into()),
+        }
+    }
+}
+
 impl From<WorkspaceServiceError> for Error {
     fn from(value: WorkspaceServiceError) -> Self {
         match value {
@@ -104,12 +136,20 @@ mod test {
     use std::sync::Arc;
 
     use anyhow::anyhow;
+    use nebula_abe::{
+        curves::{bn462::Bn462Curve, PairingCurve},
+        schemes::isabella24::GlobalParams,
+    };
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use ulid::Ulid;
 
     use super::{command::CreatingWorkspaceCommand, Error, WorkspaceUseCase, WorkspaceUseCaseImpl};
 
-    use crate::domain::workspace::{Error as WorkspaceServiceError, MockWorkspaceService, Workspace};
+    use crate::domain::{
+        parameter::{MockParameterService, Parameter},
+        secret::MockSecretService,
+        workspace::{Error as WorkspaceServiceError, MockWorkspaceService, Workspace},
+    };
 
     #[tokio::test]
     async fn when_creating_workspace_use_case_should_delegate_to_service() {
@@ -123,29 +163,26 @@ mod test {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let mut secret_service_mock = MockSecretService::new();
+        secret_service_mock.expect_initialize_root_path().times(1).returning(|_| Ok(()));
+
+        let mut rng = <Bn462Curve as PairingCurve>::Rng::new();
+        let mut parameter_service_mock = MockParameterService::new();
+        parameter_service_mock
+            .expect_create()
+            .times(1)
+            .returning(move |_| Ok(Parameter { version: 1, value: GlobalParams::<Bn462Curve>::new(&mut rng) }));
+
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         workspace_use_case
             .create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() })
             .await
             .expect("creating workspace should be successful");
-    }
-
-    #[tokio::test]
-    async fn when_creating_workspace_succeed_use_case_should_returns_empty_ok() {
-        const WORKSPACE_NAME: &str = "testworkspace";
-        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
-        let mut workspace_service_mock = MockWorkspaceService::new();
-
-        workspace_service_mock
-            .expect_create()
-            .withf(|_, name| name == WORKSPACE_NAME)
-            .times(1)
-            .returning(|_, _| Ok(()));
-
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
-        let result = workspace_use_case.create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() }).await;
-
-        assert!(matches!(result, Ok(())));
     }
 
     #[tokio::test]
@@ -159,8 +196,15 @@ mod test {
             .withf(|_, name| name == WORKSPACE_NAME)
             .times(1)
             .returning(|_, _| Err(WorkspaceServiceError::Anyhow(anyhow!("some error"))));
+        let secret_service_mock = MockSecretService::new();
+        let parameter_service_mock = MockParameterService::new();
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         let result = workspace_use_case.create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() }).await;
 
         assert!(matches!(result, Err(Error::Anyhow(_))));
@@ -179,8 +223,15 @@ mod test {
             .withf(|_, name| name == WORKSPACE_NAME)
             .times(1)
             .returning(|_, _| Err(WorkspaceServiceError::WorkspaceNameConflicted));
+        let secret_service_mock = MockSecretService::new();
+        let parameter_service_mock = MockParameterService::new();
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         let result = workspace_use_case.create(CreatingWorkspaceCommand { name: WORKSPACE_NAME.to_owned() }).await;
 
         assert!(matches!(result, Err(Error::WorkspaceNameConflicted)));
@@ -195,8 +246,15 @@ mod test {
             .expect_get_all()
             .times(1)
             .returning(|_| Ok(vec![Workspace::new(Ulid::new(), "testworkspace".to_owned())]));
+        let secret_service_mock = MockSecretService::new();
+        let parameter_service_mock = MockParameterService::new();
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         let result = workspace_use_case.get_all().await;
 
         assert_eq!(result.expect("getting workspaces should be successful")[0].name, "testworkspace");
@@ -210,6 +268,8 @@ mod test {
 
         let mock_database = Arc::new(mock_database.into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
+        let secret_service_mock = MockSecretService::new();
+        let parameter_service_mock = MockParameterService::new();
 
         workspace_service_mock
             .expect_get_by_name()
@@ -217,7 +277,12 @@ mod test {
             .times(1)
             .returning(|_, _| Ok(Some(Workspace::new(Ulid::new(), "testworkspace".to_owned()))));
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         let result = workspace_use_case.delete_by_name(WORKSPACE_NAME).await;
 
         assert!(matches!(result, Ok(())));
@@ -229,13 +294,20 @@ mod test {
         let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
+        let secret_service_mock = MockSecretService::new();
+        let parameter_service_mock = MockParameterService::new();
         workspace_service_mock
             .expect_get_by_name()
             .withf(|_, name| name == WORKSPACE_NAME)
             .times(1)
             .returning(|_, _| Ok(None));
 
-        let workspace_use_case = WorkspaceUseCaseImpl::new(mock_database, Arc::new(workspace_service_mock));
+        let workspace_use_case = WorkspaceUseCaseImpl::new(
+            mock_database,
+            Arc::new(workspace_service_mock),
+            Arc::new(secret_service_mock),
+            Arc::new(parameter_service_mock),
+        );
         let result = workspace_use_case.delete_by_name(WORKSPACE_NAME).await;
 
         assert!(matches!(result, Err(Error::WorkspaceNotExists)));

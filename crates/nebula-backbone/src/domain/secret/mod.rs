@@ -608,6 +608,8 @@ pub(crate) trait SecretService {
     ) -> Result<()>;
 
     async fn get_path(&self, transaction: &DatabaseTransaction, path: &str) -> Result<Option<Path>>;
+
+    async fn initialize_root_path(&self, transaction: &DatabaseTransaction) -> Result<()>;
 }
 
 lazy_static! {
@@ -975,6 +977,22 @@ impl SecretService for PostgresSecretService {
             applied_path_policy::Entity::insert_many(applied_path_policy_models).exec(transaction).await?;
             applied_path_policy_allowed_action::Entity::insert_many(allowed_action_models).exec(transaction).await?;
         }
+
+        Ok(())
+    }
+
+    async fn initialize_root_path(&self, transaction: &DatabaseTransaction) -> Result<()> {
+        self.ensure_path_not_duplicated(transaction, "/").await?;
+
+        let now = Utc::now();
+        path::ActiveModel {
+            id: Set(Ulid::new().into()),
+            path: Set("/".to_owned()),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(transaction)
+        .await?;
 
         Ok(())
     }

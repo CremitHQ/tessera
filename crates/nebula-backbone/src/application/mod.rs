@@ -46,7 +46,12 @@ pub(crate) struct Application {
 
 impl Application {
     pub fn workspace(&self) -> impl WorkspaceUseCase {
-        WorkspaceUseCaseImpl::new(self.database_connection.clone(), self.workspace_service.clone())
+        WorkspaceUseCaseImpl::new(
+            self.database_connection.clone(),
+            self.workspace_service.clone(),
+            self.secret_service.clone(),
+            self.parameter_service.clone(),
+        )
     }
 
     pub fn with_workspace(&self, workspace_name: &str) -> ApplicationWithWorkspace {
