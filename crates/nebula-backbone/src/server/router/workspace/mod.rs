@@ -29,7 +29,7 @@ pub(crate) fn public_router(application: Arc<Application>) -> axum::Router {
 
 pub(crate) fn router(application: Arc<Application>) -> axum::Router {
     let admin_routers = Router::new()
-        .route("/:workspace_name", delete(handle_delete_workspace))
+        .route("/workspaces/:workspace_name", delete(handle_delete_workspace))
         .route_layer(middleware::from_fn(check_admin_role))
         .route_layer(middleware::from_fn(check_workspace_name));
     Router::new().merge(admin_routers).with_state(application)
