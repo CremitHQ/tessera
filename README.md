@@ -11,11 +11,11 @@
 	<img src="https://img.shields.io/github/languages/count/CremitHQ/nebula?style=default&color=0080ff" alt="repo-language-count">
 </p>
 <p align="center">
-	<!-- default option, no dependency badges. -->
+	<a href="https://www.producthunt.com/posts/nebula-9?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-nebula&#0045;9" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=647694&theme=neutral" alt="Nebula - Multi&#0045;authority&#0032;secret&#0032;management&#0032;with&#0032;advanced&#0032;encryption | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </p>
 <br>
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CremitHQ/nebula/refs/heads/main/docs/static/img/social-card.jpg" width="90%" alt="nebula-logo">
+<!--   <img src="https://raw.githubusercontent.com/CremitHQ/nebula/refs/heads/main/docs/static/img/social-card.jpg" width="90%" alt="nebula-logo"> -->
 </p>
 
 
