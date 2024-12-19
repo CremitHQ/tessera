@@ -155,7 +155,9 @@ mod test {
     #[tokio::test]
     async fn when_creating_workspace_use_case_should_delegate_to_service() {
         const WORKSPACE_NAME: &str = "testworkspace";
-        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+        let mock_connection = Arc::new(mock_database.into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
         workspace_service_mock
@@ -175,7 +177,7 @@ mod test {
             .returning(move |_| Ok(Parameter { version: 1, value: GlobalParams::<Bn462Curve>::new(&mut rng) }));
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(
-            mock_database,
+            mock_connection,
             Arc::new(workspace_service_mock),
             Arc::new(secret_service_mock),
             Arc::new(parameter_service_mock),
@@ -189,7 +191,9 @@ mod test {
     #[tokio::test]
     async fn when_creating_workspace_failed_with_anyhow_use_case_should_returns_anyhow() {
         const WORKSPACE_NAME: &str = "testworkspace";
-        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+        let mock_connection = Arc::new(mock_database.into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
         workspace_service_mock
@@ -201,7 +205,7 @@ mod test {
         let parameter_service_mock = MockParameterService::new();
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(
-            mock_database,
+            mock_connection,
             Arc::new(workspace_service_mock),
             Arc::new(secret_service_mock),
             Arc::new(parameter_service_mock),
@@ -216,7 +220,9 @@ mod test {
     async fn when_creating_workspace_failed_with_workspace_name_conflicted_use_case_should_returns_workspace_name_conflicted_err(
     ) {
         const WORKSPACE_NAME: &str = "testworkspace";
-        let mock_database = Arc::new(MockDatabase::new(DatabaseBackend::Postgres).into_connection());
+        let mock_database = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult { last_insert_id: 0, rows_affected: 1 }]);
+        let mock_connection = Arc::new(mock_database.into_connection());
         let mut workspace_service_mock = MockWorkspaceService::new();
 
         workspace_service_mock
@@ -228,7 +234,7 @@ mod test {
         let parameter_service_mock = MockParameterService::new();
 
         let workspace_use_case = WorkspaceUseCaseImpl::new(
-            mock_database,
+            mock_connection,
             Arc::new(workspace_service_mock),
             Arc::new(secret_service_mock),
             Arc::new(parameter_service_mock),
