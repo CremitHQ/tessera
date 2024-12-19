@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.0.2"
 edition = "2021"
-authors = ["John Choi <john@cremit.io>"]
+authors = ["John Choi <john@cremit.io>", "Boris Im <boris@cremit.io>"]
 repository = "https://github.com/cremithq/nebula"
 keywords = ["secret", "vault"]
 categories = ["security"]
