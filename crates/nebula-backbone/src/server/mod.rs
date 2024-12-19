@@ -44,11 +44,11 @@ pub(super) async fn run(application: Application, config: ServerConfig) -> anyho
     let application = Arc::new(application);
     let public_router = Router::new()
         .route("/health", get(|| async { "" }))
-        .nest("/workspaces", router::workspace::public_router(application.clone()))
+        .merge(router::workspace::public_router(application.clone()))
         .merge(router::parameter::public_router(application.clone()));
 
     let protected_router = Router::new()
-        .nest("/workspaces", router::workspace::router(application.clone()))
+        .merge(router::workspace::router(application.clone()))
         .merge(router::secret::router(application.clone()))
         .merge(router::parameter::router(application.clone()))
         .merge(router::policy::router(application.clone()))
