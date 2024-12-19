@@ -14,7 +14,7 @@ use crate::{
 
 use self::{command::CreatingWorkspaceCommand, data::WorkspaceData};
 
-use super::{ParameterService, SecretService};
+use super::{database::WorkspaceScopedTransaction, ParameterService, SecretService};
 
 pub mod command;
 pub mod data;
@@ -58,7 +58,8 @@ impl WorkspaceUseCase for WorkspaceUseCaseImpl {
     }
 
     async fn create(&self, cmd: CreatingWorkspaceCommand) -> Result<()> {
-        let transaction = self.database_connection.begin().await.map_err(anyhow::Error::from)?;
+        let transaction =
+            self.database_connection.begin_with_workspace_scope(&cmd.name).await.map_err(anyhow::Error::from)?;
 
         self.workspace_service.create(&transaction, &cmd.name).await?;
         self.secret_service.initialize_root_path(&transaction).await?;

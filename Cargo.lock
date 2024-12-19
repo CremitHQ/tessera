@@ -2616,7 +2616,7 @@ checksum = "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b"
 
 [[package]]
 name = "nebula-abe"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-abe-wasm"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "base64 0.22.1",
  "console_error_panic_hook",
@@ -2654,7 +2654,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-authority"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2689,7 +2689,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-authorization"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2729,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-backbone"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2772,7 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-cli"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2804,18 +2804,18 @@ dependencies = [
 
 [[package]]
 name = "nebula-common"
-version = "0.0.2"
+version = "0.0.3"
 
 [[package]]
 name = "nebula-config-path"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "winapi",
 ]
 
 [[package]]
 name = "nebula-miracl"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "serde",
  "zeroize",
@@ -2823,7 +2823,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-policy"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "pest",
  "pest_derive",
@@ -2833,7 +2833,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-secret-sharing"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "rand",
  "serde",
@@ -2846,7 +2846,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-storage"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "aes-gcm",
  "bon",
@@ -2864,7 +2864,7 @@ dependencies = [
 
 [[package]]
 name = "nebula-token"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
